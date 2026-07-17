@@ -22,7 +22,12 @@ build/
 # Temporary files
 *.tmp
 *.log
+*.tsbuildinfo
 .cache/
+
+# TypeScript build output for config files
+vite.config.js
+vite.config.d.ts
 
 # OS
 Thumbs.db
