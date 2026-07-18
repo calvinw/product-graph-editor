@@ -31,6 +31,10 @@ button, input { font: inherit; }
 .canvas-wrap { position: relative; min-width: 0; overflow: hidden; background-color: #0b0d10; background-image: radial-gradient(#242831 1px, transparent 1px); background-size: 22px 22px; }
 .canvas-wrap::after { content: ""; pointer-events: none; position: absolute; inset: 0; background: radial-gradient(circle at 50% 42%, transparent 0, rgba(11,13,16,.13) 56%, rgba(11,13,16,.72) 100%); }
 .canvas-head { position: absolute; z-index: 2; left: 28px; right: 28px; top: 22px; display: flex; align-items: center; justify-content: space-between; pointer-events: none; }
+.canvas-actions { display: flex; align-items: center; gap: 10px; pointer-events: auto; }
+.view-tabs { display: flex; padding: 3px; border: 1px solid #2c3037; border-radius: 8px; background: rgba(17,19,24,.92); }
+.view-tabs button { height: 26px; padding: 0 10px; border: 0; border-radius: 5px; color: #747b86; background: transparent; font-size: 11px; cursor: pointer; }
+.view-tabs button.is-active { color: #f4f4f5; background: #292d35; box-shadow: 0 1px 4px rgba(0,0,0,.28); }
 .eyebrow { margin: 0 0 5px; color: #707681; font-size: 9px; font-weight: 750; letter-spacing: .16em; }
 h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
 .search { pointer-events: auto; display: flex; align-items: center; gap: 8px; width: 238px; height: 34px; padding: 0 9px; color: #7f8590; border: 1px solid #2c3037; border-radius: 8px; background: rgba(17,19,24,.9); box-shadow: 0 8px 30px rgba(0,0,0,.24); }
@@ -39,6 +43,14 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
 .reactflow-canvas { position: absolute; inset: 0; z-index: 1; }
 .reactflow-canvas .react-flow__pane { cursor: default; }
 .reactflow-canvas .react-flow__handle { width: 1px; height: 1px; min-width: 0; min-height: 0; border: 0; background: transparent; pointer-events: none; }
+.yaml-editor { position: absolute; z-index: 1; inset: 92px 28px 28px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; border: 1px solid #292e37; border-radius: 12px; overflow: hidden; background: rgba(14,17,22,.97); box-shadow: 0 18px 55px rgba(0,0,0,.3); }
+.yaml-editor-head, .yaml-editor-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 15px; background: #13161c; }
+.yaml-editor-head { border-bottom: 1px solid #292e37; }.yaml-editor-foot { border-top: 1px solid #292e37; }
+.yaml-editor-head > div { display: grid; gap: 3px; }.yaml-editor-head strong { font-size: 12px; }.yaml-editor-head span, .yaml-editor-foot span { color: #737b88; font-size: 10px; }
+.yaml-upload { display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 10px; border: 1px solid #343944; border-radius: 7px; color: #c6cbd4; background: #1a1e25; font-size: 11px; cursor: pointer; }
+.yaml-upload:hover { border-color: #4b5260; color: #fff; }.yaml-upload input { display: none; }
+.yaml-editor textarea { width: 100%; height: 100%; resize: none; padding: 18px; border: 0; outline: 0; color: #cbd5e1; background: #0d1015; font: 12px/1.6 "SFMono-Regular", Consolas, "Liberation Mono", monospace; tab-size: 2; }
+.yaml-editor-foot .yaml-error { color: #fb7185; }
 
 .pg-node {
   --node-color: #e879f9;
@@ -76,6 +88,10 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
 .pg-flow-row small { color: #707784; font-size: 9px; font-weight: 500; text-transform: capitalize; }
 .pg-flow-empty { padding: 2px 0; color: #555d6a; font-size: 10px; }
 .pg-flow-divider { height: 1px; margin: 0 10px; background: color-mix(in srgb, var(--node-color) 70%, transparent); }
+.pg-emissions { padding: 8px 10px 10px; border-top: 1px solid #303541; background: rgba(251,113,133,.045); }
+.pg-emissions-title { margin-bottom: 5px; color: #fb7185; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.pg-emission-row { display: flex; align-items: center; justify-content: space-between; min-height: 20px; color: #c8cdd6; font-size: 11px; }
+.pg-emission-row strong { color: #fda4af; font-size: 10px; font-weight: 650; }
 .pg-node-icon {
   display: grid; place-items: center; flex: none;
   width: 18px; height: 18px; border-radius: 6px;

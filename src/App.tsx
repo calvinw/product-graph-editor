@@ -8,11 +8,12 @@ import "@xyflow/react/dist/style.css"
 import * as Tooltip from "@radix-ui/react-tooltip"
 import {
   Box, ChevronDown, Scan, LayoutGrid,
-  Link2, Maximize, Minus, MousePointer2, Plus, Search, Share2, Sparkles,
+  FileUp, Link2, Maximize, Minus, MousePointer2, Plus, Search, Share2, Sparkles,
 } from "lucide-react"
 import { Button } from "./components/ui/button"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
+import { buildGraphFromYaml } from "./lib/yamlGraph"
 
 type NodeMeta = { label: string; kind: string; detail: string }
 
@@ -68,6 +69,11 @@ function GraphEditor() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges)
   const [selected, setSelected] = useState<(NodeMeta & { id: string }) | null>(null)
   const [query, setQuery] = useState("")
+  const [view, setView] = useState<"graph" | "yaml">("graph")
+  const [yamlText, setYamlText] = useState("")
+  const [yamlError, setYamlError] = useState("")
+  const [graphTitle, setGraphTitle] = useState("Capability map")
+  const foldDirectionRef = useRef<"upstream" | "downstream">("downstream")
   const nodesRef = useRef(nodes)
   const edgesRef = useRef(edges)
   nodesRef.current = nodes
@@ -75,18 +81,19 @@ function GraphEditor() {
   const { fitView, zoomIn, zoomOut } = useReactFlow()
 
   const removeNode = useCallback((id: string) => {
-    const downstream = new Set<string>()
-    const visit = (source: string) => {
-      edgesRef.current.filter((edge) => edge.source === source).forEach((edge) => {
-        if (!downstream.has(edge.target)) { downstream.add(edge.target); visit(edge.target) }
+    const folded = new Set<string>()
+    const visit = (nodeId: string) => {
+      edgesRef.current.filter((edge) => foldDirectionRef.current === "upstream" ? edge.target === nodeId : edge.source === nodeId).forEach((edge) => {
+        const nextId = foldDirectionRef.current === "upstream" ? edge.source : edge.target
+        if (!folded.has(nextId)) { folded.add(nextId); visit(nextId) }
       })
     }
     visit(id)
-    if (!downstream.size) return
+    if (!folded.size) return
     setNodes((current) => current.map((node) => node.id === id
       ? { ...node, data: { ...node.data, canRestore: true } }
-      : downstream.has(node.id) ? { ...node, hidden: true } : node))
-    setEdges((current) => current.map((edge) => downstream.has(edge.source) || downstream.has(edge.target) ? { ...edge, hidden: true } : edge))
+      : folded.has(node.id) ? { ...node, hidden: true } : node))
+    setEdges((current) => current.map((edge) => folded.has(edge.source) || folded.has(edge.target) ? { ...edge, hidden: true } : edge))
   }, [setNodes, setEdges])
 
   const restoreNode = useCallback((id: string) => {
@@ -94,12 +101,13 @@ function GraphEditor() {
     const queue: Array<{ id: string; depth: number }> = [{ id, depth: 0 }]
     while (queue.length) {
       const current = queue.shift()!
-      edgesRef.current.filter((edge) => edge.source === current.id).forEach((edge) => {
+      edgesRef.current.filter((edge) => foldDirectionRef.current === "upstream" ? edge.target === current.id : edge.source === current.id).forEach((edge) => {
+        const nextId = foldDirectionRef.current === "upstream" ? edge.source : edge.target
         const nextDepth = current.depth + 1
-        const knownDepth = depths.get(edge.target)
+        const knownDepth = depths.get(nextId)
         if (knownDepth === undefined || nextDepth < knownDepth) {
-          depths.set(edge.target, nextDepth)
-          queue.push({ id: edge.target, depth: nextDepth })
+          depths.set(nextId, nextDepth)
+          queue.push({ id: nextId, depth: nextDepth })
         }
       })
     }
@@ -117,10 +125,12 @@ function GraphEditor() {
           hidden: false,
           data: {
             ...node.data,
-            canRestore: edgesRef.current.some((edge) => edge.source === node.id && hiddenAfterReveal.has(edge.target)),
+            canRestore: edgesRef.current.some((edge) => foldDirectionRef.current === "upstream"
+              ? edge.target === node.id && hiddenAfterReveal.has(edge.source)
+              : edge.source === node.id && hiddenAfterReveal.has(edge.target)),
           },
         } : node))
-    setEdges((current) => current.map((edge) => depths.has(edge.source) || depths.has(edge.target) || edge.source === id
+    setEdges((current) => current.map((edge) => depths.has(edge.source) || depths.has(edge.target) || (foldDirectionRef.current === "upstream" ? edge.target === id : edge.source === id)
       ? { ...edge, hidden: hiddenAfterReveal.has(edge.source) || hiddenAfterReveal.has(edge.target) }
       : edge))
   }, [setEdges, setNodes])
@@ -180,6 +190,31 @@ function GraphEditor() {
   const fit = () => fitView({ padding: 0.15, duration: 350 })
   const relayout = () => setNodes((current) => layoutNodes(current, edges))
 
+  const previewYaml = () => {
+    try {
+      const parsed = buildGraphFromYaml(yamlText)
+      foldDirectionRef.current = "upstream"
+      setEdges(parsed.edges)
+      setNodes(layoutNodes(parsed.nodes, parsed.edges))
+      setGraphTitle(parsed.name)
+      setSelected(null)
+      setYamlError("")
+      setView("graph")
+      requestAnimationFrame(() => fitView({ padding: 0.15, duration: 350 }))
+    } catch (error) {
+      setYamlError(error instanceof Error ? error.message : "Could not parse this YAML file.")
+    }
+  }
+
+  const loadYamlFile = (file?: File) => {
+    if (!file) return
+    if (!/\.ya?ml$/i.test(file.name)) { setYamlError("Choose a .yaml or .yml file."); return }
+    const reader = new FileReader()
+    reader.onload = () => { setYamlText(String(reader.result ?? "")); setYamlError("") }
+    reader.onerror = () => setYamlError("Could not read the selected file.")
+    reader.readAsText(file)
+  }
+
   const connectionCount = edges.length
 
   return (
@@ -202,10 +237,16 @@ function GraphEditor() {
 
       <div className="canvas-wrap">
         <div className="canvas-head">
-          <div><p className="eyebrow">PRODUCT ARCHITECTURE</p><h1>Capability map</h1></div>
-          <div className="search"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a node…" aria-label="Find a node" /><kbd>⌘ K</kbd></div>
+          <div><p className="eyebrow">PRODUCT GRAPH EDITOR</p><h1>{graphTitle}</h1></div>
+          <div className="canvas-actions">
+            <div className="view-tabs" role="tablist" aria-label="Graph views">
+              <button className={view === "graph" ? "is-active" : ""} onClick={() => setView("graph")}>Graph</button>
+              <button className={view === "yaml" ? "is-active" : ""} onClick={() => setView("yaml")}>YAML</button>
+            </div>
+            {view === "graph" ? <div className="search"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a node…" aria-label="Find a node" /><kbd>⌘ K</kbd></div> : null}
+          </div>
         </div>
-        <ReactFlow
+        {view === "graph" ? <ReactFlow
           className="reactflow-canvas"
           nodes={nodes}
           edges={edges}
@@ -221,11 +262,21 @@ function GraphEditor() {
           proOptions={{ hideAttribution: true }}
         >
           <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#242831" />
-        </ReactFlow>
-        <div className="legend">
+        </ReactFlow> : <div className="yaml-editor">
+          <div className="yaml-editor-head">
+            <div><strong>Product graph YAML</strong><span>Paste YAML or choose a local .yaml/.yml file.</span></div>
+            <label className="yaml-upload"><FileUp size={15} /> Choose file<input type="file" accept=".yaml,.yml,text/yaml" onChange={(event) => loadYamlFile(event.target.files?.[0])} /></label>
+          </div>
+          <textarea value={yamlText} onChange={(event) => setYamlText(event.target.value)} spellCheck={false} aria-label="Product graph YAML" />
+          <div className="yaml-editor-foot">
+            <span className={yamlError ? "yaml-error" : ""}>{yamlError || "Files are parsed locally in your browser."}</span>
+            <Button onClick={previewYaml}>Preview graph</Button>
+          </div>
+        </div>}
+        {view === "graph" ? <><div className="legend">
           {Object.entries(kindColor).map(([kind, color]) => <span key={kind}><i style={{ backgroundColor: color }} />{kind}</span>)}
         </div>
-        <div className="graph-meta">{nodes.length} nodes&nbsp;&nbsp;·&nbsp;&nbsp;{connectionCount} connections</div>
+        <div className="graph-meta">{nodes.length} nodes&nbsp;&nbsp;·&nbsp;&nbsp;{connectionCount} connections</div></> : null}
       </div>
 
       <aside className={`inspector ${selected ? "is-open" : ""}`}>
