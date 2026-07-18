@@ -8,6 +8,8 @@ type YamlProcess = {
   reference_output: FlowAmount
   inputs?: FlowAmount[]
   emissions?: FlowAmount[]
+  extractions?: Array<FlowAmount & { unit?: string }>
+  resource_inputs?: Array<FlowAmount & { unit?: string }>
 }
 type ProductGraph = {
   name?: string
@@ -69,6 +71,11 @@ export function buildGraphFromYaml(source: string): { name: string; nodes: Node<
         color: colors[kind],
         detail: `Scaled contribution: ${outputAmount} ${outputUnit} ${process.reference_output.flow}`,
         emissions: (process.emissions ?? []).map((emission) => ({ label: emissionLabels[emission.flow] ?? emission.flow, amount: round(emission.amount * scale), unit: "kg" })),
+        extractions: (process.extractions ?? process.resource_inputs ?? []).map((extraction) => ({
+          label: extraction.flow,
+          amount: round(extraction.amount * scale),
+          unit: extraction.unit ?? "kg",
+        })),
       },
     }
   })

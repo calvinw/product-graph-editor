@@ -4,6 +4,7 @@ import { ArrowRight, Component, Minus, Package, Plus } from "lucide-react"
 
 type FlowItem = { label: string; kind: string; color: string }
 type EmissionItem = { label: string; amount: number; unit: string }
+type ExtractionItem = { label: string; amount: number; unit: string }
 
 export type ProcessNodeData = {
   label: string
@@ -15,6 +16,7 @@ export type ProcessNodeData = {
   inputs?: FlowItem[]
   outputs?: FlowItem[]
   emissions?: EmissionItem[]
+  extractions?: ExtractionItem[]
   onRemove?: (id: string) => void
   onRestore?: (id: string) => void
   canRestore?: boolean
@@ -55,6 +57,10 @@ function ProcessNodeImpl({ id, data, selected }: NodeProps & { data: ProcessNode
               <div className="pg-flow-row" key={item.label}><Package size={14} style={{ color: item.color }} /><span>{item.label}</span><small>{item.kind}</small></div>
             )) : <div className="pg-flow-empty">No output flows</div>}
           </div>
+          {data.extractions?.length ? <div className="pg-extractions">
+            <div className="pg-extractions-title">Resource extractions</div>
+            {data.extractions.map((extraction) => <div className="pg-extraction-row" key={extraction.label}><span>{extraction.label}</span><strong>{extraction.amount} {extraction.unit}</strong></div>)}
+          </div> : null}
           {data.emissions?.length ? <div className="pg-emissions">
             <div className="pg-emissions-title">Emissions to air</div>
             {data.emissions.map((emission) => <div className="pg-emission-row" key={emission.label}><span>{emission.label}</span><strong>{emission.amount} {emission.unit}</strong></div>)}

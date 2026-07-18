@@ -88,6 +88,10 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
 .pg-flow-row small { color: #707784; font-size: 9px; font-weight: 500; text-transform: capitalize; }
 .pg-flow-empty { padding: 2px 0; color: #555d6a; font-size: 10px; }
 .pg-flow-divider { height: 1px; margin: 0 10px; background: color-mix(in srgb, var(--node-color) 70%, transparent); }
+.pg-extractions { padding: 8px 10px 10px; border-top: 1px solid #303541; background: rgba(56,189,248,.045); }
+.pg-extractions-title { margin-bottom: 5px; color: #38bdf8; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.pg-extraction-row { display: flex; align-items: center; justify-content: space-between; min-height: 20px; color: #c8cdd6; font-size: 11px; }
+.pg-extraction-row strong { color: #7dd3fc; font-size: 10px; font-weight: 650; }
 .pg-emissions { padding: 8px 10px 10px; border-top: 1px solid #303541; background: rgba(251,113,133,.045); }
 .pg-emissions-title { margin-bottom: 5px; color: #fb7185; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 .pg-emission-row { display: flex; align-items: center; justify-content: space-between; min-height: 20px; color: #c8cdd6; font-size: 11px; }
