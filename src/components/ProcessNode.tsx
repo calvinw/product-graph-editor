@@ -18,6 +18,7 @@ export type ProcessNodeData = {
   onRemove?: (id: string) => void
   onRestore?: (id: string) => void
   canRestore?: boolean
+  canFold?: boolean
 }
 
 function ProcessNodeImpl({ id, data, selected }: NodeProps & { data: ProcessNodeData }) {
@@ -30,14 +31,14 @@ function ProcessNodeImpl({ id, data, selected }: NodeProps & { data: ProcessNode
       {data.expanded ? (
         <>
           <div className="pg-node-head">
-            <button
+            {data.canFold || data.canRestore ? <button
               type="button"
               className="pg-node-toggle"
               aria-label={data.canRestore ? `Show connected steps for ${data.label}` : `Fold connected steps for ${data.label}`}
               onClick={(event) => { event.stopPropagation(); data.canRestore ? data.onRestore?.(id) : data.onRemove?.(id) }}
             >
               {data.canRestore ? <Plus size={11} /> : <Minus size={11} />}
-            </button>
+            </button> : null}
             <Component size={14} />
             <span className="pg-node-label">{data.label}</span>
           </div>
@@ -61,14 +62,14 @@ function ProcessNodeImpl({ id, data, selected }: NodeProps & { data: ProcessNode
         </>
       ) : (
         <>
-          <button
+          {data.canFold || data.canRestore ? <button
             type="button"
             className="pg-node-toggle"
             aria-label={data.canRestore ? `Show connected steps for ${data.label}` : `Fold connected steps for ${data.label}`}
             onClick={(event) => { event.stopPropagation(); data.canRestore ? data.onRestore?.(id) : data.onRemove?.(id) }}
           >
             {data.canRestore ? <Plus size={11} /> : <Minus size={11} />}
-          </button>
+          </button> : null}
           <span className="pg-node-icon"><Component size={12} /></span>
           <span className="pg-node-label">{data.label}</span>
         </>

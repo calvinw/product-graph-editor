@@ -137,11 +137,18 @@ function GraphEditor() {
 
   useEffect(() => {
     setNodes((current) => current.map((node) => (
-      node.data.onRemove === removeNode && node.data.onRestore === restoreNode
+      node.data.onRemove === removeNode && node.data.onRestore === restoreNode && node.data.canFold === edges.some((edge) => (
+        foldDirectionRef.current === "upstream" ? edge.target === node.id : edge.source === node.id
+      ))
         ? node
-        : { ...node, data: { ...node.data, onRemove: removeNode, onRestore: restoreNode } }
+        : { ...node, data: {
+            ...node.data,
+            onRemove: removeNode,
+            onRestore: restoreNode,
+            canFold: edges.some((edge) => foldDirectionRef.current === "upstream" ? edge.target === node.id : edge.source === node.id),
+          } }
     )))
-  }, [removeNode, restoreNode, setNodes])
+  }, [edges, removeNode, restoreNode, setNodes])
 
   useEffect(() => {
     const term = query.trim().toLowerCase()
@@ -195,7 +202,10 @@ function GraphEditor() {
       const parsed = buildGraphFromYaml(yamlText)
       foldDirectionRef.current = "upstream"
       setEdges(parsed.edges)
-      setNodes(layoutNodes(parsed.nodes, parsed.edges))
+      setNodes(layoutNodes(parsed.nodes.map((node) => ({
+        ...node,
+        data: { ...node.data, canFold: parsed.edges.some((edge) => edge.target === node.id) },
+      })), parsed.edges))
       setGraphTitle(parsed.name)
       setSelected(null)
       setYamlError("")
