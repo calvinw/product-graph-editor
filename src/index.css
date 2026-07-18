@@ -69,7 +69,6 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
   color: color-mix(in srgb, var(--node-color) 82%, white);
 }
 .pg-node.is-expanded .pg-node-head .pg-node-label { color: #eef0f4; font-weight: 650; }
-.pg-collapse-hint { display: grid; place-items: center; width: 18px; height: 18px; border: 1px solid var(--node-color); border-radius: 50%; }
 .pg-flow-section { padding: 9px 10px 10px; }
 .pg-flow-title { display: flex; align-items: center; gap: 4px; margin-bottom: 7px; color: #66759c; font-size: 10.5px; font-weight: 600; }
 .pg-flow-section.is-output .pg-flow-title { justify-content: flex-end; }

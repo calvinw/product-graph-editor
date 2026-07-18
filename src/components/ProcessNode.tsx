@@ -28,7 +28,6 @@ function ProcessNodeImpl({ id, data, selected }: NodeProps & { data: ProcessNode
       {data.expanded ? (
         <>
           <div className="pg-node-head">
-            <span className="pg-collapse-hint"><Minus size={11} /></span>
             <Component size={14} />
             <span className="pg-node-label">{data.label}</span>
             <div className="pg-node-actions">
