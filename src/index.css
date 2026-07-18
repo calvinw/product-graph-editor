@@ -82,24 +82,14 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
   color: #0b0d10; background: var(--node-color);
 }
 .pg-node-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pg-node-remove {
+.pg-node-toggle {
   display: grid; place-items: center; flex: none;
   width: 18px; height: 18px; border-radius: 50%;
   border: 1px solid color-mix(in srgb, var(--node-color) 55%, transparent);
   color: #9298a3; background: transparent; cursor: pointer;
   transition: color .15s ease, border-color .15s ease, background .15s ease;
 }
-.pg-node-actions { display: flex; align-items: center; gap: 4px; }
-.pg-node-restore {
-  display: grid; place-items: center; flex: none;
-  width: 18px; height: 18px; border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--node-color) 55%, transparent);
-  color: var(--node-color); background: transparent; cursor: pointer;
-  transition: color .15s ease, border-color .15s ease, background .15s ease, opacity .15s ease;
-}
-.pg-node-restore:hover:not(:disabled) { color: #fff; border-color: var(--node-color); background: color-mix(in srgb, var(--node-color) 22%, transparent); }
-.pg-node-restore:disabled { opacity: .25; cursor: default; }
-.pg-node-remove:hover { color: #f4f4f5; border-color: var(--node-color); background: color-mix(in srgb, var(--node-color) 18%, transparent); }
+.pg-node-toggle:hover { color: #fff; border-color: var(--node-color); background: color-mix(in srgb, var(--node-color) 20%, transparent); }
 .legend { position: absolute; z-index: 2; bottom: 21px; left: 24px; display: flex; gap: 16px; color: #747b86; font-size: 10px; text-transform: capitalize; }
 .legend span { display: flex; align-items: center; gap: 6px; }.legend i { width: 7px; height: 7px; border-radius: 50%; }
 .graph-meta { position: absolute; z-index: 2; right: 20px; bottom: 18px; color: #5e646e; font-size: 10px; }

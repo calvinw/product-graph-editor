@@ -28,12 +28,16 @@ function ProcessNodeImpl({ id, data, selected }: NodeProps & { data: ProcessNode
       {data.expanded ? (
         <>
           <div className="pg-node-head">
+            <button
+              type="button"
+              className="pg-node-toggle"
+              aria-label={data.canRestore ? `Show steps after ${data.label}` : `Fold steps after ${data.label}`}
+              onClick={(event) => { event.stopPropagation(); data.canRestore ? data.onRestore?.(id) : data.onRemove?.(id) }}
+            >
+              {data.canRestore ? <Plus size={11} /> : <Minus size={11} />}
+            </button>
             <Component size={14} />
             <span className="pg-node-label">{data.label}</span>
-            <div className="pg-node-actions">
-              <button type="button" className="pg-node-restore" aria-label={`Show steps after ${data.label}`} disabled={!data.canRestore} onClick={(event) => { event.stopPropagation(); data.onRestore?.(id) }}><Plus size={11} /></button>
-              <button type="button" className="pg-node-remove" aria-label={`Fold steps after ${data.label}`} onClick={(event) => { event.stopPropagation(); data.onRemove?.(id) }}><Minus size={11} /></button>
-            </div>
           </div>
           <div className="pg-flow-section">
             <div className="pg-flow-title"><ArrowRight size={11} /> Input flows</div>
@@ -51,12 +55,16 @@ function ProcessNodeImpl({ id, data, selected }: NodeProps & { data: ProcessNode
         </>
       ) : (
         <>
+          <button
+            type="button"
+            className="pg-node-toggle"
+            aria-label={data.canRestore ? `Show steps after ${data.label}` : `Fold steps after ${data.label}`}
+            onClick={(event) => { event.stopPropagation(); data.canRestore ? data.onRestore?.(id) : data.onRemove?.(id) }}
+          >
+            {data.canRestore ? <Plus size={11} /> : <Minus size={11} />}
+          </button>
           <span className="pg-node-icon"><Component size={12} /></span>
           <span className="pg-node-label">{data.label}</span>
-          <div className="pg-node-actions">
-            <button type="button" className="pg-node-restore" aria-label={`Show steps after ${data.label}`} disabled={!data.canRestore} onClick={(event) => { event.stopPropagation(); data.onRestore?.(id) }}><Plus size={11} /></button>
-            <button type="button" className="pg-node-remove" aria-label={`Fold steps after ${data.label}`} onClick={(event) => { event.stopPropagation(); data.onRemove?.(id) }}><Minus size={11} /></button>
-          </div>
         </>
       )}
       <Handle type="source" position={Position.Right} className="pg-handle" />
