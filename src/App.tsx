@@ -7,7 +7,7 @@ import {
 import "@xyflow/react/dist/style.css"
 import * as Tooltip from "@radix-ui/react-tooltip"
 import {
-  Box, ChevronDown, CircleHelp, Download, Scan, LayoutGrid,
+  Box, ChevronDown, Scan, LayoutGrid,
   Link2, Maximize, Minus, MousePointer2, Plus, Search, Share2, Sparkles,
 } from "lucide-react"
 import { Button } from "./components/ui/button"
@@ -247,11 +247,6 @@ export default function App() {
           <div className="divider" />
           <button className="project-switcher">Atlas workspace <ChevronDown size={14} /></button>
           <div className="save-state"><span /> Saved</div>
-          <div className="top-actions">
-            <Button variant="ghost" size="sm"><CircleHelp size={15} /> Help</Button>
-            <Button variant="outline" size="sm"><Download size={15} /> Export</Button>
-            <Button size="sm"><Share2 size={15} /> Share</Button>
-          </div>
         </header>
 
         <section className="workspace">
