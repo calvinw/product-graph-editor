@@ -25,6 +25,9 @@ build/
 *.tsbuildinfo
 .cache/
 
+# Product graph imports use reviewable YAML, not binary archives
+*.zip
+
 # TypeScript build output for config files
 vite.config.js
 vite.config.d.ts

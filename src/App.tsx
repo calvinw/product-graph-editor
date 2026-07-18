@@ -21,16 +21,16 @@ const kindColor: Record<string, string> = {
 }
 
 const initialNodes: Node<ProcessNodeData>[] = [
-  { id: "raw-material", type: "process", position: { x: 0, y: 0 }, data: { label: "Raw material extraction", kind: "material", detail: "Produces 1.00 kg raw fiber material", color: kindColor.material, emissions: [{ label: "CO₂", amount: 1.8, unit: "kg" }, { label: "CH₄", amount: 0.02, unit: "kg" }] } },
-  { id: "spinning", type: "process", position: { x: 0, y: 0 }, data: { label: "Spinning", kind: "process", detail: "Uses 1.20 kg raw fiber to produce 1.00 kg fiber", color: kindColor.process, emissions: [{ label: "CO₂", amount: 1.2, unit: "kg" }, { label: "CH₄", amount: 0.01, unit: "kg" }] } },
-  { id: "fabric-weaving", type: "process", position: { x: 0, y: 0 }, data: { label: "Fabric weaving", kind: "process", detail: "Uses 1.10 kg fiber to produce 1.00 kg fabric", color: kindColor.process, emissions: [{ label: "CO₂", amount: 1.5, unit: "kg" }, { label: "NOₓ", amount: 0.01, unit: "kg" }] } },
-  { id: "zipper-production", type: "process", position: { x: 0, y: 0 }, data: { label: "Zipper production", kind: "component", detail: "Produces 1 zipper", color: kindColor.component, emissions: [{ label: "CO₂", amount: 0.4, unit: "kg" }, { label: "NOₓ", amount: 0.005, unit: "kg" }] } },
-  { id: "jacket-assembly", type: "process", position: { x: 0, y: 0 }, data: { label: "Jacket assembly", kind: "product", detail: "Uses 0.60 kg fabric and 1 zipper to produce 1 jacket", color: kindColor.product, emissions: [{ label: "CO₂", amount: 0.8, unit: "kg" }] } },
+  { id: "raw-material", type: "process", position: { x: 0, y: 0 }, data: { label: "P0 — Raw material extraction", kind: "material", detail: "YAML-scaled contribution: 0.792 kg raw fiber material", color: kindColor.material, emissions: [{ label: "CO₂", amount: 1.426, unit: "kg" }, { label: "CH₄", amount: 0.01584, unit: "kg" }] } },
+  { id: "spinning", type: "process", position: { x: 0, y: 0 }, data: { label: "P1 — Spinning", kind: "process", detail: "YAML-scaled contribution: 0.66 kg fiber from 0.792 kg raw fiber", color: kindColor.process, emissions: [{ label: "CO₂", amount: 0.792, unit: "kg" }, { label: "CH₄", amount: 0.0066, unit: "kg" }] } },
+  { id: "fabric-weaving", type: "process", position: { x: 0, y: 0 }, data: { label: "P2 — Fabric weaving", kind: "process", detail: "YAML-scaled contribution: 0.60 kg fabric from 0.66 kg fiber", color: kindColor.process, emissions: [{ label: "CO₂", amount: 0.9, unit: "kg" }, { label: "NOₓ", amount: 0.006, unit: "kg" }] } },
+  { id: "zipper-production", type: "process", position: { x: 0, y: 0 }, data: { label: "P3 — Zipper production", kind: "component", detail: "YAML-scaled contribution: 1 zipper", color: kindColor.component, emissions: [{ label: "CO₂", amount: 0.4, unit: "kg" }, { label: "NOₓ", amount: 0.005, unit: "kg" }] } },
+  { id: "jacket-assembly", type: "process", position: { x: 0, y: 0 }, data: { label: "P4 — Jacket assembly", kind: "product", detail: "YAML reference process: 1 jacket from 0.60 kg fabric and 1 zipper", color: kindColor.product, emissions: [{ label: "CO₂", amount: 0.8, unit: "kg" }] } },
 ]
 
 const initialEdges: Edge[] = [
-  { id: "raw-to-spinning", source: "raw-material", target: "spinning", label: "Raw fiber · 1.20 kg" },
-  { id: "spinning-to-fabric", source: "spinning", target: "fabric-weaving", label: "Fiber · 1.10 kg" },
+  { id: "raw-to-spinning", source: "raw-material", target: "spinning", label: "Raw fiber · 0.792 kg" },
+  { id: "spinning-to-fabric", source: "spinning", target: "fabric-weaving", label: "Fiber · 0.66 kg" },
   { id: "fabric-to-jacket", source: "fabric-weaving", target: "jacket-assembly", label: "Fabric · 0.60 kg" },
   { id: "zipper-to-jacket", source: "zipper-production", target: "jacket-assembly", label: "Zipper · 1 unit" },
 ].map((edge) => ({
@@ -197,7 +197,7 @@ function GraphEditor() {
 
       <div className="canvas-wrap">
         <div className="canvas-head">
-          <div><p className="eyebrow">LIFE CYCLE MODEL · PREVIEW</p><h1>Jacket product system</h1></div>
+          <div><p className="eyebrow">YAML PRODUCT GRAPH · PREVIEW</p><h1>Jacket — 1 unit (3-tier)</h1></div>
           <div className="search"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a node…" aria-label="Find a node" /><kbd>⌘ K</kbd></div>
         </div>
         <ReactFlow
