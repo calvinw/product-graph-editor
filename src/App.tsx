@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
   ReactFlow, ReactFlowProvider, Background, BackgroundVariant, MarkerType,
   useNodesState, useEdgesState, useReactFlow,
@@ -68,19 +68,70 @@ function GraphEditor() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges)
   const [selected, setSelected] = useState<(NodeMeta & { id: string }) | null>(null)
   const [query, setQuery] = useState("")
+  const nodesRef = useRef(nodes)
+  const edgesRef = useRef(edges)
+  nodesRef.current = nodes
+  edgesRef.current = edges
   const { fitView, zoomIn, zoomOut } = useReactFlow()
 
   const removeNode = useCallback((id: string) => {
-    setNodes((current) => current.filter((node) => node.id !== id))
-    setEdges((current) => current.filter((edge) => edge.source !== id && edge.target !== id))
-    setSelected((current) => (current?.id === id ? null : current))
+    const downstream = new Set<string>()
+    const visit = (source: string) => {
+      edgesRef.current.filter((edge) => edge.source === source).forEach((edge) => {
+        if (!downstream.has(edge.target)) { downstream.add(edge.target); visit(edge.target) }
+      })
+    }
+    visit(id)
+    if (!downstream.size) return
+    setNodes((current) => current.map((node) => node.id === id
+      ? { ...node, data: { ...node.data, canRestore: true } }
+      : downstream.has(node.id) ? { ...node, hidden: true } : node))
+    setEdges((current) => current.map((edge) => downstream.has(edge.source) || downstream.has(edge.target) ? { ...edge, hidden: true } : edge))
   }, [setNodes, setEdges])
+
+  const restoreNode = useCallback((id: string) => {
+    const depths = new Map<string, number>()
+    const queue: Array<{ id: string; depth: number }> = [{ id, depth: 0 }]
+    while (queue.length) {
+      const current = queue.shift()!
+      edgesRef.current.filter((edge) => edge.source === current.id).forEach((edge) => {
+        const nextDepth = current.depth + 1
+        const knownDepth = depths.get(edge.target)
+        if (knownDepth === undefined || nextDepth < knownDepth) {
+          depths.set(edge.target, nextDepth)
+          queue.push({ id: edge.target, depth: nextDepth })
+        }
+      })
+    }
+    const hiddenDownstream = nodesRef.current.filter((node) => node.hidden && depths.has(node.id))
+    if (!hiddenDownstream.length) return
+    const nextDepth = Math.min(...hiddenDownstream.map((node) => depths.get(node.id)!))
+    const revealIds = new Set(hiddenDownstream.filter((node) => depths.get(node.id) === nextDepth).map((node) => node.id))
+    const remainingAfterReveal = hiddenDownstream.some((node) => !revealIds.has(node.id))
+    const hiddenAfterReveal = new Set(nodesRef.current.filter((node) => node.hidden && !revealIds.has(node.id)).map((node) => node.id))
+
+    setNodes((current) => current.map((node) => node.id === id
+      ? { ...node, data: { ...node.data, canRestore: remainingAfterReveal } }
+      : revealIds.has(node.id) ? {
+          ...node,
+          hidden: false,
+          data: {
+            ...node.data,
+            canRestore: edgesRef.current.some((edge) => edge.source === node.id && hiddenAfterReveal.has(edge.target)),
+          },
+        } : node))
+    setEdges((current) => current.map((edge) => depths.has(edge.source) || depths.has(edge.target) || edge.source === id
+      ? { ...edge, hidden: hiddenAfterReveal.has(edge.source) || hiddenAfterReveal.has(edge.target) }
+      : edge))
+  }, [setEdges, setNodes])
 
   useEffect(() => {
     setNodes((current) => current.map((node) => (
-      node.data.onRemove === removeNode ? node : { ...node, data: { ...node.data, onRemove: removeNode } }
+      node.data.onRemove === removeNode && node.data.onRestore === restoreNode
+        ? node
+        : { ...node, data: { ...node.data, onRemove: removeNode, onRestore: restoreNode } }
     )))
-  }, [removeNode, setNodes])
+  }, [removeNode, restoreNode, setNodes])
 
   useEffect(() => {
     const term = query.trim().toLowerCase()
@@ -109,6 +160,22 @@ function GraphEditor() {
     setNodes((current) => [...current.map((node) => ({ ...node, selected: false })), next])
     setSelected({ id, label: next.data.label, kind: next.data.kind, detail: next.data.detail })
   }, [nodes, removeNode, setNodes])
+
+  const toggleExpanded = useCallback((nodeId: string) => {
+    setNodes((current) => {
+      const byId = new Map(current.map((node) => [node.id, node]))
+      return current.map((node) => {
+        if (node.id !== nodeId) return node
+        const flowItem = (id: string) => {
+          const connected = byId.get(id)
+          return connected ? { label: connected.data.label, kind: connected.data.kind, color: connected.data.color } : null
+        }
+        const inputs = edges.filter((edge) => edge.target === nodeId).map((edge) => flowItem(edge.source)).filter((item): item is NonNullable<typeof item> => item !== null)
+        const outputs = edges.filter((edge) => edge.source === nodeId).map((edge) => flowItem(edge.target)).filter((item): item is NonNullable<typeof item> => item !== null)
+        return { ...node, data: { ...node.data, expanded: !node.data.expanded, inputs, outputs } }
+      })
+    })
+  }, [edges, setNodes])
 
   const fit = () => fitView({ padding: 0.15, duration: 350 })
   const relayout = () => setNodes((current) => layoutNodes(current, edges))
@@ -146,6 +213,7 @@ function GraphEditor() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onNodeClick={(_, node) => setSelected({ id: node.id, label: node.data.label, kind: node.data.kind, detail: node.data.detail })}
+          onNodeDoubleClick={(_, node) => toggleExpanded(node.id)}
           onPaneClick={() => setSelected(null)}
           minZoom={0.35}
           maxZoom={2.4}
