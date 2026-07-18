@@ -17,29 +17,34 @@ import { layoutNodes } from "./lib/layout"
 type NodeMeta = { label: string; kind: string; detail: string }
 
 const kindColor: Record<string, string> = {
-  material: "#38bdf8", process: "#a78bfa", component: "#fb923c", product: "#34d399",
+  platform: "#a78bfa", service: "#60a5fa", feature: "#34d399", channel: "#fb923c",
 }
 
 const initialNodes: Node<ProcessNodeData>[] = [
-  { id: "raw-material", type: "process", position: { x: 0, y: 0 }, data: { label: "P0 — Raw material extraction", kind: "material", detail: "YAML-scaled contribution: 0.792 kg raw fiber material", color: kindColor.material, emissions: [{ label: "CO₂", amount: 1.426, unit: "kg" }, { label: "CH₄", amount: 0.01584, unit: "kg" }] } },
-  { id: "spinning", type: "process", position: { x: 0, y: 0 }, data: { label: "P1 — Spinning", kind: "process", detail: "YAML-scaled contribution: 0.66 kg fiber from 0.792 kg raw fiber", color: kindColor.process, emissions: [{ label: "CO₂", amount: 0.792, unit: "kg" }, { label: "CH₄", amount: 0.0066, unit: "kg" }] } },
-  { id: "fabric-weaving", type: "process", position: { x: 0, y: 0 }, data: { label: "P2 — Fabric weaving", kind: "process", detail: "YAML-scaled contribution: 0.60 kg fabric from 0.66 kg fiber", color: kindColor.process, emissions: [{ label: "CO₂", amount: 0.9, unit: "kg" }, { label: "NOₓ", amount: 0.006, unit: "kg" }] } },
-  { id: "zipper-production", type: "process", position: { x: 0, y: 0 }, data: { label: "P3 — Zipper production", kind: "component", detail: "YAML-scaled contribution: 1 zipper", color: kindColor.component, emissions: [{ label: "CO₂", amount: 0.4, unit: "kg" }, { label: "NOₓ", amount: 0.005, unit: "kg" }] } },
-  { id: "jacket-assembly", type: "process", position: { x: 0, y: 0 }, data: { label: "P4 — Jacket assembly", kind: "product", detail: "YAML reference process: 1 jacket from 0.60 kg fabric and 1 zipper", color: kindColor.product, emissions: [{ label: "CO₂", amount: 0.8, unit: "kg" }] } },
+  { id: "platform", type: "process", position: { x: 0, y: 0 }, data: { label: "Core Platform", kind: "platform", detail: "Shared product foundation", color: kindColor.platform } },
+  { id: "identity", type: "process", position: { x: 0, y: 0 }, data: { label: "Identity", kind: "service", detail: "Authentication & access", color: kindColor.service } },
+  { id: "billing", type: "process", position: { x: 0, y: 0 }, data: { label: "Billing", kind: "service", detail: "Plans, invoices & usage", color: kindColor.service } },
+  { id: "analytics", type: "process", position: { x: 0, y: 0 }, data: { label: "Analytics", kind: "service", detail: "Events & reporting", color: kindColor.service } },
+  { id: "workspace", type: "process", position: { x: 0, y: 0 }, data: { label: "Workspace", kind: "feature", detail: "Team collaboration", color: kindColor.feature } },
+  { id: "automation", type: "process", position: { x: 0, y: 0 }, data: { label: "Automations", kind: "feature", detail: "Rules and workflows", color: kindColor.feature } },
+  { id: "api", type: "process", position: { x: 0, y: 0 }, data: { label: "Public API", kind: "channel", detail: "Developer integrations", color: kindColor.channel } },
+  { id: "mobile", type: "process", position: { x: 0, y: 0 }, data: { label: "Mobile App", kind: "channel", detail: "iOS & Android client", color: kindColor.channel } },
+  { id: "web", type: "process", position: { x: 0, y: 0 }, data: { label: "Web App", kind: "channel", detail: "Primary customer experience", color: kindColor.channel } },
 ]
 
 const initialEdges: Edge[] = [
-  { id: "raw-to-spinning", source: "raw-material", target: "spinning", label: "Raw fiber · 0.792 kg" },
-  { id: "spinning-to-fabric", source: "spinning", target: "fabric-weaving", label: "Fiber · 0.66 kg" },
-  { id: "fabric-to-jacket", source: "fabric-weaving", target: "jacket-assembly", label: "Fabric · 0.60 kg" },
-  { id: "zipper-to-jacket", source: "zipper-production", target: "jacket-assembly", label: "Zipper · 1 unit" },
+  { id: "e1", source: "platform", target: "identity" },
+  { id: "e2", source: "platform", target: "billing" },
+  { id: "e3", source: "platform", target: "analytics" },
+  { id: "e4", source: "identity", target: "workspace" },
+  { id: "e5", source: "analytics", target: "automation" },
+  { id: "e6", source: "workspace", target: "web" },
+  { id: "e7", source: "workspace", target: "mobile" },
+  { id: "e8", source: "automation", target: "api" },
+  { id: "e9", source: "billing", target: "web" },
 ].map((edge) => ({
   ...edge,
   style: { stroke: "#343941", strokeWidth: 1.5 },
-  labelStyle: { fill: "#7f8794", fontSize: 10, fontWeight: 600 },
-  labelBgStyle: { fill: "#111318", fillOpacity: 0.92 },
-  labelBgPadding: [5, 3] as [number, number],
-  labelBgBorderRadius: 4,
   markerEnd: { type: MarkerType.ArrowClosed, color: "#343941", width: 16, height: 16 },
 }))
 
@@ -70,18 +75,18 @@ function GraphEditor() {
   const { fitView, zoomIn, zoomOut } = useReactFlow()
 
   const removeNode = useCallback((id: string) => {
-    const upstream = new Set<string>()
-    const visit = (target: string) => {
-      edgesRef.current.filter((edge) => edge.target === target).forEach((edge) => {
-        if (!upstream.has(edge.source)) { upstream.add(edge.source); visit(edge.source) }
+    const downstream = new Set<string>()
+    const visit = (source: string) => {
+      edgesRef.current.filter((edge) => edge.source === source).forEach((edge) => {
+        if (!downstream.has(edge.target)) { downstream.add(edge.target); visit(edge.target) }
       })
     }
     visit(id)
-    if (!upstream.size) return
+    if (!downstream.size) return
     setNodes((current) => current.map((node) => node.id === id
       ? { ...node, data: { ...node.data, canRestore: true } }
-      : upstream.has(node.id) ? { ...node, hidden: true } : node))
-    setEdges((current) => current.map((edge) => upstream.has(edge.source) || upstream.has(edge.target) ? { ...edge, hidden: true } : edge))
+      : downstream.has(node.id) ? { ...node, hidden: true } : node))
+    setEdges((current) => current.map((edge) => downstream.has(edge.source) || downstream.has(edge.target) ? { ...edge, hidden: true } : edge))
   }, [setNodes, setEdges])
 
   const restoreNode = useCallback((id: string) => {
@@ -89,12 +94,12 @@ function GraphEditor() {
     const queue: Array<{ id: string; depth: number }> = [{ id, depth: 0 }]
     while (queue.length) {
       const current = queue.shift()!
-      edgesRef.current.filter((edge) => edge.target === current.id).forEach((edge) => {
+      edgesRef.current.filter((edge) => edge.source === current.id).forEach((edge) => {
         const nextDepth = current.depth + 1
-        const knownDepth = depths.get(edge.source)
+        const knownDepth = depths.get(edge.target)
         if (knownDepth === undefined || nextDepth < knownDepth) {
-          depths.set(edge.source, nextDepth)
-          queue.push({ id: edge.source, depth: nextDepth })
+          depths.set(edge.target, nextDepth)
+          queue.push({ id: edge.target, depth: nextDepth })
         }
       })
     }
@@ -112,10 +117,10 @@ function GraphEditor() {
           hidden: false,
           data: {
             ...node.data,
-            canRestore: edgesRef.current.some((edge) => edge.target === node.id && hiddenAfterReveal.has(edge.source)),
+            canRestore: edgesRef.current.some((edge) => edge.source === node.id && hiddenAfterReveal.has(edge.target)),
           },
         } : node))
-    setEdges((current) => current.map((edge) => depths.has(edge.source) || depths.has(edge.target) || edge.target === id
+    setEdges((current) => current.map((edge) => depths.has(edge.source) || depths.has(edge.target) || edge.source === id
       ? { ...edge, hidden: hiddenAfterReveal.has(edge.source) || hiddenAfterReveal.has(edge.target) }
       : edge))
   }, [setEdges, setNodes])
@@ -149,7 +154,7 @@ function GraphEditor() {
     const id = `node-${Date.now()}`
     const next: Node<ProcessNodeData> = {
       id, type: "process", position: { x: 40, y: 40 },
-      data: { label: `New process ${nodes.length + 1}`, kind: "process", detail: "New product-system process", color: kindColor.process, onRemove: removeNode },
+      data: { label: `New capability ${nodes.length + 1}`, kind: "feature", detail: "New product capability", color: kindColor.feature, onRemove: removeNode },
       selected: true,
     }
     setNodes((current) => [...current.map((node) => ({ ...node, selected: false })), next])
@@ -197,7 +202,7 @@ function GraphEditor() {
 
       <div className="canvas-wrap">
         <div className="canvas-head">
-          <div><p className="eyebrow">YAML PRODUCT GRAPH · PREVIEW</p><h1>Jacket — 1 unit (3-tier)</h1></div>
+          <div><p className="eyebrow">PRODUCT ARCHITECTURE</p><h1>Capability map</h1></div>
           <div className="search"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a node…" aria-label="Find a node" /><kbd>⌘ K</kbd></div>
         </div>
         <ReactFlow
