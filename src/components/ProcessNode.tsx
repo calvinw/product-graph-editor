@@ -3,6 +3,7 @@ import { Handle, Position, type NodeProps } from "@xyflow/react"
 import { ArrowRight, Component, Minus, Package, Plus } from "lucide-react"
 
 type FlowItem = { label: string; kind: string; color: string }
+type EmissionItem = { label: string; amount: number; unit: string }
 
 export type ProcessNodeData = {
   label: string
@@ -13,6 +14,7 @@ export type ProcessNodeData = {
   expanded?: boolean
   inputs?: FlowItem[]
   outputs?: FlowItem[]
+  emissions?: EmissionItem[]
   onRemove?: (id: string) => void
   onRestore?: (id: string) => void
   canRestore?: boolean
@@ -31,8 +33,8 @@ function ProcessNodeImpl({ id, data, selected }: NodeProps & { data: ProcessNode
             <Component size={14} />
             <span className="pg-node-label">{data.label}</span>
             <div className="pg-node-actions">
-              <button type="button" className="pg-node-restore" aria-label={`Show steps after ${data.label}`} disabled={!data.canRestore} onClick={(event) => { event.stopPropagation(); data.onRestore?.(id) }}><Plus size={11} /></button>
-              <button type="button" className="pg-node-remove" aria-label={`Fold steps after ${data.label}`} onClick={(event) => { event.stopPropagation(); data.onRemove?.(id) }}><Minus size={11} /></button>
+              <button type="button" className="pg-node-restore" aria-label={`Show steps before ${data.label}`} disabled={!data.canRestore} onClick={(event) => { event.stopPropagation(); data.onRestore?.(id) }}><Plus size={11} /></button>
+              <button type="button" className="pg-node-remove" aria-label={`Fold steps before ${data.label}`} onClick={(event) => { event.stopPropagation(); data.onRemove?.(id) }}><Minus size={11} /></button>
             </div>
           </div>
           <div className="pg-flow-section">
@@ -48,14 +50,18 @@ function ProcessNodeImpl({ id, data, selected }: NodeProps & { data: ProcessNode
               <div className="pg-flow-row" key={item.label}><Package size={14} style={{ color: item.color }} /><span>{item.label}</span><small>{item.kind}</small></div>
             )) : <div className="pg-flow-empty">No output flows</div>}
           </div>
+          {data.emissions?.length ? <div className="pg-emissions">
+            <div className="pg-emissions-title">Emissions to air</div>
+            {data.emissions.map((emission) => <div className="pg-emission-row" key={emission.label}><span>{emission.label}</span><strong>{emission.amount} {emission.unit}</strong></div>)}
+          </div> : null}
         </>
       ) : (
         <>
           <span className="pg-node-icon"><Component size={12} /></span>
           <span className="pg-node-label">{data.label}</span>
           <div className="pg-node-actions">
-            <button type="button" className="pg-node-restore" aria-label={`Show steps after ${data.label}`} disabled={!data.canRestore} onClick={(event) => { event.stopPropagation(); data.onRestore?.(id) }}><Plus size={11} /></button>
-            <button type="button" className="pg-node-remove" aria-label={`Fold steps after ${data.label}`} onClick={(event) => { event.stopPropagation(); data.onRemove?.(id) }}><Minus size={11} /></button>
+            <button type="button" className="pg-node-restore" aria-label={`Show steps before ${data.label}`} disabled={!data.canRestore} onClick={(event) => { event.stopPropagation(); data.onRestore?.(id) }}><Plus size={11} /></button>
+            <button type="button" className="pg-node-remove" aria-label={`Fold steps before ${data.label}`} onClick={(event) => { event.stopPropagation(); data.onRemove?.(id) }}><Minus size={11} /></button>
           </div>
         </>
       )}
