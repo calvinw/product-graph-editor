@@ -6,6 +6,8 @@ import {
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
 import * as Tooltip from "@radix-ui/react-tooltip"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import {
   BarChart3, Box, ChevronDown, Scan, LayoutGrid,
   FileUp, Link2, Maximize, Minus, MousePointer2, Plus, Search, Share2, Sparkles,
@@ -14,6 +16,7 @@ import { Button } from "./components/ui/button"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
 import { buildGraphFromYaml } from "./lib/yamlGraph"
+import { calculateLca, lcaResultToMarkdown } from "./lib/lcaApi"
 import jacketYaml from "../Jacket_product_graph.yaml?raw"
 
 type NodeMeta = { label: string; kind: string; detail: string }
@@ -53,6 +56,9 @@ function GraphEditor() {
   const [yamlText, setYamlText] = useState(jacketYaml)
   const [yamlError, setYamlError] = useState("")
   const [graphTitle, setGraphTitle] = useState(defaultGraph.name)
+  const [resultsMarkdown, setResultsMarkdown] = useState("")
+  const [resultsError, setResultsError] = useState("")
+  const [isCalculating, setIsCalculating] = useState(false)
   const foldDirectionRef = useRef<"upstream" | "downstream">("upstream")
   const nodesRef = useRef(nodes)
   const edgesRef = useRef(edges)
@@ -196,11 +202,24 @@ function GraphEditor() {
     }
   }
 
+  const runCalculation = async () => {
+    setIsCalculating(true)
+    setResultsError("")
+    try {
+      const result = await calculateLca(yamlText)
+      setResultsMarkdown(lcaResultToMarkdown(result))
+    } catch (error) {
+      setResultsError(error instanceof Error ? error.message : "Could not calculate the current product graph.")
+    } finally {
+      setIsCalculating(false)
+    }
+  }
+
   const loadYamlFile = (file?: File) => {
     if (!file) return
     if (!/\.ya?ml$/i.test(file.name)) { setYamlError("Choose a .yaml or .yml file."); return }
     const reader = new FileReader()
-    reader.onload = () => { setYamlText(String(reader.result ?? "")); setYamlError("") }
+    reader.onload = () => { setYamlText(String(reader.result ?? "")); setYamlError(""); setResultsMarkdown("") }
     reader.onerror = () => setYamlError("Could not read the selected file.")
     reader.readAsText(file)
   }
@@ -260,7 +279,7 @@ function GraphEditor() {
             <div><strong>Product graph YAML</strong><span>Paste YAML or choose a local .yaml/.yml file.</span></div>
             <label className="yaml-upload"><FileUp size={15} /> Choose file<input type="file" accept=".yaml,.yml,text/yaml" onChange={(event) => loadYamlFile(event.target.files?.[0])} /></label>
           </div>
-          <textarea value={yamlText} onChange={(event) => setYamlText(event.target.value)} spellCheck={false} aria-label="Product graph YAML" />
+          <textarea value={yamlText} onChange={(event) => { setYamlText(event.target.value); setResultsMarkdown("") }} spellCheck={false} aria-label="Product graph YAML" />
           <div className="yaml-editor-foot">
             <span className={yamlError ? "yaml-error" : ""}>{yamlError || "Files are parsed locally in your browser."}</span>
             <Button onClick={previewYaml}>Preview graph</Button>
@@ -277,10 +296,16 @@ function GraphEditor() {
           <div className="results-empty-icon"><Share2 size={22} /></div>
           <strong>Sankey Graph</strong>
           <p>A Sankey view of material and environmental flows will appear here.</p>
-        </div> : <div className="results-empty">
-          <div className="results-empty-icon"><BarChart3 size={22} /></div>
-          <strong>No LCA results yet</strong>
-          <p>Results from the current product graph will appear here after the LCA engine is connected.</p>
+        </div> : <div className="results-panel">
+          <div className="results-panel-head">
+            <div><strong>LCA Results</strong><span>Calculated from the current YAML product graph.</span></div>
+            <Button onClick={runCalculation} disabled={isCalculating}>{isCalculating ? "Calculating…" : "Calculate"}</Button>
+          </div>
+          <div className="results-panel-body">
+            {resultsError ? <div className="results-error"><strong>Calculation failed</strong><p>{resultsError}</p></div>
+              : resultsMarkdown ? <article className="markdown-report"><ReactMarkdown remarkPlugins={[remarkGfm]}>{resultsMarkdown}</ReactMarkdown></article>
+              : <div className="results-placeholder"><div className="results-empty-icon"><BarChart3 size={22} /></div><strong>No LCA results yet</strong><p>Select Calculate to analyze the current YAML graph.</p></div>}
+          </div>
         </div>}
         {view === "graph" ? <><div className="legend">
           {Object.entries(kindColor).map(([kind, color]) => <span key={kind}><i style={{ backgroundColor: color }} />{kind}</span>)}
