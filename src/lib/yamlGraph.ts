@@ -24,7 +24,7 @@ const emissionLabels: Record<string, string> = { "Carbon dioxide": "CO₂", Meth
 const round = (value: number) => Number(value.toFixed(6))
 const idFor = (name: string, index: number) => `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "process"}-${index}`
 
-export function buildGraphFromYaml(source: string): { name: string; nodes: Node<ProcessNodeData>[]; edges: Edge[] } {
+export function buildGraphFromYaml(source: string, mode: "scaled" | "structure" = "scaled"): { name: string; nodes: Node<ProcessNodeData>[]; edges: Edge[] } {
   const graph = parse(source) as ProductGraph
   if (!graph || !Array.isArray(graph.processes) || !graph.processes.length) throw new Error("YAML must include a non-empty processes list.")
   if (!graph.reference_process) throw new Error("YAML must define reference_process.")
@@ -69,7 +69,10 @@ export function buildGraphFromYaml(source: string): { name: string; nodes: Node<
         label: process.name,
         kind,
         color: colors[kind],
-        detail: `Scaled contribution: ${outputAmount} ${outputUnit} ${process.reference_output.flow}`,
+        detail: mode === "scaled"
+          ? `Scaled contribution: ${outputAmount} ${outputUnit} ${process.reference_output.flow}`
+          : `Output flow: ${process.reference_output.flow}`,
+        showAmounts: mode === "scaled",
         emissions: (process.emissions ?? []).map((emission) => ({ label: emissionLabels[emission.flow] ?? emission.flow, amount: round(emission.amount * scale), unit: "kg" })),
         extractions: (process.extractions ?? process.resource_inputs ?? []).map((extraction) => ({
           label: extraction.flow,
@@ -88,7 +91,7 @@ export function buildGraphFromYaml(source: string): { name: string; nodes: Node<
       const amount = round(input.amount * (scales.get(consumer.name) ?? 0))
       edges.push({
         id: `${ids.get(provider.name)}-${ids.get(consumer.name)}-${input.flow}`,
-        source: ids.get(provider.name)!, target: ids.get(consumer.name)!, label: `${input.flow} · ${amount}`,
+        source: ids.get(provider.name)!, target: ids.get(consumer.name)!, label: mode === "scaled" ? `${input.flow} · ${amount}` : input.flow,
         style: { stroke: "#343941", strokeWidth: 1.5 },
         labelStyle: { fill: "#7f8794", fontSize: 10, fontWeight: 600 },
         labelBgStyle: { fill: "#111318", fillOpacity: 0.92 }, labelBgPadding: [5, 3], labelBgBorderRadius: 4,
