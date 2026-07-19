@@ -1,52 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
-  ReactFlow, ReactFlowProvider, Background, BackgroundVariant, MarkerType,
+  ReactFlow, ReactFlowProvider, Background, BackgroundVariant,
   useNodesState, useEdgesState, useReactFlow,
   type Node, type Edge,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
 import * as Tooltip from "@radix-ui/react-tooltip"
 import {
-  Box, ChevronDown, Scan, LayoutGrid,
+  BarChart3, Box, ChevronDown, Scan, LayoutGrid,
   FileUp, Link2, Maximize, Minus, MousePointer2, Plus, Search, Share2, Sparkles,
 } from "lucide-react"
 import { Button } from "./components/ui/button"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
 import { buildGraphFromYaml } from "./lib/yamlGraph"
+import jacketYaml from "../Jacket_product_graph.yaml?raw"
 
 type NodeMeta = { label: string; kind: string; detail: string }
 
 const kindColor: Record<string, string> = {
-  platform: "#a78bfa", service: "#60a5fa", feature: "#34d399", channel: "#fb923c",
+  material: "#38bdf8", process: "#a78bfa", component: "#fb923c", product: "#34d399",
 }
 
-const initialNodes: Node<ProcessNodeData>[] = [
-  { id: "platform", type: "process", position: { x: 0, y: 0 }, data: { label: "Core Platform", kind: "platform", detail: "Shared product foundation", color: kindColor.platform } },
-  { id: "identity", type: "process", position: { x: 0, y: 0 }, data: { label: "Identity", kind: "service", detail: "Authentication & access", color: kindColor.service } },
-  { id: "billing", type: "process", position: { x: 0, y: 0 }, data: { label: "Billing", kind: "service", detail: "Plans, invoices & usage", color: kindColor.service } },
-  { id: "analytics", type: "process", position: { x: 0, y: 0 }, data: { label: "Analytics", kind: "service", detail: "Events & reporting", color: kindColor.service } },
-  { id: "workspace", type: "process", position: { x: 0, y: 0 }, data: { label: "Workspace", kind: "feature", detail: "Team collaboration", color: kindColor.feature } },
-  { id: "automation", type: "process", position: { x: 0, y: 0 }, data: { label: "Automations", kind: "feature", detail: "Rules and workflows", color: kindColor.feature } },
-  { id: "api", type: "process", position: { x: 0, y: 0 }, data: { label: "Public API", kind: "channel", detail: "Developer integrations", color: kindColor.channel } },
-  { id: "mobile", type: "process", position: { x: 0, y: 0 }, data: { label: "Mobile App", kind: "channel", detail: "iOS & Android client", color: kindColor.channel } },
-  { id: "web", type: "process", position: { x: 0, y: 0 }, data: { label: "Web App", kind: "channel", detail: "Primary customer experience", color: kindColor.channel } },
-]
-
-const initialEdges: Edge[] = [
-  { id: "e1", source: "platform", target: "identity" },
-  { id: "e2", source: "platform", target: "billing" },
-  { id: "e3", source: "platform", target: "analytics" },
-  { id: "e4", source: "identity", target: "workspace" },
-  { id: "e5", source: "analytics", target: "automation" },
-  { id: "e6", source: "workspace", target: "web" },
-  { id: "e7", source: "workspace", target: "mobile" },
-  { id: "e8", source: "automation", target: "api" },
-  { id: "e9", source: "billing", target: "web" },
-].map((edge) => ({
-  ...edge,
-  style: { stroke: "#343941", strokeWidth: 1.5 },
-  markerEnd: { type: MarkerType.ArrowClosed, color: "#343941", width: 16, height: 16 },
+const defaultGraph = buildGraphFromYaml(jacketYaml)
+const initialEdges: Edge[] = defaultGraph.edges
+const initialNodes: Node<ProcessNodeData>[] = defaultGraph.nodes.map((node) => ({
+  ...node,
+  data: { ...node.data, canFold: initialEdges.some((edge) => edge.target === node.id) },
 }))
 
 const nodeTypes = { process: ProcessNode }
@@ -69,11 +49,11 @@ function GraphEditor() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges)
   const [selected, setSelected] = useState<(NodeMeta & { id: string }) | null>(null)
   const [query, setQuery] = useState("")
-  const [view, setView] = useState<"graph" | "yaml">("graph")
-  const [yamlText, setYamlText] = useState("")
+  const [view, setView] = useState<"graph" | "yaml" | "inventory" | "contribution" | "sankey" | "results">("graph")
+  const [yamlText, setYamlText] = useState(jacketYaml)
   const [yamlError, setYamlError] = useState("")
-  const [graphTitle, setGraphTitle] = useState("Capability map")
-  const foldDirectionRef = useRef<"upstream" | "downstream">("downstream")
+  const [graphTitle, setGraphTitle] = useState(defaultGraph.name)
+  const foldDirectionRef = useRef<"upstream" | "downstream">("upstream")
   const nodesRef = useRef(nodes)
   const edgesRef = useRef(edges)
   nodesRef.current = nodes
@@ -171,7 +151,7 @@ function GraphEditor() {
     const id = `node-${Date.now()}`
     const next: Node<ProcessNodeData> = {
       id, type: "process", position: { x: 40, y: 40 },
-      data: { label: `New capability ${nodes.length + 1}`, kind: "feature", detail: "New product capability", color: kindColor.feature, onRemove: removeNode },
+      data: { label: `New process ${nodes.length + 1}`, kind: "process", detail: "New life cycle process", color: kindColor.process, onRemove: removeNode },
       selected: true,
     }
     setNodes((current) => [...current.map((node) => ({ ...node, selected: false })), next])
@@ -229,34 +209,22 @@ function GraphEditor() {
 
   return (
     <>
-      <div className="rail">
-        <div className="rail-group">
-          <ToolButton label="Select"><MousePointer2 size={18} /></ToolButton>
-          <ToolButton label="Add node" onClick={addNode}><Plus size={18} /></ToolButton>
-          <ToolButton label="Connect nodes"><Link2 size={18} /></ToolButton>
-        </div>
-        <div className="rail-group">
-          <ToolButton label="Auto layout" onClick={relayout}><LayoutGrid size={18} /></ToolButton>
-          <ToolButton label="Fit graph" onClick={fit}><Scan size={18} /></ToolButton>
-        </div>
-        <div className="rail-bottom">
-          <ToolButton label="Zoom in" onClick={() => zoomIn({ duration: 200 })}><Plus size={18} /></ToolButton>
-          <ToolButton label="Zoom out" onClick={() => zoomOut({ duration: 200 })}><Minus size={18} /></ToolButton>
-        </div>
-      </div>
-
       <div className="canvas-wrap">
         <div className="canvas-head">
-          <div><p className="eyebrow">PRODUCT GRAPH EDITOR</p><h1>{graphTitle}</h1></div>
+          <h1>{graphTitle}</h1>
           <div className="canvas-actions">
+            {view === "graph" ? <div className="search"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a node…" aria-label="Find a node" /><kbd>⌘ K</kbd></div> : null}
             <div className="view-tabs" role="tablist" aria-label="Graph views">
               <button className={view === "graph" ? "is-active" : ""} onClick={() => setView("graph")}>Graph</button>
               <button className={view === "yaml" ? "is-active" : ""} onClick={() => setView("yaml")}>YAML</button>
+              <button className={view === "inventory" ? "is-active" : ""} onClick={() => setView("inventory")}>Inventory</button>
+              <button className={view === "contribution" ? "is-active" : ""} onClick={() => setView("contribution")}>Contribution</button>
+              <button className={view === "sankey" ? "is-active" : ""} onClick={() => setView("sankey")}>Sankey Graph</button>
+              <button className={view === "results" ? "is-active" : ""} onClick={() => setView("results")}>LCA Results</button>
             </div>
-            {view === "graph" ? <div className="search"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a node…" aria-label="Find a node" /><kbd>⌘ K</kbd></div> : null}
           </div>
         </div>
-        {view === "graph" ? <ReactFlow
+        {view === "graph" ? <><ReactFlow
           className="reactflow-canvas"
           nodes={nodes}
           edges={edges}
@@ -272,7 +240,22 @@ function GraphEditor() {
           proOptions={{ hideAttribution: true }}
         >
           <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#242831" />
-        </ReactFlow> : <div className="yaml-editor">
+        </ReactFlow>
+        <div className="graph-toolbar" aria-label="Graph tools">
+          <div className="toolbar-group">
+            <ToolButton label="Select"><MousePointer2 size={18} /></ToolButton>
+            <ToolButton label="Add node" onClick={addNode}><Plus size={18} /></ToolButton>
+            <ToolButton label="Connect nodes"><Link2 size={18} /></ToolButton>
+          </div>
+          <div className="toolbar-group">
+            <ToolButton label="Auto layout" onClick={relayout}><LayoutGrid size={18} /></ToolButton>
+            <ToolButton label="Fit graph" onClick={fit}><Scan size={18} /></ToolButton>
+          </div>
+          <div className="toolbar-group">
+            <ToolButton label="Zoom in" onClick={() => zoomIn({ duration: 200 })}><Plus size={18} /></ToolButton>
+            <ToolButton label="Zoom out" onClick={() => zoomOut({ duration: 200 })}><Minus size={18} /></ToolButton>
+          </div>
+        </div></> : view === "yaml" ? <div className="yaml-editor">
           <div className="yaml-editor-head">
             <div><strong>Product graph YAML</strong><span>Paste YAML or choose a local .yaml/.yml file.</span></div>
             <label className="yaml-upload"><FileUp size={15} /> Choose file<input type="file" accept=".yaml,.yml,text/yaml" onChange={(event) => loadYamlFile(event.target.files?.[0])} /></label>
@@ -282,6 +265,22 @@ function GraphEditor() {
             <span className={yamlError ? "yaml-error" : ""}>{yamlError || "Files are parsed locally in your browser."}</span>
             <Button onClick={previewYaml}>Preview graph</Button>
           </div>
+        </div> : view === "inventory" ? <div className="results-empty">
+          <div className="results-empty-icon"><BarChart3 size={22} /></div>
+          <strong>Inventory</strong>
+          <p>Life cycle inventory flows from the current product graph will appear here.</p>
+        </div> : view === "contribution" ? <div className="results-empty">
+          <div className="results-empty-icon"><BarChart3 size={22} /></div>
+          <strong>Contribution</strong>
+          <p>Process and flow contributions from the current product graph will appear here.</p>
+        </div> : view === "sankey" ? <div className="results-empty">
+          <div className="results-empty-icon"><Share2 size={22} /></div>
+          <strong>Sankey Graph</strong>
+          <p>A Sankey view of material and environmental flows will appear here.</p>
+        </div> : <div className="results-empty">
+          <div className="results-empty-icon"><BarChart3 size={22} /></div>
+          <strong>No LCA results yet</strong>
+          <p>Results from the current product graph will appear here after the LCA engine is connected.</p>
         </div>}
         {view === "graph" ? <><div className="legend">
           {Object.entries(kindColor).map(([kind, color]) => <span key={kind}><i style={{ backgroundColor: color }} />{kind}</span>)}
@@ -309,10 +308,7 @@ export default function App() {
     <Tooltip.Provider delayDuration={250}>
       <main className="app-shell">
         <header className="topbar">
-          <div className="brand"><div className="brand-mark"><Share2 size={16} /></div><span>Product Graph</span></div>
-          <div className="divider" />
-          <button className="project-switcher">Atlas workspace <ChevronDown size={14} /></button>
-          <div className="save-state"><span /> Saved</div>
+          <div className="brand"><div className="brand-mark"><Share2 size={16} /></div><span>PRISM Life Cycle Assessment</span></div>
         </header>
 
         <section className="workspace">
