@@ -236,10 +236,10 @@ function GraphEditor() {
             <div className="view-tabs" role="tablist" aria-label="Graph views">
               <button className={view === "graph" ? "is-active" : ""} onClick={() => setView("graph")}>Graph</button>
               <button className={view === "yaml" ? "is-active" : ""} onClick={() => setView("yaml")}>YAML</button>
+              <button className={view === "results" ? "is-active" : ""} onClick={() => setView("results")}>LCA Results</button>
               <button className={view === "inventory" ? "is-active" : ""} onClick={() => setView("inventory")}>Inventory</button>
               <button className={view === "contribution" ? "is-active" : ""} onClick={() => setView("contribution")}>Contribution</button>
               <button className={view === "sankey" ? "is-active" : ""} onClick={() => setView("sankey")}>Sankey Graph</button>
-              <button className={view === "results" ? "is-active" : ""} onClick={() => setView("results")}>LCA Results</button>
             </div>
           </div>
         </div>
@@ -285,14 +285,17 @@ function GraphEditor() {
             <Button onClick={previewYaml}>Preview graph</Button>
           </div>
         </div> : view === "inventory" ? <div className="results-empty">
+          <span className="not-implemented">NOT IMPLEMENTED YET</span>
           <div className="results-empty-icon"><BarChart3 size={22} /></div>
           <strong>Inventory</strong>
           <p>Life cycle inventory flows from the current product graph will appear here.</p>
         </div> : view === "contribution" ? <div className="results-empty">
+          <span className="not-implemented">NOT IMPLEMENTED YET</span>
           <div className="results-empty-icon"><BarChart3 size={22} /></div>
           <strong>Contribution</strong>
           <p>Process and flow contributions from the current product graph will appear here.</p>
         </div> : view === "sankey" ? <div className="results-empty">
+          <span className="not-implemented">NOT IMPLEMENTED YET</span>
           <div className="results-empty-icon"><Share2 size={22} /></div>
           <strong>Sankey Graph</strong>
           <p>A Sankey view of material and environmental flows will appear here.</p>
