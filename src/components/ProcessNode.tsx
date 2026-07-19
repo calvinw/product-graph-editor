@@ -17,6 +17,7 @@ export type ProcessNodeData = {
   outputs?: FlowItem[]
   emissions?: EmissionItem[]
   extractions?: ExtractionItem[]
+  showAmounts?: boolean
   onRemove?: (id: string) => void
   onRestore?: (id: string) => void
   canRestore?: boolean
@@ -59,11 +60,11 @@ function ProcessNodeImpl({ id, data, selected }: NodeProps & { data: ProcessNode
           </div>
           {data.extractions?.length ? <div className="pg-extractions">
             <div className="pg-extractions-title">Resource extractions</div>
-            {data.extractions.map((extraction) => <div className="pg-extraction-row" key={extraction.label}><span>{extraction.label}</span><strong>{extraction.amount} {extraction.unit}</strong></div>)}
+            {data.extractions.map((extraction) => <div className="pg-extraction-row" key={extraction.label}><span>{extraction.label}</span>{data.showAmounts !== false ? <strong>{extraction.amount} {extraction.unit}</strong> : null}</div>)}
           </div> : null}
           {data.emissions?.length ? <div className="pg-emissions">
             <div className="pg-emissions-title">Emissions to air</div>
-            {data.emissions.map((emission) => <div className="pg-emission-row" key={emission.label}><span>{emission.label}</span><strong>{emission.amount} {emission.unit}</strong></div>)}
+            {data.emissions.map((emission) => <div className="pg-emission-row" key={emission.label}><span>{emission.label}</span>{data.showAmounts !== false ? <strong>{emission.amount} {emission.unit}</strong> : null}</div>)}
           </div> : null}
         </>
       ) : (
