@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" viewBox="0 -38.0 1440.3 309.0">
+<rect x="0" y="-38.0" width="1440.3" height="309.0" fill="#f8f8f8"/>
+<defs>
+  <marker id="arr"       viewBox="0 0 10 10" refX="9" refY="5"
+          markerWidth="5" markerHeight="5" orient="auto">
+    <path d="M0,0 L10,5 L0,10 z" fill="#555555"/>
+  </marker>
+  <marker id="arr-green" viewBox="0 0 10 10" refX="9" refY="5"
+          markerWidth="5" markerHeight="5" orient="auto">
+    <path d="M0,0 L10,5 L0,10 z" fill="#2d7a45"/>
+  </marker>
+  <marker id="arr-red"   viewBox="0 0 10 10" refX="9" refY="5"
+          markerWidth="5" markerHeight="5" orient="auto">
+    <path d="M0,0 L10,5 L0,10 z" fill="#c0392b"/>
+  </marker>
+</defs>
+<text x="720.1" y="-11.4" text-anchor="middle" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="14" font-weight="bold" fill="#222">Jacket — 1 unit (3-tier)</text>
+<line x1="80.7" y1="54.7" x2="80.7" y2="84.7" stroke="#c0392b" stroke-width="1.6" marker-end="url(#arr-red)"/>
+<text x="75.7" y="66.1" text-anchor="end" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#c0392b">CO<tspan baseline-shift="sub" font-size="0.75em">2</tspan></text>
+<text x="75.7" y="80.1" text-anchor="end" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#c0392b">1.426 kg</text>
+<text x="80.7" y="96.7" text-anchor="start" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="9" font-weight="bold" fill="#c0392b">to Air</text>
+<line x1="204.8" y1="54.7" x2="204.8" y2="84.7" stroke="#c0392b" stroke-width="1.6" marker-end="url(#arr-red)"/>
+<text x="199.8" y="66.1" text-anchor="end" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#c0392b">CH<tspan baseline-shift="sub" font-size="0.75em">4</tspan></text>
+<text x="199.8" y="80.1" text-anchor="end" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#c0392b">0.01584 kg</text>
+<text x="204.8" y="96.7" text-anchor="start" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="9" font-weight="bold" fill="#c0392b">to Air</text>
+<line x1="438.4" y1="54.7" x2="438.4" y2="84.7" stroke="#c0392b" stroke-width="1.6" marker-end="url(#arr-red)"/>
+<text x="433.4" y="66.1" text-anchor="end" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#c0392b">CO<tspan baseline-shift="sub" font-size="0.75em">2</tspan></text>
+<text x="433.4" y="80.1" text-anchor="end" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#c0392b">0.792 kg</text>
+<text x="438.4" y="96.7" text-anchor="start" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="9" font-weight="bold" fill="#c0392b">to Air</text>
+<line x1="562.6" y1="54.7" x2="562.6" y2="84.7" stroke="#c0392b" stroke-width="1.6" marker-end="url(#arr-red)"/>
+<text x="557.6" y="66.1" text-anchor="end" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#c0392b">CH<tspan baseline-shift="sub" font-size="0.75em">4</tspan></text>
+<text x="557.6" y="80.1" text-anchor="end" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#c0392b">0.0066 kg</text>
+<text x="562.6" y="96.7" text-anchor="start" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="9" font-weight="bold" fill="#c0392b">to Air</text>
+<line x1="699.4" y1="54.7" x2="699.4" y2="84.7" stroke="#c0392b" stroke-width="1.6" marker-end="url(#arr-red)"/>
+<text x="694.4" y="66.1" text-anchor="end" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#c0392b">CO<tspan baseline-shift="sub" font-size="0.75em">2</tspan></text>
+<text x="694.4" y="80.1" text-anchor="end" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#c0392b">0.9 kg</text>
+<text x="699.4" y="96.7" text-anchor="start" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="9" font-weight="bold" fill="#c0392b">to Air</text>
+<line x1="823.6" y1="54.7" x2="823.6" y2="84.7" stroke="#c0392b" stroke-width="1.6" marker-end="url(#arr-red)"/>
+<text x="818.6" y="66.1" text-anchor="end" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#c0392b">NOx</text>
+<text x="818.6" y="80.1" text-anchor="end" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#c0392b">0.006 kg</text>
+<text x="823.6" y="96.7" text-anchor="start" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="9" font-weight="bold" fill="#c0392b">to Air</text>
+<line x1="699.4" y1="219.0" x2="699.4" y2="249.0" stroke="#c0392b" stroke-width="1.6" marker-end="url(#arr-red)"/>
+<text x="694.4" y="230.4" text-anchor="end" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#c0392b">CO<tspan baseline-shift="sub" font-size="0.75em">2</tspan></text>
+<text x="694.4" y="244.4" text-anchor="end" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#c0392b">0.4 kg</text>
+<text x="699.4" y="261.0" text-anchor="start" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="9" font-weight="bold" fill="#c0392b">to Air</text>
+<line x1="823.6" y1="219.0" x2="823.6" y2="249.0" stroke="#c0392b" stroke-width="1.6" marker-end="url(#arr-red)"/>
+<text x="818.6" y="230.4" text-anchor="end" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#c0392b">NOx</text>
+<text x="818.6" y="244.4" text-anchor="end" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#c0392b">0.005 kg</text>
+<text x="823.6" y="261.0" text-anchor="start" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="9" font-weight="bold" fill="#c0392b">to Air</text>
+<line x1="1030.1" y1="154.1" x2="1030.1" y2="184.1" stroke="#c0392b" stroke-width="1.6" marker-end="url(#arr-red)"/>
+<text x="1025.1" y="165.5" text-anchor="end" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#c0392b">CO<tspan baseline-shift="sub" font-size="0.75em">2</tspan></text>
+<text x="1025.1" y="179.5" text-anchor="end" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#c0392b">0.8 kg</text>
+<text x="1030.1" y="196.1" text-anchor="start" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="9" font-weight="bold" fill="#c0392b">to Air</text>
+<line x1="225.5" y1="27.4" x2="417.8" y2="27.4" stroke="#555555" stroke-width="1.6" marker-end="url(#arr)"/>
+<text text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#444">
+<tspan x="321.6" y="6.2" dominant-baseline="auto">Raw fiber material</tspan>
+<tspan x="321.6" y="20.5" dominant-baseline="auto">0.792 kg</tspan>
+</text>
+<line x1="583.3" y1="27.4" x2="678.8" y2="27.4" stroke="#555555" stroke-width="1.6" marker-end="url(#arr)"/>
+<text text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#444">
+<tspan x="631.0" y="6.2" dominant-baseline="auto">Fiber</tspan>
+<tspan x="631.0" y="20.5" dominant-baseline="auto">0.66 kg</tspan>
+</text>
+<line x1="844.3" y1="27.4" x2="947.4" y2="126.7" stroke="#555555" stroke-width="1.6" marker-end="url(#arr)"/>
+<text text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#444">
+<tspan x="895.8" y="55.9" dominant-baseline="auto">Fabric</tspan>
+<tspan x="895.8" y="70.2" dominant-baseline="auto">0.6 kg</tspan>
+</text>
+<line x1="844.3" y1="191.6" x2="947.4" y2="126.7" stroke="#555555" stroke-width="1.6" marker-end="url(#arr)"/>
+<text text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#444">
+<tspan x="895.8" y="138.0" dominant-baseline="auto">Zipper</tspan>
+<tspan x="895.8" y="152.3" dominant-baseline="auto">1 unit</tspan>
+</text>
+<line x1="1112.9" y1="126.7" x2="1214.7" y2="126.7" stroke="#555555" stroke-width="1.6" marker-end="url(#arr)"/>
+<text text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="bold" fill="#444">
+<tspan x="1163.8" y="105.5" dominant-baseline="auto">Jacket</tspan>
+<tspan x="1163.8" y="119.8" dominant-baseline="auto">1 unit</tspan>
+</text>
+<rect x="60.0" y="-0.0" width="165.51333333333335" height="54.74516666666667" rx="8" fill="#3a7ebf"/>
+<text x="142.8" y="19.4" text-anchor="middle" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="normal" fill="white">P0 — Raw material extraction</text>
+<text x="142.8" y="35.4" text-anchor="middle" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="normal" fill="white">s1 = 0.792</text>
+<rect x="417.8" y="-0.0" width="165.51333333333335" height="54.74516666666667" rx="8" fill="#3a7ebf"/>
+<text x="500.5" y="19.4" text-anchor="middle" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="normal" fill="white">P1 — Spinning</text>
+<text x="500.5" y="35.4" text-anchor="middle" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="normal" fill="white">s2 = 0.66</text>
+<rect x="678.8" y="-0.0" width="165.51333333333335" height="54.74516666666667" rx="8" fill="#3a7ebf"/>
+<text x="761.5" y="19.4" text-anchor="middle" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="normal" fill="white">P2 — Fabric weaving</text>
+<text x="761.5" y="35.4" text-anchor="middle" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="normal" fill="white">s3 = 0.6</text>
+<rect x="678.8" y="164.2" width="165.51333333333335" height="54.74516666666667" rx="8" fill="#3a7ebf"/>
+<text x="761.5" y="183.6" text-anchor="middle" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="normal" fill="white">P3 — Zipper production</text>
+<text x="761.5" y="199.6" text-anchor="middle" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="normal" fill="white">s4 = 1</text>
+<rect x="947.4" y="99.3" width="165.51333333333335" height="54.74516666666667" rx="8" fill="#3a7ebf"/>
+<text x="1030.1" y="118.7" text-anchor="middle" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="normal" fill="white">P4 — Jacket assembly</text>
+<text x="1030.1" y="134.7" text-anchor="middle" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="normal" fill="white">s5 = 1</text>
+<rect x="1214.7" y="92.3" width="165.51333333333335" height="68.75" rx="8" fill="#7b4ea6"/>
+<text x="1297.5" y="107.4" text-anchor="middle" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="normal" fill="white">Functional Unit</text>
+<text x="1297.5" y="130.1" text-anchor="middle" dominant-baseline="auto" font-family="Helvetica,Arial,sans-serif" font-size="10" font-weight="normal" fill="white">1 jacket, ready for sale</text>
+</svg>
