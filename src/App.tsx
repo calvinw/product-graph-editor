@@ -9,8 +9,8 @@ import * as Tooltip from "@radix-ui/react-tooltip"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import {
-  BarChart3, Box, ChevronDown, Scan, LayoutGrid,
-  FileUp, Maximize, MousePointer2, Search, Share2, Sparkles,
+  BarChart3, Box, Scan, LayoutGrid,
+  FileUp, Maximize, MousePointer2, Search, Share2,
 } from "lucide-react"
 import { Button } from "./components/ui/button"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
@@ -141,22 +141,6 @@ function GraphEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query])
 
-  const toggleExpanded = useCallback((nodeId: string) => {
-    setNodes((current) => {
-      const byId = new Map(current.map((node) => [node.id, node]))
-      return current.map((node) => {
-        if (node.id !== nodeId) return node
-        const flowItem = (id: string) => {
-          const connected = byId.get(id)
-          return connected ? { label: connected.data.label, kind: connected.data.kind, color: connected.data.color } : null
-        }
-        const inputs = edges.filter((edge) => edge.target === nodeId).map((edge) => flowItem(edge.source)).filter((item): item is NonNullable<typeof item> => item !== null)
-        const outputs = edges.filter((edge) => edge.source === nodeId).map((edge) => flowItem(edge.target)).filter((item): item is NonNullable<typeof item> => item !== null)
-        return { ...node, data: { ...node.data, expanded: !node.data.expanded, inputs, outputs } }
-      })
-    })
-  }, [edges, setNodes])
-
   const showGraphMode = (mode: "scaled" | "structure") => {
     try {
       const parsed = buildGraphFromYaml(yamlText, mode)
@@ -218,6 +202,15 @@ function GraphEditor() {
   }
 
   const connectionCount = edges.length
+  const selectedNode = selected ? nodes.find((node) => node.id === selected.id) : undefined
+  const inputNodes = selectedNode ? edges
+    .filter((edge) => edge.target === selectedNode.id)
+    .map((edge) => nodes.find((node) => node.id === edge.source))
+    .filter((node): node is Node<ProcessNodeData> => Boolean(node)) : []
+  const outputNodes = selectedNode ? edges
+    .filter((edge) => edge.source === selectedNode.id)
+    .map((edge) => nodes.find((node) => node.id === edge.target))
+    .filter((node): node is Node<ProcessNodeData> => Boolean(node)) : []
 
   return (
     <>
@@ -244,7 +237,7 @@ function GraphEditor() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onNodeClick={(_, node) => setSelected({ id: node.id, label: node.data.label, kind: node.data.kind, detail: node.data.detail })}
-          onNodeDoubleClick={(_, node) => toggleExpanded(node.id)}
+          onNodeDoubleClick={(_, node) => setSelected({ id: node.id, label: node.data.label, kind: node.data.kind, detail: node.data.detail })}
           onPaneClick={() => setSelected(null)}
           minZoom={0.35}
           maxZoom={2.4}
@@ -300,10 +293,22 @@ function GraphEditor() {
           <div className="inspector-head"><span>NODE DETAILS</span><Button variant="ghost" size="icon" onClick={() => setSelected(null)}><Maximize size={16} /></Button></div>
           <div className="node-icon" style={{ background: kindColor[selected.kind] }}><Box size={22} /></div>
           <h2>{selected.label}</h2><p>{selected.detail}</p>
-          <div className="field"><label>Type</label><div>{selected.kind}<ChevronDown size={14} /></div></div>
-          <div className="field"><label>Owner</label><div>Product team<ChevronDown size={14} /></div></div>
-          <div className="field"><label>Status</label><div><span className="status-dot" /> Active<ChevronDown size={14} /></div></div>
-          <div className="insight"><Sparkles size={16} /><div><strong>Graph insight</strong><p>This node connects to {edges.filter((edge) => edge.source === selected.id || edge.target === selected.id).length} other capabilities.</p></div></div>
+          <div className="property-section">
+            <h3>Input flows</h3>
+            {inputNodes.length ? inputNodes.map((node) => <div className="property-row" key={node.id}><span>{node.data.label}</span><small>{node.data.kind}</small></div>) : <p>No input flows</p>}
+          </div>
+          <div className="property-section">
+            <h3>Output flows</h3>
+            {outputNodes.length ? outputNodes.map((node) => <div className="property-row" key={node.id}><span>{node.data.label}</span><small>{node.data.kind}</small></div>) : <p>No output flows</p>}
+          </div>
+          {selectedNode?.data.extractions?.length ? <div className="property-section is-extraction">
+            <h3>Resource extractions</h3>
+            {selectedNode.data.extractions.map((item) => <div className="property-row" key={item.label}><span>{item.label}</span>{selectedNode.data.showAmounts !== false ? <strong>{item.amount} {item.unit}</strong> : null}</div>)}
+          </div> : null}
+          {selectedNode?.data.emissions?.length ? <div className="property-section is-emission">
+            <h3>Emissions to air</h3>
+            {selectedNode.data.emissions.map((item) => <div className="property-row" key={item.label}><span>{item.label}</span>{selectedNode.data.showAmounts !== false ? <strong>{item.amount} {item.unit}</strong> : null}</div>)}
+          </div> : null}
         </> : <div className="empty-inspector"><MousePointer2 size={24} /><strong>Nothing selected</strong><p>Select a node to inspect its properties and connections.</p></div>}
       </aside>
     </>
