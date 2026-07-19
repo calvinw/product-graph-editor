@@ -292,10 +292,7 @@ function GraphEditor() {
               : <div className="results-placeholder"><div className="results-empty-icon"><BarChart3 size={22} /></div><strong>No LCA results yet</strong><p>Select Calculate to analyze the current YAML graph.</p></div>}
           </div>
         </div>}
-        {view === "graph" ? <><div className="legend">
-          {Object.entries(kindColor).map(([kind, color]) => <span key={kind}><i style={{ backgroundColor: color }} />{kind}</span>)}
-        </div>
-        <div className="graph-meta">{nodes.length} nodes&nbsp;&nbsp;·&nbsp;&nbsp;{connectionCount} connections</div></> : null}
+        {view === "graph" ? <div className="graph-meta">{nodes.length} nodes&nbsp;&nbsp;·&nbsp;&nbsp;{connectionCount} connections</div> : null}
       </div>
 
       <aside className={`inspector ${selected ? "is-open" : ""}`}>

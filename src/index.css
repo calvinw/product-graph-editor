@@ -122,8 +122,6 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
   transition: color .15s ease, border-color .15s ease, background .15s ease;
 }
 .pg-node-toggle:hover { color: #fff; border-color: var(--node-color); background: color-mix(in srgb, var(--node-color) 20%, transparent); }
-.legend { position: absolute; z-index: 2; bottom: 21px; left: 24px; display: flex; gap: 16px; color: #747b86; font-size: 10px; text-transform: capitalize; }
-.legend span { display: flex; align-items: center; gap: 6px; }.legend i { width: 7px; height: 7px; border-radius: 50%; }
 .graph-meta { position: absolute; z-index: 2; right: 20px; bottom: 18px; color: #5e646e; font-size: 10px; }
 .inspector { min-width: 0; padding: 22px; border-left: 1px solid #24272d; background: #101216; }
 .inspector-head { display: flex; align-items: center; justify-content: space-between; height: 30px; margin-bottom: 27px; color: #737985; font-size: 9px; font-weight: 750; letter-spacing: .14em; }
@@ -137,4 +135,4 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
 .empty-inspector { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #555c67; }.empty-inspector strong { margin-top: 13px; color: #8a909a; font-size: 12px; }.empty-inspector p { max-width: 190px; font-size: 11px; line-height: 1.55; }
 .tooltip { z-index: 20; padding: 6px 8px; border: 1px solid #30343b; border-radius: 5px; color: #dddfe4; background: #191c21; font-size: 11px; box-shadow: 0 8px 25px rgba(0,0,0,.35); }
 @media (max-width: 900px) { .workspace { grid-template-columns: minmax(0, 1fr); }.inspector { display: none; }.inspector.is-open { display: block; position: absolute; z-index: 4; right: 0; top: 58px; bottom: 0; width: 270px; box-shadow: -20px 0 50px rgba(0,0,0,.35); }.top-actions button:first-child { display: none; } }
-@media (max-width: 620px) { .top-actions button:nth-child(2) { display: none; }.canvas-head { left: 18px; right: 16px; }.search { width: 42px; }.search input, .search kbd { display: none; }.legend { gap: 8px; flex-wrap: wrap; max-width: 170px; }.graph-meta { display: none; } }
+@media (max-width: 620px) { .top-actions button:nth-child(2) { display: none; }.canvas-head { left: 18px; right: 16px; }.search { width: 42px; }.search input, .search kbd { display: none; }.graph-meta { display: none; } }
