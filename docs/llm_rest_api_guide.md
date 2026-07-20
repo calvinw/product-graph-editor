@@ -102,7 +102,7 @@ Important response fields:
   "running": true,
   "engine": "brightway2.5",
   "project": "lca_server",
-  "databases": ["biosphere3", "bafu", "foreground"],
+  "databases": ["biosphere3", "bafu"],
   "methods": 1246,
   "search_database": {
     "exists": true,
@@ -309,7 +309,7 @@ GET /api/case-studies/cotton_fiber
 The list endpoint returns names:
 
 ```json
-["cotton_fiber", "polyester_tshirt", "wool_yarn"]
+["cotton_fiber", "jacket", "polyester_tshirt", "wool_yarn"]
 ```
 
 The detail endpoint returns a bundle containing:
@@ -348,6 +348,12 @@ string. Do not convert the YAML into a nested JSON object. The easiest safe
 workflow is to retrieve `product_graph` from a case study and pass that string
 unchanged.
 
+The operation is stateless. The submitted YAML is the complete calculation
+input: no session, saved-result identifier, or earlier request is required.
+The request does not contain an API version. Instead, the response declares its
+result contract with `result_schema_version`. This application requires result
+schema version 2.
+
 Response fields include:
 
 ```json
@@ -363,12 +369,80 @@ Response fields include:
     }
   },
   "scaling_vector": {},
+  "result_schema_version": 2,
+  "process_contributions": {
+    "categories": [
+      {
+        "id": "impact:...",
+        "label": "climate change | global warming potential (GWP100)",
+        "unit": "kg CO2-Eq",
+        "total_score": 4.8786,
+        "processes": [
+          {
+            "process_id": "process:...",
+            "process_name": "P0 — Raw material extraction",
+            "direct_score": 1.8216,
+            "percentage": 37.3386,
+            "scope": "foreground"
+          }
+        ],
+        "residual_score": 0.0
+      }
+    ]
+  },
+  "sankey": {
+    "nodes": [],
+    "links": [],
+    "available_units": ["kg", "unit"]
+  },
   "svg_scaled": "<svg ...>",
   "svg_structure": "<svg ...>"
 }
 ```
 
 Report impact values with their returned units. Never infer or replace units.
+
+#### Result schema version 2
+
+Require `result_schema_version === 2` before enabling Inventory, Contribution,
+or Sankey views. Existing fields retain their original meaning:
+
+- `lci` contains total scaled inventory flows.
+- `lcia` contains one total score and unit per impact category.
+- `scaling_vector` maps exact foreground process names to solved scaling
+  factors.
+- `svg_scaled` and `svg_structure` remain opaque rendered diagrams.
+
+`process_contributions.categories` contains exactly one contribution record for
+each key in `lcia`:
+
+- `label` matches the `lcia` key, while `unit` and `total_score` match that
+  category's result.
+- `processes` is in deterministic product-graph order and includes all
+  foreground processes, including zero-score processes.
+- `direct_score` is exclusive to that process. It is not cumulative upstream
+  impact and can be negative.
+- `percentage` is `direct_score / total_score * 100`. It can be negative or
+  greater than 100 and is `null` when the total is effectively zero.
+- `residual_score` explicitly contains background or otherwise unexposed
+  contribution. Never discard it.
+- The invariant is `sum(direct_score) + residual_score ~= total_score` within
+  floating-point tolerance.
+
+`sankey` is renderer-neutral scaled graph data:
+
+- Every link's `source` and `target` references an ID in `nodes`.
+- Process IDs are the same IDs used by process contributions.
+- Link kinds are `technosphere`, `extraction`, `emission`, and `final_product`.
+- Quantities already use the same solved scaling state as `scaling_vector`; do
+  not multiply them again in the frontend.
+- Technosphere links run supplier → consumer, extraction links run resource →
+  process, and emission links run process → emission.
+- Every link retains its original `unit`. Only compare Sankey widths within one
+  compatible unit selected from `available_units`; never combine `kg`, `unit`,
+  or other incompatible quantities into one width scale.
+- Treat node and link IDs as opaque stable identifiers rather than parsing
+  their text.
 
 ### Render a product graph
 
@@ -450,7 +524,9 @@ of guessing. The response is `{"svg":"<svg ...>"}`.
 3. `GET /api/case-studies/{name}`
 4. Extract the `product_graph` string.
 5. `POST /api/lca/run` with that string.
-6. Present `lcia` scores with their units; show returned SVGs only if useful.
+6. Require `result_schema_version === 2`.
+7. Present `lcia` scores with their units and derive Inventory, Contribution,
+   and Sankey views from this one response; show returned SVGs only if useful.
 
 ### Explore a background process
 
@@ -494,7 +570,11 @@ requests. product_graph is YAML encoded as one JSON string, not a nested JSON
 object. Search before selecting BAFU activities; preserve the returned database
 and code key. Call /api/database/schema before writing one read-only SQL query.
 Treat exchange amounts as inventory quantities, not impact scores. Report LCIA
-scores with their returned units. Never invent missing activities, method names,
-process names, results, or units. On HTTP 400 read detail and correct the call;
-on 503 retry later with bounded backoff.
+scores with their returned units. For POST /api/lca/run require
+result_schema_version=2. Use process_contributions for exclusive per-process
+scores and include residual_score when reconciling totals. Use returned Sankey
+amounts without scaling them again, and compare widths only within compatible
+available_units. Never invent missing activities, method names, process names,
+results, or units. On HTTP 400 read detail and correct the call; on 503 retry
+later with bounded backoff.
 ```
