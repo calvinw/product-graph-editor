@@ -120,11 +120,30 @@ export async function calculateLca(productGraph: string): Promise<LcaResult> {
 
 const formatNumber = (value: number) => new Intl.NumberFormat("en", { maximumSignificantDigits: 6 }).format(value)
 const cell = (value: string) => value.replaceAll("|", "\\|").replaceAll("\n", " ")
+const indicatorAbbreviations: Record<string, string> = {
+  "ecotoxicity: freshwater": "FETP",
+  "eutrophication potential": "EP",
+  "human toxicity: carcinogenic": "HTPC",
+  "human toxicity: non-carcinogenic": "HTPNC",
+}
+
+const impactIndicator = (category: string) => {
+  const indicator = category.split("|").at(-1)?.trim() || category
+  const abbreviation = indicator.match(/\(([^()]*)\)\s*$/)
+  if (!abbreviation) {
+    const code = indicatorAbbreviations[indicator.toLowerCase()]
+    if (code) return `${indicator[0].toUpperCase()}${indicator.slice(1)} / (${code})`
+    return indicator
+  }
+  const fullName = indicator.slice(0, abbreviation.index).trim()
+  return `${fullName[0].toUpperCase()}${fullName.slice(1)} / (${abbreviation[1].toUpperCase()})`
+}
 
 export function lcaResultToMarkdown(result: LcaResult) {
-  const impactRows = Object.entries(result.lcia).map(([category, value]) => `| ${cell(category)} | ${formatNumber(value.score ?? 0)} | ${cell(value.unit)} |`)
+  const impactRows = Object.entries(result.lcia)
+    .sort(([, left], [, right]) => Number((left.score ?? 0) === 0) - Number((right.score ?? 0) === 0))
+    .map(([category, value]) => `| ${cell(impactIndicator(category))} | ${formatNumber(value.score ?? 0)} | ${cell(value.unit)} |`)
   const inventoryRows = Object.entries(result.lci).map(([flow, value]) => `| ${cell(flow)} | ${formatNumber(value.amount ?? 0)} | ${cell(value.unit)} | ${cell(value.type ?? "—")} |`)
-  const scalingRows = Object.entries(result.scaling_vector).map(([process, scale]) => `| ${cell(process)} | ${formatNumber(scale)} |`)
 
   return [
     `# ${result.name}`,
@@ -132,22 +151,16 @@ export function lcaResultToMarkdown(result: LcaResult) {
     `**Method:** ${result.method}  `,
     `**Functional unit:** ${result.functional_unit}`,
     "",
-    "## Impact assessment",
-    "",
-    "| Impact category | Score | Unit |",
-    "| --- | ---: | --- |",
-    ...impactRows,
-    "",
     "## Life cycle inventory",
     "",
     "| Flow | Amount | Unit | Type |",
     "| --- | ---: | --- | --- |",
     ...inventoryRows,
     "",
-    "## Process scaling",
+    "## Impact assessment",
     "",
-    "| Process | Scale |",
-    "| --- | ---: |",
-    ...scalingRows,
+    "| Impact category | Score | Unit |",
+    "| --- | ---: | --- |",
+    ...impactRows,
   ].join("\n")
 }
