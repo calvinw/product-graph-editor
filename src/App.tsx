@@ -17,7 +17,10 @@ import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
 import { buildGraphFromYaml } from "./lib/yamlGraph"
 import { calculateLca, lcaResultToMarkdown, type LcaResult } from "./lib/lcaApi"
-import jacketYaml from "../Jacket_product_graph.yaml?raw"
+import jacketYaml from "../case_studies/jacket.yaml?raw"
+import cottonFiberYaml from "../case_studies/cotton_fiber.yaml?raw"
+import polyesterTshirtYaml from "../case_studies/polyester_tshirt.yaml?raw"
+import woolYarnYaml from "../case_studies/wool_yarn.yaml?raw"
 
 type NodeMeta = { label: string; kind: string; detail: string }
 
@@ -33,6 +36,13 @@ const initialNodes: Node<ProcessNodeData>[] = defaultGraph.nodes.map((node) => (
 }))
 
 const nodeTypes = { process: ProcessNode }
+const caseStudies = {
+  jacket: { label: "Jacket", yaml: jacketYaml },
+  cottonFiber: { label: "Cotton Fiber", yaml: cottonFiberYaml },
+  polyesterTshirt: { label: "Polyester T-shirt", yaml: polyesterTshirtYaml },
+  woolYarn: { label: "Wool Yarn", yaml: woolYarnYaml },
+} as const
+type CaseStudyId = keyof typeof caseStudies
 
 function ToolButton({ label, children, onClick }: { label: string; children: React.ReactNode; onClick?: () => void }) {
   return (
@@ -54,6 +64,7 @@ function GraphEditor() {
   const [query, setQuery] = useState("")
   const [view, setView] = useState<"graph" | "yaml" | "inventory" | "contribution" | "sankey" | "results">("graph")
   const [yamlText, setYamlText] = useState(jacketYaml)
+  const [selectedCaseStudy, setSelectedCaseStudy] = useState<CaseStudyId | "custom">("jacket")
   const [yamlError, setYamlError] = useState("")
   const [graphTitle, setGraphTitle] = useState(defaultGraph.name)
   const [resultsMarkdown, setResultsMarkdown] = useState("")
@@ -248,9 +259,20 @@ function GraphEditor() {
     if (!file) return
     if (!/\.ya?ml$/i.test(file.name)) { setYamlError("Choose a .yaml or .yml file."); return }
     const reader = new FileReader()
-    reader.onload = () => { setYamlText(String(reader.result ?? "")); setYamlError(""); setResultsMarkdown(""); setLcaResult(null); setCalculatedYaml(""); setGraphMode("structure") }
+    reader.onload = () => { setYamlText(String(reader.result ?? "")); setSelectedCaseStudy("custom"); setYamlError(""); setResultsMarkdown(""); setLcaResult(null); setCalculatedYaml(""); setGraphMode("structure") }
     reader.onerror = () => setYamlError("Could not read the selected file.")
     reader.readAsText(file)
+  }
+
+  const loadCaseStudy = (id: CaseStudyId) => {
+    setSelectedCaseStudy(id)
+    setYamlText(caseStudies[id].yaml)
+    setYamlError("")
+    setResultsMarkdown("")
+    setResultsError("")
+    setLcaResult(null)
+    setCalculatedYaml("")
+    setGraphMode("structure")
   }
 
   const connectionCount = edges.length
@@ -320,9 +342,15 @@ function GraphEditor() {
         </div></> : view === "yaml" ? <div className="yaml-editor">
           <div className="yaml-editor-head">
             <div><strong>Product graph YAML</strong><span>Paste YAML or choose a local .yaml/.yml file.</span></div>
-            <label className="yaml-upload"><FileUp size={15} /> Choose file<input type="file" accept=".yaml,.yml,text/yaml" onChange={(event) => loadYamlFile(event.target.files?.[0])} /></label>
+            <div className="yaml-editor-actions">
+              <label className="case-study-select">Case study<select value={selectedCaseStudy} onChange={(event) => event.target.value !== "custom" && loadCaseStudy(event.target.value as CaseStudyId)} aria-label="Choose a case study">
+                {Object.entries(caseStudies).map(([id, study]) => <option key={id} value={id}>{study.label}</option>)}
+                {selectedCaseStudy === "custom" ? <option value="custom">Custom YAML</option> : null}
+              </select></label>
+              <label className="yaml-upload"><FileUp size={15} /> Choose file<input type="file" accept=".yaml,.yml,text/yaml" onChange={(event) => loadYamlFile(event.target.files?.[0])} /></label>
+            </div>
           </div>
-          <textarea value={yamlText} onChange={(event) => { setYamlText(event.target.value); setResultsMarkdown(""); setLcaResult(null); setCalculatedYaml(""); setGraphMode("structure") }} spellCheck={false} aria-label="Product graph YAML" />
+          <textarea value={yamlText} onChange={(event) => { setYamlText(event.target.value); setSelectedCaseStudy("custom"); setResultsMarkdown(""); setLcaResult(null); setCalculatedYaml(""); setGraphMode("structure") }} spellCheck={false} aria-label="Product graph YAML" />
           <div className="yaml-editor-foot">
             <span className={yamlError ? "yaml-error" : ""}>{yamlError || "Files are parsed locally in your browser."}</span>
             <Button onClick={previewYaml}>Preview graph</Button>
