@@ -10,7 +10,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import {
   BarChart3, Box, Scan, LayoutGrid,
-  FileUp, Link2, Maximize, Minus, MousePointer2, Plus, Search, Share2,
+  FileUp, Maximize, Minus, MousePointer2, Plus, Search, Share2,
 } from "lucide-react"
 import { Button } from "./components/ui/button"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
@@ -183,17 +183,6 @@ function GraphEditor() {
     })
   }, [edges, setNodes])
 
-  const addNode = useCallback(() => {
-    const id = `node-${Date.now()}`
-    const next: Node<ProcessNodeData> = {
-      id, type: "process", position: { x: 40, y: 40 },
-      data: { label: `New process ${nodes.length + 1}`, kind: "process", detail: "New life cycle process", color: kindColor.process, onRemove: removeNode },
-      selected: true,
-    }
-    setNodes((current) => [...current.map((node) => ({ ...node, selected: false })), next])
-    setSelected({ id, label: next.data.label, kind: next.data.kind, detail: next.data.detail })
-  }, [nodes.length, removeNode, setNodes])
-
   const fit = () => fitView({ padding: 0.35, maxZoom: 0.75, duration: 350 })
   const relayout = () => setNodes((current) => layoutNodes(current, edges))
 
@@ -324,8 +313,6 @@ function GraphEditor() {
         <div className="graph-toolbar" aria-label="Graph tools">
           <div className="toolbar-group">
             <ToolButton label="Select"><MousePointer2 size={18} /></ToolButton>
-            <ToolButton label="Add node" onClick={addNode}><Plus size={18} /></ToolButton>
-            <ToolButton label="Connect nodes"><Link2 size={18} /></ToolButton>
           </div>
           <div className="toolbar-group">
             <ToolButton label="Auto layout" onClick={relayout}><LayoutGrid size={18} /></ToolButton>
