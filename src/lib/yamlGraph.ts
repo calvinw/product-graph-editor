@@ -24,7 +24,11 @@ const emissionLabels: Record<string, string> = { "Carbon dioxide": "CO₂", Meth
 const round = (value: number) => Number(value.toFixed(6))
 const idFor = (name: string, index: number) => `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "process"}-${index}`
 
-export function buildGraphFromYaml(source: string, mode: "scaled" | "structure" = "scaled"): { name: string; nodes: Node<ProcessNodeData>[]; edges: Edge[] } {
+export function buildGraphFromYaml(
+  source: string,
+  mode: "scaled" | "structure" = "structure",
+  scalingVector?: Record<string, number>,
+): { name: string; nodes: Node<ProcessNodeData>[]; edges: Edge[] } {
   const graph = parse(source) as ProductGraph
   if (!graph || !Array.isArray(graph.processes) || !graph.processes.length) throw new Error("YAML must include a non-empty processes list.")
   if (!graph.reference_process) throw new Error("YAML must define reference_process.")
@@ -55,6 +59,11 @@ export function buildGraphFromYaml(source: string, mode: "scaled" | "structure" 
         queue.push(provider)
       }
     }
+  }
+
+  if (mode === "scaled") {
+    if (!scalingVector) throw new Error("Calculate LCA results before viewing the scaled graph.")
+    graph.processes.forEach((process) => scales.set(process.name, scalingVector[process.name] ?? 0))
   }
 
   const nodes: Node<ProcessNodeData>[] = graph.processes.map((process) => {
