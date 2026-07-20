@@ -1,12 +1,68 @@
-type LcaValue = { amount?: number; score?: number; unit: string; type?: string }
+export type LciValue = {
+  amount: number
+  unit: string
+  type: string
+}
+
+export type LciaValue = {
+  score: number
+  unit: string
+}
+
+export type ProcessContribution = {
+  process_id: string
+  process_name: string
+  direct_score: number
+  percentage: number | null
+  scope: "foreground" | "background"
+}
+
+export type ProcessContributionCategory = {
+  id: string
+  label: string
+  unit: string
+  total_score: number
+  processes: ProcessContribution[]
+  residual_score: number
+}
+
+export type SankeyNode = {
+  id: string
+  label: string
+  kind: "process" | "resource" | "emission" | "final_product"
+  process_name?: string
+  flow_name?: string
+  scope?: "foreground" | "background"
+}
+
+export type SankeyLink = {
+  id: string
+  source: string
+  target: string
+  kind: "technosphere" | "extraction" | "emission" | "final_product"
+  flow_name: string
+  amount: number
+  unit: string
+}
 
 export type LcaResult = {
   name: string
   method: string
   functional_unit: string
-  lci: Record<string, LcaValue>
-  lcia: Record<string, LcaValue>
+  lci: Record<string, LciValue>
+  lcia: Record<string, LciaValue>
   scaling_vector: Record<string, number>
+  result_schema_version: 2
+  process_contributions: {
+    categories: ProcessContributionCategory[]
+  }
+  sankey: {
+    nodes: SankeyNode[]
+    links: SankeyLink[]
+    available_units: string[]
+  }
+  svg_scaled: string
+  svg_structure: string
 }
 
 type ToolDefinition = {
@@ -26,6 +82,26 @@ async function readJson(response: Response) {
   return body
 }
 
+const isObject = (value: unknown): value is Record<string, unknown> => (
+  typeof value === "object" && value !== null && !Array.isArray(value)
+)
+
+function readLcaResult(value: unknown): LcaResult {
+  if (!isObject(value) || value.result_schema_version !== 2) {
+    throw new Error("The LCA calculation engine returned an unsupported result version.")
+  }
+  if (!isObject(value.process_contributions) || !Array.isArray(value.process_contributions.categories)) {
+    throw new Error("The LCA calculation response is missing process contributions.")
+  }
+  if (!isObject(value.sankey) || !Array.isArray(value.sankey.nodes) || !Array.isArray(value.sankey.links) || !Array.isArray(value.sankey.available_units)) {
+    throw new Error("The LCA calculation response is missing Sankey data.")
+  }
+  if (typeof value.svg_scaled !== "string" || typeof value.svg_structure !== "string") {
+    throw new Error("The LCA calculation response is missing graph SVGs.")
+  }
+  return value as LcaResult
+}
+
 export async function calculateLca(productGraph: string): Promise<LcaResult> {
   const health = await readJson(await fetch(`${apiBase}/api/health`)) as { running?: boolean }
   if (!health.running) throw new Error("The LCA calculation engine is not ready.")
@@ -34,11 +110,12 @@ export async function calculateLca(productGraph: string): Promise<LcaResult> {
   const operation = tools.find((tool) => tool.name === "run_lca")
   if (!operation?.rest || operation.rest.method !== "POST") throw new Error("The LCA calculation operation is unavailable.")
 
-  return readJson(await fetch(`${apiBase}${operation.rest.path}`, {
+  const result = await readJson(await fetch(`${apiBase}${operation.rest.path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ product_graph: productGraph }),
-  })) as Promise<LcaResult>
+  }))
+  return readLcaResult(result)
 }
 
 const formatNumber = (value: number) => new Intl.NumberFormat("en", { maximumSignificantDigits: 6 }).format(value)
