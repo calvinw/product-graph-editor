@@ -46,6 +46,10 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
 .yaml-editor-head, .yaml-editor-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 15px; background: #13161c; }
 .yaml-editor-head { border-bottom: 1px solid #292e37; }.yaml-editor-foot { border-top: 1px solid #292e37; }
 .yaml-editor-head > div { display: grid; gap: 3px; }.yaml-editor-head strong { font-size: 12px; }.yaml-editor-head span, .yaml-editor-foot span { color: #737b88; font-size: 10px; }
+.yaml-editor-head .yaml-editor-actions { display: flex; align-items: center; gap: 9px; }
+.case-study-select { display: flex; align-items: center; gap: 7px; color: #8f96a3; font-size: 10px; }
+.case-study-select select { height: 30px; padding: 0 28px 0 10px; border: 1px solid #343944; border-radius: 7px; outline: none; color: #d8dce3; background: #1a1e25; font-size: 11px; cursor: pointer; }
+.case-study-select select:hover, .case-study-select select:focus { border-color: #4b5260; color: #fff; }
 .yaml-upload { display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 10px; border: 1px solid #343944; border-radius: 7px; color: #c6cbd4; background: #1a1e25; font-size: 11px; cursor: pointer; }
 .yaml-upload:hover { border-color: #4b5260; color: #fff; }.yaml-upload input { display: none; }
 .yaml-editor textarea { width: 100%; height: 100%; resize: none; padding: 18px; border: 0; outline: 0; color: #cbd5e1; background: #0d1015; font: 12px/1.6 "SFMono-Regular", Consolas, "Liberation Mono", monospace; tab-size: 2; }
