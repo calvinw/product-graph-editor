@@ -154,7 +154,7 @@ Project-level OpenCode configuration (project root, highest precedence).
 ### `.devcontainer/devcontainer.json`
 Dev container configuration.
 - References container image: `ghcr.io/calvinw/ai-course-devcontainer:latest`
-- Runs setup on creation: `setup-env.sh && install-mcps.sh && setup-skills.sh && skillshare install github.com/anthropics/skills/skill-creator && sync-skills.sh`
+- Runs setup on creation: `setup-env.sh && install-mcps.sh && setup-skills.sh && sync-skills.sh`
 - Declares secrets for GitHub Codespaces: `STITCH_API_KEY`
 
 ---
@@ -165,7 +165,6 @@ Dev container configuration.
    - `setup-env.sh` — SSH key + PATH setup
    - `install-mcps.sh` — Register MCPs from `configs/mcp-servers.conf`
    - `setup-skills.sh` — Initialize skills infrastructure
-   - `skillshare install github.com/anthropics/skills/skill-creator` — Install skill-creator tool
    - `sync-skills.sh` — Deploy skills to all agents
 
 2. **Adding new MCPs** — Edit `configs/mcp-servers.conf`, then:
@@ -180,7 +179,6 @@ Dev container configuration.
 
 4. **Installing additional skills**:
    ```
-   # skillshare install github.com/anthropics/skills/skill-creator
    # skillshare install github.com/your-org/your-skill
    # sync-skills.sh
    ```
