@@ -156,6 +156,22 @@ function GraphEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query])
 
+  const toggleExpanded = useCallback((nodeId: string) => {
+    setNodes((current) => {
+      const byId = new Map(current.map((node) => [node.id, node]))
+      return current.map((node) => {
+        if (node.id !== nodeId) return node
+        const flowItem = (id: string) => {
+          const connected = byId.get(id)
+          return connected ? { label: connected.data.label, kind: connected.data.kind, color: connected.data.color } : null
+        }
+        const inputs = edges.filter((edge) => edge.target === nodeId).map((edge) => flowItem(edge.source)).filter((item): item is NonNullable<typeof item> => item !== null)
+        const outputs = edges.filter((edge) => edge.source === nodeId).map((edge) => flowItem(edge.target)).filter((item): item is NonNullable<typeof item> => item !== null)
+        return { ...node, data: { ...node.data, expanded: !node.data.expanded, inputs, outputs } }
+      })
+    })
+  }, [edges, setNodes])
+
   const addNode = useCallback(() => {
     const id = `node-${Date.now()}`
     const next: Node<ProcessNodeData> = {
@@ -273,7 +289,7 @@ function GraphEditor() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onNodeClick={(_, node) => setSelected({ id: node.id, label: node.data.label, kind: node.data.kind, detail: node.data.detail })}
-          onNodeDoubleClick={(_, node) => setSelected({ id: node.id, label: node.data.label, kind: node.data.kind, detail: node.data.detail })}
+          onNodeDoubleClick={(_, node) => toggleExpanded(node.id)}
           onPaneClick={() => setSelected(null)}
           minZoom={0.35}
           maxZoom={2.4}
