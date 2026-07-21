@@ -101,21 +101,29 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
   color: color-mix(in srgb, var(--node-color) 82%, white);
 }
 .pg-node.is-expanded .pg-node-head .pg-node-label { color: #eef0f4; font-weight: 650; }
+.pg-node-scope { flex: none; color: var(--node-color); font-size: 8px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
 .pg-flow-section { padding: 9px 10px 10px; }
-.pg-flow-title { display: flex; align-items: center; gap: 4px; margin-bottom: 7px; color: #66759c; font-size: 10.5px; font-weight: 600; }
+.pg-flow-title { display: flex; align-items: center; gap: 4px; margin-bottom: 7px; color: #7b88ad; font-size: 11.5px; font-weight: 650; }
 .pg-flow-section.is-output .pg-flow-title { justify-content: flex-end; }
-.pg-flow-row { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 7px; min-height: 23px; color: #8bdcf3; font-size: 11.5px; font-weight: 650; }
-.pg-flow-row small { color: #707784; font-size: 9px; font-weight: 500; text-transform: capitalize; }
+.pg-flow-row { position: relative; display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 7px; min-height: 25px; color: #8bdcf3; font-size: 12.5px; font-weight: 650; }
+.pg-flow-row .pg-flow-handle { left: -10px; top: 50%; }
+.pg-flow-row small { color: #8a929f; font-size: 10px; font-weight: 550; text-transform: capitalize; }
 .pg-flow-empty { padding: 2px 0; color: #555d6a; font-size: 10px; }
+.pg-flow-empty.is-error, .property-error { color: #fb7185 !important; }
 .pg-flow-divider { height: 1px; margin: 0 10px; background: color-mix(in srgb, var(--node-color) 70%, transparent); }
 .pg-extractions { padding: 8px 10px 10px; border-top: 1px solid #303541; background: rgba(56,189,248,.045); }
 .pg-extractions-title { margin-bottom: 5px; color: #38bdf8; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
-.pg-extraction-row { display: flex; align-items: center; justify-content: space-between; min-height: 20px; color: #c8cdd6; font-size: 11px; }
+.pg-extraction-row { display: flex; align-items: center; justify-content: space-between; min-height: 22px; color: #c8cdd6; font-size: 12px; }
 .pg-extraction-row strong { color: #7dd3fc; font-size: 10px; font-weight: 650; }
 .pg-emissions { padding: 8px 10px 10px; border-top: 1px solid #303541; background: rgba(251,113,133,.045); }
 .pg-emissions-title { margin-bottom: 5px; color: #fb7185; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
-.pg-emission-row { display: flex; align-items: center; justify-content: space-between; min-height: 20px; color: #c8cdd6; font-size: 11px; }
+.pg-emission-row { display: flex; align-items: center; justify-content: space-between; min-height: 22px; color: #c8cdd6; font-size: 12px; }
 .pg-emission-row strong { color: #fda4af; font-size: 10px; font-weight: 650; }
+.pg-biosphere { padding: 8px 10px 10px; border-top: 1px solid #303541; background: rgba(251,113,133,.045); }
+.pg-biosphere-title { margin-bottom: 5px; color: #fb7185; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.pg-biosphere-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 22px; color: #c8cdd6; font-size: 12px; }
+.pg-biosphere-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-biosphere-row strong { flex: none; color: #fda4af; font-size: 10px; font-weight: 650; }
 .pg-node-icon {
   display: grid; place-items: center; flex: none;
   width: 18px; height: 18px; border-radius: 6px;
@@ -138,7 +146,7 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
 .property-section { margin-top: 22px; padding-top: 15px; border-top: 1px solid #272b32; }
 .property-section h3 { margin: 0 0 9px; color: #777e89; font-size: 9px; font-weight: 750; letter-spacing: .09em; text-transform: uppercase; }
 .property-section p { margin: 0; color: #555d68; font-size: 10px; }
-.property-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 25px; color: #c8cdd6; font-size: 10.5px; }
+.property-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 27px; color: #c8cdd6; font-size: 11.5px; }
 .property-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .property-row small { flex: none; color: #707784; font-size: 9px; text-transform: capitalize; }
 .property-row strong { flex: none; color: #c4b5fd; font-size: 9.5px; font-weight: 650; }
