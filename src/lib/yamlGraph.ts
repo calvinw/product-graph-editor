@@ -156,9 +156,10 @@ export function buildGraphFromYaml(
       const source = input.database ? backgroundIdFor(input) : provider ? ids.get(provider.name)! : undefined
       if (!source) continue
       const amount = round(input.amount * (scales.get(consumer.name) ?? 0))
+      const unit = input.unit ?? productUnits.get(input.flow)
       edges.push({
         id: `${source}-${ids.get(consumer.name)}-${consumerIndex}-${inputIndex}`,
-        source, target: ids.get(consumer.name)!, label: mode === "scaled" ? `${input.flow} · ${amount}${input.unit ? ` ${input.unit}` : ""}` : input.flow,
+        source, target: ids.get(consumer.name)!, label: mode === "scaled" ? `${input.flow} · ${amount}${unit ? ` ${unit}` : ""}` : input.flow,
         style: { stroke: "#343941", strokeWidth: 1.5 },
         labelStyle: { fill: "#9aa2ae", fontSize: 12, fontWeight: 650 },
         labelBgStyle: { fill: "#111318", fillOpacity: 0.92 }, labelBgPadding: [5, 3], labelBgBorderRadius: 4,
