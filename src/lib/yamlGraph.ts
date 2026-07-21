@@ -1,14 +1,23 @@
 import { MarkerType, type Edge, type Node } from "@xyflow/react"
 import { parse } from "yaml"
 import type { ProcessNodeData } from "../components/ProcessNode"
+import { chemicalFlowLabel } from "./flowLabels"
 
-type FlowAmount = { flow: string; amount: number }
+type FlowAmount = {
+  flow: string
+  amount: number
+  unit?: string
+  database?: string
+  code?: string
+  location?: string
+}
 type YamlProcess = {
   name: string
   reference_output: FlowAmount
   inputs?: FlowAmount[]
   emissions?: FlowAmount[]
   extractions?: Array<FlowAmount & { unit?: string }>
+  resources?: Array<FlowAmount & { unit?: string }>
   resource_inputs?: Array<FlowAmount & { unit?: string }>
 }
 type ProductGraph = {
@@ -19,10 +28,21 @@ type ProductGraph = {
   reference_process: string
 }
 
-const colors = { material: "#38bdf8", process: "#a78bfa", component: "#fb923c", product: "#34d399" }
-const emissionLabels: Record<string, string> = { "Carbon dioxide": "CO₂", Methane: "CH₄", "Nitrogen oxides": "NOₓ" }
+export const nodeScopeColors = { foreground: "#a78bfa", background: "#38bdf8" }
 const round = (value: number) => Number(value.toFixed(6))
 const idFor = (name: string, index: number) => `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "process"}-${index}`
+const backgroundKeyFor = (input: FlowAmount) => input.code
+  ? `${input.database}\u001f${input.code}`
+  : `${input.database}\u001f${input.flow}\u001f${input.location ?? ""}`
+const stableHash = (value: string) => {
+  let hash = 2166136261
+  for (let index = 0; index < value.length; index += 1) hash = Math.imul(hash ^ value.charCodeAt(index), 16777619)
+  return (hash >>> 0).toString(16).padStart(8, "0")
+}
+const backgroundIdFor = (input: FlowAmount) => {
+  const slug = input.flow.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 48) || "activity"
+  return `background-${slug}-${stableHash(backgroundKeyFor(input))}`
+}
 
 export function buildGraphFromYaml(
   source: string,
@@ -41,6 +61,10 @@ export function buildGraphFromYaml(
 
   const ids = new Map(graph.processes.map((process, index) => [process.name, idFor(process.name, index)]))
   const providers = new Map(graph.processes.map((process) => [process.reference_output.flow, process]))
+  const backgroundInputs = new Map<string, FlowAmount>()
+  graph.processes.forEach((process) => process.inputs?.forEach((input) => {
+    if (input.database) backgroundInputs.set(backgroundKeyFor(input), input)
+  }))
   const productUnits = new Map((graph.products ?? []).map((product) => [product.name, product.unit]))
   const reference = graph.processes.find((process) => process.name === graph.reference_process)
   if (!reference) throw new Error(`Reference process “${graph.reference_process}” was not found.`)
@@ -51,6 +75,7 @@ export function buildGraphFromYaml(
     const consumer = queue.shift()!
     const consumerScale = scales.get(consumer.name) ?? 0
     for (const input of consumer.inputs ?? []) {
+      if (input.database) continue
       const provider = providers.get(input.flow)
       if (!provider) continue
       const requiredScale = consumerScale * input.amount / provider.reference_output.amount
@@ -66,7 +91,18 @@ export function buildGraphFromYaml(
     graph.processes.forEach((process) => scales.set(process.name, scalingVector[process.name] ?? 0))
   }
 
-  const nodes: Node<ProcessNodeData>[] = graph.processes.map((process) => {
+  const backgroundDemands = new Map<string, { amount: number; unit?: string }>()
+  graph.processes.forEach((consumer) => (consumer.inputs ?? []).forEach((input) => {
+    if (!input.database) return
+    const key = backgroundKeyFor(input)
+    const current = backgroundDemands.get(key)
+    backgroundDemands.set(key, {
+      amount: (current?.amount ?? 0) + input.amount * (scales.get(consumer.name) ?? 0),
+      unit: current?.unit ?? input.unit,
+    })
+  }))
+
+  const foregroundNodes: Node<ProcessNodeData>[] = graph.processes.map((process) => {
     const scale = scales.get(process.name) ?? 0
     const isReference = process.name === graph.reference_process
     const outputUnit = productUnits.get(process.reference_output.flow) ?? "unit"
@@ -77,32 +113,54 @@ export function buildGraphFromYaml(
       data: {
         label: process.name,
         kind,
-        color: colors[kind],
+        color: nodeScopeColors.foreground,
+        scope: "foreground",
         detail: mode === "scaled"
           ? `Scaled contribution: ${outputAmount} ${outputUnit} ${process.reference_output.flow}`
           : `Output flow: ${process.reference_output.flow}`,
         showAmounts: mode === "scaled",
-        emissions: (process.emissions ?? []).map((emission) => ({ label: emissionLabels[emission.flow] ?? emission.flow, amount: round(emission.amount * scale), unit: "kg" })),
-        extractions: (process.extractions ?? process.resource_inputs ?? []).map((extraction) => ({
-          label: extraction.flow,
+        emissions: (process.emissions ?? []).map((emission) => ({ label: chemicalFlowLabel(emission.flow), amount: round(emission.amount * scale), unit: "kg" })),
+        extractions: (process.extractions ?? process.resources ?? process.resource_inputs ?? []).map((extraction) => ({
+          label: chemicalFlowLabel(extraction.flow),
           amount: round(extraction.amount * scale),
           unit: extraction.unit ?? "kg",
         })),
       },
     }
   })
+  const backgroundNodes: Node<ProcessNodeData>[] = [...backgroundInputs.entries()].map(([key, input]) => {
+    const demand = backgroundDemands.get(key)
+    return {
+      id: backgroundIdFor(input), type: "process", position: { x: 0, y: 0 },
+      data: {
+        label: input.flow,
+        kind: "process",
+        color: nodeScopeColors.background,
+        scope: "background",
+        database: input.database,
+        code: input.code,
+        location: input.location,
+        backgroundDemand: demand?.amount ?? 0,
+        backgroundDemandUnit: demand?.unit,
+        detail: `Background activity · ${input.database}${input.location ? ` · ${input.location}` : ""}`,
+        showAmounts: mode === "scaled",
+      },
+    }
+  })
+  const nodes = [...foregroundNodes, ...backgroundNodes]
 
   const edges: Edge[] = []
-  for (const consumer of graph.processes) {
-    for (const input of consumer.inputs ?? []) {
-      const provider = providers.get(input.flow)
-      if (!provider) continue
+  for (const [consumerIndex, consumer] of graph.processes.entries()) {
+    for (const [inputIndex, input] of (consumer.inputs ?? []).entries()) {
+      const provider = input.database ? undefined : providers.get(input.flow)
+      const source = input.database ? backgroundIdFor(input) : provider ? ids.get(provider.name)! : undefined
+      if (!source) continue
       const amount = round(input.amount * (scales.get(consumer.name) ?? 0))
       edges.push({
-        id: `${ids.get(provider.name)}-${ids.get(consumer.name)}-${input.flow}`,
-        source: ids.get(provider.name)!, target: ids.get(consumer.name)!, label: mode === "scaled" ? `${input.flow} · ${amount}` : input.flow,
+        id: `${source}-${ids.get(consumer.name)}-${consumerIndex}-${inputIndex}`,
+        source, target: ids.get(consumer.name)!, label: mode === "scaled" ? `${input.flow} · ${amount}${input.unit ? ` ${input.unit}` : ""}` : input.flow,
         style: { stroke: "#343941", strokeWidth: 1.5 },
-        labelStyle: { fill: "#7f8794", fontSize: 10, fontWeight: 600 },
+        labelStyle: { fill: "#9aa2ae", fontSize: 12, fontWeight: 650 },
         labelBgStyle: { fill: "#111318", fillOpacity: 0.92 }, labelBgPadding: [5, 3], labelBgBorderRadius: 4,
         markerEnd: { type: MarkerType.ArrowClosed, color: "#343941", width: 16, height: 16 },
       })
