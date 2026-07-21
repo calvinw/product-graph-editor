@@ -28,6 +28,25 @@ type ProductGraph = {
   reference_process: string
 }
 
+export type InventoryRequirement = {
+  process: string
+  product: string
+  amount: number
+  unit: string
+}
+
+export function buildInventoryRequirements(source: string, scalingVector: Record<string, number>): InventoryRequirement[] {
+  const graph = parse(source) as ProductGraph
+  if (!graph || !Array.isArray(graph.processes)) throw new Error("YAML must include a processes list.")
+  const productUnits = new Map((graph.products ?? []).map((product) => [product.name, product.unit]))
+  return graph.processes.map((process) => ({
+    process: process.name,
+    product: process.reference_output.flow,
+    amount: (scalingVector[process.name] ?? 0) * process.reference_output.amount,
+    unit: process.reference_output.unit ?? productUnits.get(process.reference_output.flow) ?? "",
+  }))
+}
+
 export const nodeScopeColors = { foreground: "#a78bfa", background: "#38bdf8" }
 const round = (value: number) => Number(value.toFixed(6))
 const idFor = (name: string, index: number) => `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "process"}-${index}`

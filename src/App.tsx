@@ -16,7 +16,7 @@ import { Button } from "./components/ui/button"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
 import { chemicalFlowLabel } from "./lib/flowLabels"
-import { buildGraphFromYaml, nodeScopeColors } from "./lib/yamlGraph"
+import { buildGraphFromYaml, buildInventoryRequirements, nodeScopeColors } from "./lib/yamlGraph"
 import { calculateLca, getBackgroundActivityDetails, lcaResultToMarkdown, type LcaResult } from "./lib/lcaApi"
 import jacketYaml from "../case_studies/jacket.yaml?raw"
 import cottonFiberYaml from "../case_studies/cotton_fiber.yaml?raw"
@@ -73,6 +73,49 @@ const caseStudies = {
   woolYarn: { label: "Wool Yarn", yaml: woolYarnYaml },
 } as const
 type CaseStudyId = keyof typeof caseStudies
+
+const inventoryNumber = new Intl.NumberFormat("en", { minimumFractionDigits: 5, maximumFractionDigits: 8 })
+const isInventoryInput = (type: string) => /resource|extraction|input/i.test(type)
+
+function InventoryView({ result, yaml, isCurrent, calculating, error, onCalculate }: {
+  result: LcaResult | null
+  yaml: string
+  isCurrent: boolean
+  calculating: boolean
+  error: string
+  onCalculate: () => void
+}) {
+  if (!result || !isCurrent) return <div className="results-panel inventory-panel">
+    <div className="results-panel-head"><div><strong>Inventory results</strong><span>Calculated quantities for the current product graph.</span></div><Button onClick={onCalculate} disabled={calculating}>{calculating ? "Calculating…" : "Calculate LCA"}</Button></div>
+    <div className="results-placeholder">
+      <div className="results-empty-icon"><BarChart3 size={22} /></div><strong>No current inventory results</strong>
+      <p>Calculate the LCA to populate this view with values returned by the calculation engine.</p>
+      {error ? <div className="results-error"><strong>Calculation failed</strong><p>{error}</p></div> : null}
+    </div>
+  </div>
+
+  const flows = Object.entries(result.lci).map(([name, value]) => ({ name, ...value }))
+  const inputs = flows.filter((flow) => isInventoryInput(flow.type))
+  const outputs = flows.filter((flow) => !isInventoryInput(flow.type))
+  let requirements: ReturnType<typeof buildInventoryRequirements> = []
+  let requirementError = ""
+  try { requirements = buildInventoryRequirements(yaml, result.scaling_vector) } catch (caught) { requirementError = caught instanceof Error ? caught.message : "Could not read process requirements." }
+  const FlowTable = ({ rows, empty }: { rows: typeof flows; empty: string }) => <div className="inventory-table-wrap"><table className="inventory-table">
+    <thead><tr><th>Name</th><th>Category</th><th className="number">Amount</th><th>Unit</th></tr></thead>
+    <tbody>{rows.length ? rows.map((flow) => <tr key={`${flow.type}-${flow.name}`}><td><span className={isInventoryInput(flow.type) ? "flow-dot input" : "flow-dot output"} />{flow.name}</td><td>{flow.type}</td><td className="number">{inventoryNumber.format(flow.amount)}</td><td>{flow.unit}</td></tr>) : <tr className="empty-row"><td colSpan={4}>{empty}</td></tr>}</tbody>
+  </table></div>
+
+  return <div className="inventory-view">
+    <div className="inventory-title"><div><strong>{result.name}</strong><span>{result.functional_unit}</span></div><Button variant="ghost" onClick={onCalculate} disabled={calculating}>{calculating ? "Calculating…" : "Recalculate"}</Button></div>
+    <details open><summary>Inputs <span>{inputs.length}</span></summary><FlowTable rows={inputs} empty="No environmental input flows were returned." /></details>
+    <details open><summary>Outputs <span>{outputs.length}</span></summary><FlowTable rows={outputs} empty="No environmental output flows were returned." /></details>
+    <details open className="requirements"><summary>Total requirements <span>{requirements.length}</span></summary>
+      {requirementError ? <div className="results-error"><p>{requirementError}</p></div> : <div className="inventory-table-wrap"><table className="inventory-table"><thead><tr><th>Process</th><th>Product</th><th className="number">Amount</th><th>Unit</th></tr></thead><tbody>
+        {requirements.map((row) => <tr key={row.process}><td><span className="process-mark">⌘</span>{row.process}</td><td><span className="product-mark">⚙</span>{row.product}</td><td className="number">{inventoryNumber.format(row.amount)}</td><td>{row.unit}</td></tr>)}
+      </tbody></table></div>}
+    </details>
+  </div>
+}
 
 function ToolButton({ label, children, onClick }: { label: string; children: React.ReactNode; onClick?: () => void }) {
   return (
@@ -469,12 +512,7 @@ function GraphEditor() {
             <span className={yamlError ? "yaml-error" : ""}>{yamlError || "Files are parsed locally in your browser."}</span>
             <Button onClick={previewYaml}>Preview graph</Button>
           </div>
-        </div> : view === "inventory" ? <div className="results-empty">
-          <span className="not-implemented">NOT IMPLEMENTED YET</span>
-          <div className="results-empty-icon"><BarChart3 size={22} /></div>
-          <strong>Inventory</strong>
-          <p>Life cycle inventory flows from the current product graph will appear here.</p>
-        </div> : view === "contribution" ? <div className="results-empty">
+        </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} calculating={isCalculating} error={resultsError} onCalculate={runCalculation} /> : view === "contribution" ? <div className="results-empty">
           <span className="not-implemented">NOT IMPLEMENTED YET</span>
           <div className="results-empty-icon"><BarChart3 size={22} /></div>
           <strong>Contribution</strong>
