@@ -15,18 +15,16 @@ import {
 import { Button } from "./components/ui/button"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
-import { buildGraphFromYaml } from "./lib/yamlGraph"
-import { calculateLca, lcaResultToMarkdown, type LcaResult } from "./lib/lcaApi"
+import { chemicalFlowLabel } from "./lib/flowLabels"
+import { buildGraphFromYaml, nodeScopeColors } from "./lib/yamlGraph"
+import { calculateLca, getBackgroundActivityDetails, lcaResultToMarkdown, type LcaResult } from "./lib/lcaApi"
 import jacketYaml from "../case_studies/jacket.yaml?raw"
 import cottonFiberYaml from "../case_studies/cotton_fiber.yaml?raw"
+import mockPlasticBroomYaml from "../case_studies/mock_plastic_broom.yaml?raw"
 import polyesterTshirtYaml from "../case_studies/polyester_tshirt.yaml?raw"
 import woolYarnYaml from "../case_studies/wool_yarn.yaml?raw"
 
-type NodeMeta = { label: string; kind: string; detail: string }
-
-const kindColor: Record<string, string> = {
-  material: "#38bdf8", process: "#a78bfa", component: "#fb923c", product: "#34d399",
-}
+type NodeMeta = { label: string; kind: string; detail: string; color: string; scope?: "foreground" | "background" }
 
 const defaultGraph = buildGraphFromYaml(jacketYaml, "structure")
 const initialEdges: Edge[] = defaultGraph.edges
@@ -36,9 +34,41 @@ const initialNodes: Node<ProcessNodeData>[] = defaultGraph.nodes.map((node) => (
 }))
 
 const nodeTypes = { process: ProcessNode }
+const inputHandleIdFor = (edgeId: string) => `input-${edgeId}`
+const incomingEdgesFor = (nodeId: string, edges: Edge[], nodesById: Map<string, Node<ProcessNodeData>>) => (
+  edges.filter((edge) => edge.target === nodeId).sort((left, right) => (
+    (nodesById.get(left.source)?.position.y ?? 0) - (nodesById.get(right.source)?.position.y ?? 0)
+  ))
+)
+const populateExpandedConnections = (nodes: Node<ProcessNodeData>[], edges: Edge[]) => {
+  const nodesById = new Map(nodes.map((node) => [node.id, node]))
+  const flowItem = (id: string) => {
+    const connected = nodesById.get(id)
+    return connected ? { label: connected.data.label, kind: connected.data.scope ?? connected.data.kind, color: connected.data.color } : null
+  }
+  return nodes.map((node) => {
+    if (!node.data.expanded || node.data.scope === "background") return node
+    const inputs = incomingEdgesFor(node.id, edges, nodesById).map((edge) => {
+      const item = flowItem(edge.source)
+      return item ? { ...item, handleId: inputHandleIdFor(edge.id) } : null
+    }).filter((item): item is NonNullable<typeof item> => item !== null)
+    const outputs = edges.filter((edge) => edge.source === node.id).map((edge) => flowItem(edge.target)).filter((item): item is NonNullable<typeof item> => item !== null)
+    return { ...node, data: { ...node.data, inputs, outputs } }
+  })
+}
+const targetExpandedInputRows = (nodes: Node<ProcessNodeData>[], edges: Edge[]) => {
+  const nodesById = new Map(nodes.map((node) => [node.id, node]))
+  return edges.map((edge) => {
+    const target = nodesById.get(edge.target)
+    return target?.data.expanded && target.data.scope !== "background"
+      ? { ...edge, targetHandle: inputHandleIdFor(edge.id) }
+      : edge
+  })
+}
 const caseStudies = {
   jacket: { label: "Jacket", yaml: jacketYaml },
   cottonFiber: { label: "Cotton Fiber", yaml: cottonFiberYaml },
+  mockPlasticBroom: { label: "Mock Plastic Broom", yaml: mockPlasticBroomYaml },
   polyesterTshirt: { label: "Polyester T-shirt", yaml: polyesterTshirtYaml },
   woolYarn: { label: "Wool Yarn", yaml: woolYarnYaml },
 } as const
@@ -167,21 +197,95 @@ function GraphEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query])
 
+  const hydrateBackgroundNode = useCallback(async (nodeId: string) => {
+    const node = nodesRef.current.find((candidate) => candidate.id === nodeId)
+    if (!node || node.data.scope !== "background" || !node.data.database || node.data.backgroundLoaded || node.data.backgroundLoading) return
+    setNodes((current) => current.map((candidate) => candidate.id === nodeId
+      ? { ...candidate, data: { ...candidate.data, backgroundLoading: true, backgroundError: undefined } }
+      : candidate))
+    try {
+      const details = await getBackgroundActivityDetails({
+        database: node.data.database,
+        code: node.data.code,
+        name: node.data.label,
+        location: node.data.location,
+      })
+      const production = details.exchanges.find((exchange) => exchange.exchange_type === "production")
+      const productionAmount = production?.amount ?? 1
+      if (productionAmount === 0) throw new Error("The background activity has a zero production amount and cannot be scaled.")
+      const activityScale = node.data.showAmounts ? (node.data.backgroundDemand ?? 0) / productionAmount : null
+      const displayAmount = (amount: number) => activityScale === null ? undefined : Number((amount * activityScale).toPrecision(8))
+      const inputs = details.exchanges.filter((exchange) => exchange.exchange_type === "technosphere").map((exchange) => ({
+        label: exchange.input_name,
+        kind: "background input",
+        color: nodeScopeColors.background,
+        amount: displayAmount(exchange.amount),
+        unit: exchange.unit ?? undefined,
+      }))
+      const outputs = details.exchanges.filter((exchange) => exchange.exchange_type === "production").map((exchange) => ({
+        label: exchange.input_product ?? exchange.input_name,
+        kind: "reference output",
+        color: nodeScopeColors.background,
+        amount: displayAmount(exchange.amount),
+        unit: exchange.unit ?? details.unit ?? node.data.backgroundDemandUnit,
+      }))
+      const biosphere = details.exchanges.filter((exchange) => exchange.exchange_type === "biosphere").map((exchange) => ({
+        label: chemicalFlowLabel(exchange.input_name),
+        amount: displayAmount(exchange.amount),
+        unit: exchange.unit ?? "",
+      }))
+      setNodes((current) => current.map((candidate) => candidate.id === nodeId && candidate.data.showAmounts === node.data.showAmounts
+        ? { ...candidate, data: {
+            ...candidate.data,
+            label: details.name,
+            detail: `Background activity · ${details.database}${details.location ? ` · ${details.location}` : ""}`,
+            code: details.code,
+            location: details.location ?? undefined,
+            inputs,
+            outputs,
+            biosphere,
+            backgroundLoading: false,
+            backgroundLoaded: true,
+          } }
+        : candidate))
+    } catch (error) {
+      setNodes((current) => current.map((candidate) => candidate.id === nodeId && candidate.data.showAmounts === node.data.showAmounts
+        ? { ...candidate, data: {
+            ...candidate.data,
+            backgroundLoading: false,
+            backgroundError: error instanceof Error ? error.message : "Could not load this background activity.",
+          } }
+        : candidate))
+    }
+  }, [setNodes])
+
   const toggleExpanded = useCallback((nodeId: string) => {
+    const target = nodesRef.current.find((node) => node.id === nodeId)
+    const expanding = !target?.data.expanded
     setNodes((current) => {
       const byId = new Map(current.map((node) => [node.id, node]))
       return current.map((node) => {
         if (node.id !== nodeId) return node
+        if (node.data.scope === "background") return { ...node, data: { ...node.data, expanded: !node.data.expanded } }
         const flowItem = (id: string) => {
           const connected = byId.get(id)
-          return connected ? { label: connected.data.label, kind: connected.data.kind, color: connected.data.color } : null
+          return connected ? { label: connected.data.label, kind: connected.data.scope ?? connected.data.kind, color: connected.data.color } : null
         }
-        const inputs = edges.filter((edge) => edge.target === nodeId).map((edge) => flowItem(edge.source)).filter((item): item is NonNullable<typeof item> => item !== null)
+        const inputs = incomingEdgesFor(nodeId, edges, byId).map((edge) => {
+          const item = flowItem(edge.source)
+          return item ? { ...item, handleId: inputHandleIdFor(edge.id) } : null
+        }).filter((item): item is NonNullable<typeof item> => item !== null)
         const outputs = edges.filter((edge) => edge.source === nodeId).map((edge) => flowItem(edge.target)).filter((item): item is NonNullable<typeof item> => item !== null)
         return { ...node, data: { ...node.data, expanded: !node.data.expanded, inputs, outputs } }
       })
     })
-  }, [edges, setNodes])
+    if (target?.data.scope !== "background") {
+      setEdges((current) => current.map((edge) => edge.target === nodeId
+        ? { ...edge, targetHandle: expanding ? inputHandleIdFor(edge.id) : undefined }
+        : edge))
+    }
+    if (target?.data.scope === "background" && !target.data.expanded) void hydrateBackgroundNode(nodeId)
+  }, [edges, hydrateBackgroundNode, setEdges, setNodes])
 
   const fit = () => fitView({ padding: 0.35, maxZoom: 0.75, duration: 350 })
   const relayout = () => setNodes((current) => layoutNodes(current, edges))
@@ -191,16 +295,36 @@ function GraphEditor() {
       const currentResult = calculatedYaml === yamlText ? lcaResult : null
       if (mode === "scaled" && !currentResult) return
       const parsed = buildGraphFromYaml(yamlText, mode, currentResult?.scaling_vector)
+      const previousById = new Map(nodesRef.current.map((node) => [node.id, node]))
+      const laidOutNodes = layoutNodes(parsed.nodes, parsed.edges)
+      let nextNodes: Node<ProcessNodeData>[] = laidOutNodes.map((node) => {
+        const previous = previousById.get(node.id)
+        return {
+          ...node,
+          position: previous?.position ?? node.position,
+          hidden: previous?.hidden ?? false,
+          selected: previous?.selected ?? false,
+          data: {
+            ...node.data,
+            expanded: previous?.data.expanded ?? false,
+            canRestore: previous?.data.canRestore ?? false,
+            canFold: parsed.edges.some((edge) => edge.target === node.id),
+          },
+        }
+      })
+      const hiddenIds = new Set(nextNodes.filter((node) => node.hidden).map((node) => node.id))
+      let nextEdges: Edge[] = parsed.edges.map((edge) => ({
+        ...edge,
+        hidden: hiddenIds.has(edge.source) || hiddenIds.has(edge.target),
+      }))
+      nextEdges = targetExpandedInputRows(nextNodes, nextEdges)
+      nextNodes = populateExpandedConnections(nextNodes, nextEdges)
       foldDirectionRef.current = "upstream"
-      setEdges(parsed.edges)
-      setNodes(layoutNodes(parsed.nodes.map((node) => ({
-        ...node,
-        data: { ...node.data, canFold: parsed.edges.some((edge) => edge.target === node.id) },
-      })), parsed.edges))
+      setEdges(nextEdges)
+      setNodes(nextNodes)
       setGraphMode(mode)
-      setSelected(null)
       setYamlError("")
-      requestAnimationFrame(() => fitView({ padding: 0.35, maxZoom: 0.75, duration: 350 }))
+      requestAnimationFrame(() => nextNodes.filter((node) => node.data.scope === "background" && node.data.expanded).forEach((node) => void hydrateBackgroundNode(node.id)))
     } catch (error) {
       setYamlError(error instanceof Error ? error.message : "Could not parse this YAML file.")
       setView("yaml")
@@ -299,7 +423,10 @@ function GraphEditor() {
           nodeTypes={nodeTypes}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onNodeClick={(_, node) => setSelected({ id: node.id, label: node.data.label, kind: node.data.kind, detail: node.data.detail })}
+          onNodeClick={(_, node) => {
+            setSelected({ id: node.id, label: node.data.label, kind: node.data.kind, detail: node.data.detail, color: node.data.color, scope: node.data.scope })
+            if (node.data.scope === "background") void hydrateBackgroundNode(node.id)
+          }}
           onNodeDoubleClick={(_, node) => toggleExpanded(node.id)}
           onPaneClick={() => setSelected(null)}
           minZoom={0.35}
@@ -374,24 +501,41 @@ function GraphEditor() {
       {view === "graph" ? <aside className={`inspector ${selected ? "is-open" : ""}`}>
         {selected ? <>
           <div className="inspector-head"><span>NODE DETAILS</span><Button variant="ghost" size="icon" onClick={() => setSelected(null)}><Maximize size={16} /></Button></div>
-          <div className="node-icon" style={{ background: kindColor[selected.kind] }}><Box size={22} /></div>
-          <h2>{selected.label}</h2><p>{selected.detail}</p>
-          <div className="property-section">
-            <h3>Input flows</h3>
-            {inputNodes.length ? inputNodes.map((node) => <div className="property-row" key={node.id}><span>{node.data.label}</span><small>{node.data.kind}</small></div>) : <p>No input flows</p>}
-          </div>
-          <div className="property-section">
-            <h3>Output flows</h3>
-            {outputNodes.length ? outputNodes.map((node) => <div className="property-row" key={node.id}><span>{node.data.label}</span><small>{node.data.kind}</small></div>) : <p>No output flows</p>}
-          </div>
-          {selectedNode?.data.extractions?.length ? <div className="property-section is-extraction">
-            <h3>Resource extractions</h3>
-            {selectedNode.data.extractions.map((item) => <div className="property-row" key={item.label}><span>{item.label}</span>{selectedNode.data.showAmounts !== false ? <strong>{item.amount} {item.unit}</strong> : null}</div>)}
-          </div> : null}
-          {selectedNode?.data.emissions?.length ? <div className="property-section is-emission">
-            <h3>Emissions to air</h3>
-            {selectedNode.data.emissions.map((item) => <div className="property-row" key={item.label}><span>{item.label}</span>{selectedNode.data.showAmounts !== false ? <strong>{item.amount} {item.unit}</strong> : null}</div>)}
-          </div> : null}
+          <div className="node-icon" style={{ background: selectedNode?.data.color ?? selected.color }}><Box size={22} /></div>
+          <h2>{selectedNode?.data.label ?? selected.label}</h2><p>{selectedNode?.data.detail ?? selected.detail}</p>
+          {selectedNode?.data.scope === "background" ? <>
+            {selectedNode.data.backgroundLoading ? <div className="property-section"><p>Loading unit process…</p></div> : null}
+            {selectedNode.data.backgroundError ? <div className="property-section"><p className="property-error">{selectedNode.data.backgroundError}</p></div> : null}
+            <div className="property-section">
+              <h3>Direct inputs</h3>
+              {selectedNode.data.inputs?.length ? selectedNode.data.inputs.map((item, index) => <div className="property-row" key={`${item.label}-${index}`}><span>{item.label}</span>{item.amount === undefined ? null : <strong>{item.amount}{item.unit ? ` ${item.unit}` : ""}</strong>}</div>) : <p>No technosphere inputs</p>}
+            </div>
+            <div className="property-section">
+              <h3>Reference output</h3>
+              {selectedNode.data.outputs?.length ? selectedNode.data.outputs.map((item, index) => <div className="property-row" key={`${item.label}-${index}`}><span>{item.label}</span>{item.amount === undefined ? null : <strong>{item.amount}{item.unit ? ` ${item.unit}` : ""}</strong>}</div>) : <p>No production exchange</p>}
+            </div>
+            {selectedNode.data.biosphere?.length ? <div className="property-section is-emission">
+              <h3>Biosphere exchanges</h3>
+              {selectedNode.data.biosphere.map((item, index) => <div className="property-row" key={`${item.label}-${index}`}><span>{item.label}</span>{item.amount === undefined ? null : <strong>{item.amount}{item.unit ? ` ${item.unit}` : ""}</strong>}</div>)}
+            </div> : null}
+          </> : <>
+            <div className="property-section">
+              <h3>Input flows</h3>
+              {inputNodes.length ? inputNodes.map((node) => <div className="property-row" key={node.id}><span>{node.data.label}</span><small>{node.data.scope ?? node.data.kind}</small></div>) : <p>No input flows</p>}
+            </div>
+            <div className="property-section">
+              <h3>Output flows</h3>
+              {outputNodes.length ? outputNodes.map((node) => <div className="property-row" key={node.id}><span>{node.data.label}</span><small>{node.data.scope ?? node.data.kind}</small></div>) : <p>No output flows</p>}
+            </div>
+            {selectedNode?.data.extractions?.length ? <div className="property-section is-extraction">
+              <h3>Resource extractions</h3>
+              {selectedNode.data.extractions.map((item) => <div className="property-row" key={item.label}><span>{item.label}</span>{selectedNode.data.showAmounts !== false ? <strong>{item.amount} {item.unit}</strong> : null}</div>)}
+            </div> : null}
+            {selectedNode?.data.emissions?.length ? <div className="property-section is-emission">
+              <h3>Emissions to air</h3>
+              {selectedNode.data.emissions.map((item) => <div className="property-row" key={item.label}><span>{item.label}</span>{selectedNode.data.showAmounts !== false ? <strong>{item.amount} {item.unit}</strong> : null}</div>)}
+            </div> : null}
+          </>}
         </> : <div className="empty-inspector"><MousePointer2 size={24} /><strong>Nothing selected</strong><p>Select a node to inspect its properties and connections.</p></div>}
       </aside> : null}
     </>

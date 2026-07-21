@@ -65,6 +65,35 @@ export type LcaResult = {
   svg_structure: string
 }
 
+export type ActivityExchange = {
+  input_database: string
+  input_code: string
+  input_name: string
+  input_product: string | null
+  input_location: string | null
+  exchange_type: "technosphere" | "biosphere" | "production"
+  amount: number
+  unit: string | null
+}
+
+export type BackgroundActivityDetails = {
+  database: string
+  code: string
+  name: string
+  location: string | null
+  referenceProduct: string | null
+  unit: string | null
+  exchanges: ActivityExchange[]
+}
+
+type ActivitySearchResult = {
+  name: string
+  reference_product: string | null
+  location: string | null
+  unit: string | null
+  key: [string, string]
+}
+
 type ToolDefinition = {
   name: string
   rest?: { method: string; path: string }
@@ -116,6 +145,60 @@ export async function calculateLca(productGraph: string): Promise<LcaResult> {
     body: JSON.stringify({ product_graph: productGraph }),
   }))
   return readLcaResult(result)
+}
+
+export async function getBackgroundActivityDetails({
+  database,
+  code,
+  name,
+  location,
+}: {
+  database: string
+  code?: string
+  name: string
+  location?: string
+}): Promise<BackgroundActivityDetails> {
+  let activity: ActivitySearchResult | undefined
+  let resolvedCode = code
+
+  if (!resolvedCode) {
+    const searchResult = await readJson(await fetch(`${apiBase}/api/database/search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: name, database, limit: 25 }),
+    }))
+    if (!Array.isArray(searchResult)) throw new Error("The activity search response was invalid.")
+    const exactMatches = (searchResult as ActivitySearchResult[]).filter((candidate) => (
+      candidate.name === name
+      && candidate.key?.[0] === database
+      && (!location || candidate.location === location)
+    ))
+    if (exactMatches.length !== 1) {
+      throw new Error(exactMatches.length
+        ? `Background activity “${name}” is ambiguous; add its code to the YAML.`
+        : `Background activity “${name}” was not found in ${database}.`)
+    }
+    activity = exactMatches[0]
+    resolvedCode = activity.key[1]
+  }
+
+  const exchanges = await readJson(await fetch(`${apiBase}/api/database/activity-inputs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ database, code: resolvedCode, limit: 500 }),
+  }))
+  if (!Array.isArray(exchanges)) throw new Error("The activity-input response was invalid.")
+
+  const production = (exchanges as ActivityExchange[]).find((exchange) => exchange.exchange_type === "production")
+  return {
+    database,
+    code: resolvedCode,
+    name: activity?.name ?? production?.input_name ?? name,
+    location: activity?.location ?? production?.input_location ?? location ?? null,
+    referenceProduct: activity?.reference_product ?? production?.input_product ?? null,
+    unit: activity?.unit ?? production?.unit ?? null,
+    exchanges: exchanges as ActivityExchange[],
+  }
 }
 
 const formatNumber = (value: number) => new Intl.NumberFormat("en", { maximumSignificantDigits: 6 }).format(value)
