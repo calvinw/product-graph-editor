@@ -106,7 +106,7 @@ function InventoryView({ result, yaml, isCurrent, calculating, error, onCalculat
   </table></div>
 
   return <div className="inventory-view">
-    <div className="inventory-title"><div><strong>{result.name}</strong><span>{result.functional_unit}</span></div><Button variant="ghost" onClick={onCalculate} disabled={calculating}>{calculating ? "Calculating…" : "Recalculate"}</Button></div>
+    <div className="inventory-title"><div><strong>{result.name}</strong><span>{result.functional_unit}</span></div></div>
     <details open><summary>Inputs <span>{inputs.length}</span></summary><FlowTable rows={inputs} empty="No environmental input flows were returned." /></details>
     <details open><summary>Outputs <span>{outputs.length}</span></summary><FlowTable rows={outputs} empty="No environmental output flows were returned." /></details>
     <details open className="requirements"><summary>Total requirements <span>{requirements.length}</span></summary>
@@ -229,7 +229,7 @@ function ContributionView({ result, yaml, isCurrent, calculating, error, onCalcu
   })
 
   return <div className="contribution-view">
-    <div className="contribution-title"><div><strong>{result.name}</strong><span>{result.method} · {result.functional_unit}</span></div><Button variant="ghost" onClick={onCalculate} disabled={calculating}>{calculating ? "Calculating…" : "Recalculate"}</Button></div>
+    <div className="contribution-title"><div><strong>{result.name}</strong><span>{result.method} · {result.functional_unit}</span></div></div>
     <div className="contribution-controls">
       <label className={mode === "flow" ? "active" : ""}><input type="radio" checked={mode === "flow"} onChange={() => setMode("flow")} />Flow</label>
       <div className="contribution-select"><span className="flow-dot output" /><select value={selectedFlow} onChange={(event) => { setFlow(event.target.value); setMode("flow") }} aria-label="Flow category">{flowNames.map((name) => <option key={name} value={name}>{contributionFlowLabel(name)}</option>)}</select><ChevronDown size={15} /></div>
