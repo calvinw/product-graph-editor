@@ -39,7 +39,7 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
 .search { pointer-events: auto; display: flex; align-items: center; gap: 8px; width: 238px; height: 34px; padding: 0 9px; color: #7f8590; border: 1px solid #2c3037; border-radius: 8px; background: rgba(17,19,24,.9); box-shadow: 0 8px 30px rgba(0,0,0,.24); }
 .search input { min-width: 0; flex: 1; color: #e4e6ea; border: 0; outline: 0; background: transparent; font-size: 12px; }
 .search kbd { padding: 2px 5px; border: 1px solid #343840; border-radius: 4px; color: #676d77; font-size: 9px; }
-.reactflow-canvas { position: absolute; inset: 0 auto 0 0; z-index: 1; width: calc(100% - 322px); }
+.reactflow-canvas { position: absolute; inset: 0 auto 0 0; z-index: 1; width: calc(100% - 370px); }
 .reactflow-canvas .react-flow__pane { cursor: default; }
 .reactflow-canvas .react-flow__handle { width: 1px; height: 1px; min-width: 0; min-height: 0; border: 0; background: transparent; pointer-events: none; }
 .yaml-editor { position: absolute; z-index: 1; inset: 92px 28px 28px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; border: 1px solid #292e37; border-radius: 12px; overflow: hidden; background: rgba(14,17,22,.97); box-shadow: 0 18px 55px rgba(0,0,0,.3); }
