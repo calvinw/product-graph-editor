@@ -141,7 +141,11 @@ function ContributionView({ result, yaml, isCurrent, calculating, error, onCalcu
   const [expandedProcesses, setExpandedProcesses] = useState<Set<string>>(() => new Set())
 
   const flowNames = result ? Object.keys(result.lci) : []
-  const impactNames = result ? Object.entries(result.lcia).filter(([, value]) => value.score !== 0).map(([name]) => name) : []
+  const impactNames = result ? [...Object.entries(result.lcia).filter(([, value]) => value.score !== 0).reduce((unique, [name, value]) => {
+    const key = `${impactCategoryAbbreviation(name)}\u001f${value.score}\u001f${value.unit}`
+    if (!unique.has(key)) unique.set(key, name)
+    return unique
+  }, new Map<string, string>()).values()] : []
   const selectedFlow = flowNames.includes(flow) ? flow : (flowNames[0] ?? "")
   const selectedImpact = impactNames.includes(impact) ? impact : (impactNames[0] ?? "")
   const contributionFlowLabel = (name: string) => {
