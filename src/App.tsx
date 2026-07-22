@@ -86,16 +86,14 @@ const inventoryFlowName = (name: string) => {
   return symbol === base ? name : `${name} (${symbol})`
 }
 
-function InventoryView({ result, yaml, isCurrent, calculating, error, onCalculate }: {
+function InventoryView({ result, yaml, isCurrent, error }: {
   result: LcaResult | null
   yaml: string
   isCurrent: boolean
-  calculating: boolean
   error: string
-  onCalculate: () => void
 }) {
   if (!result || !isCurrent) return <div className="results-panel inventory-panel">
-    <div className="results-panel-head"><div><strong>Inventory results</strong><span>Calculated quantities for the current product graph.</span></div><Button onClick={onCalculate} disabled={calculating}>{calculating ? "Calculating…" : "Calculate LCA"}</Button></div>
+    <div className="results-panel-head"><div><strong>Inventory results</strong><span>Calculated quantities for the current product graph.</span></div></div>
     <div className="results-placeholder">
       <div className="results-empty-icon"><BarChart3 size={22} /></div><strong>No current inventory results</strong>
       <p>Calculate the LCA to populate this view with values returned by the calculation engine.</p>
@@ -126,13 +124,11 @@ function InventoryView({ result, yaml, isCurrent, calculating, error, onCalculat
   </div>
 }
 
-function ContributionView({ result, yaml, isCurrent, calculating, error, onCalculate }: {
+function ContributionView({ result, yaml, isCurrent, error }: {
   result: LcaResult | null
   yaml: string
   isCurrent: boolean
-  calculating: boolean
   error: string
-  onCalculate: () => void
 }) {
   const [mode, setMode] = useState<"flow" | "impact">("flow")
   const [flow, setFlow] = useState("")
@@ -158,7 +154,7 @@ function ContributionView({ result, yaml, isCurrent, calculating, error, onCalcu
   }
 
   if (!result || !isCurrent) return <div className="results-panel contribution-panel">
-    <div className="results-panel-head"><div><strong>Contribution analysis</strong><span>Compare process contributions by inventory flow or impact category.</span></div><Button onClick={onCalculate} disabled={calculating}>{calculating ? "Calculating…" : "Calculate LCA"}</Button></div>
+    <div className="results-panel-head"><div><strong>Contribution analysis</strong><span>Compare process contributions by inventory flow or impact category.</span></div></div>
     <div className="results-placeholder"><div className="results-empty-icon"><BarChart3 size={22} /></div><strong>No current contribution results</strong><p>Calculate the LCA to populate this view.</p>{error ? <div className="results-error"><strong>Calculation failed</strong><p>{error}</p></div> : null}</div>
   </div>
 
@@ -575,6 +571,7 @@ function GraphEditor() {
   }
 
   const connectionCount = edges.length
+  const hasCurrentResults = Boolean(lcaResult && calculatedYaml === yamlText)
   const selectedNode = selected ? nodes.find((node) => node.id === selected.id) : undefined
   const inputNodes = selectedNode ? edges
     .filter((edge) => edge.target === selectedNode.id)
@@ -596,9 +593,11 @@ function GraphEditor() {
               <button className={view === "graph" ? "is-active" : ""} onClick={() => setView("graph")}>Graph</button>
               <button className={view === "yaml" ? "is-active" : ""} onClick={() => setView("yaml")}>YAML</button>
               <button className={view === "results" ? "is-active" : ""} onClick={() => setView("results")}>LCA Results</button>
-              <button className={view === "inventory" ? "is-active" : ""} onClick={() => setView("inventory")}>Inventory</button>
-              <button className={view === "contribution" ? "is-active" : ""} onClick={() => setView("contribution")}>Contribution</button>
-              <button className={view === "sankey" ? "is-active" : ""} onClick={() => setView("sankey")}>Sankey Graph</button>
+              {hasCurrentResults ? <>
+                <button className={view === "inventory" ? "is-active" : ""} onClick={() => setView("inventory")}>Inventory</button>
+                <button className={view === "contribution" ? "is-active" : ""} onClick={() => setView("contribution")}>Contribution</button>
+                <button className={view === "sankey" ? "is-active" : ""} onClick={() => setView("sankey")}>Sankey Graph</button>
+              </> : null}
             </div>
           </div>
         </div>
@@ -654,7 +653,7 @@ function GraphEditor() {
             <span className={yamlError ? "yaml-error" : ""}>{yamlError || "Files are parsed locally in your browser."}</span>
             <Button onClick={previewYaml}>Preview graph</Button>
           </div>
-        </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} calculating={isCalculating} error={resultsError} onCalculate={runCalculation} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} calculating={isCalculating} error={resultsError} onCalculate={runCalculation} /> : view === "sankey" ? <div className="results-empty">
+        </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "sankey" ? <div className="results-empty">
           <span className="not-implemented">NOT IMPLEMENTED YET</span>
           <div className="results-empty-icon"><Share2 size={22} /></div>
           <strong>Sankey Graph</strong>
