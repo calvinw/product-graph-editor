@@ -245,8 +245,15 @@ const impactIndicator = (category: string) => {
 }
 
 export function lcaResultToMarkdown(result: LcaResult) {
+  const seenImpacts = new Set<string>()
   const impactRows = Object.entries(result.lcia)
     .sort(([, left], [, right]) => Number((left.score ?? 0) === 0) - Number((right.score ?? 0) === 0))
+    .filter(([category, value]) => {
+      const key = `${impactCategoryAbbreviation(category)}\u001f${value.score ?? 0}\u001f${value.unit}`
+      if (seenImpacts.has(key)) return false
+      seenImpacts.add(key)
+      return true
+    })
     .map(([category, value]) => `| ${cell(impactIndicator(category))} | ${formatNumber(value.score ?? 0)} | ${cell(value.unit)} |`)
   const inventoryRows = Object.entries(result.lci).map(([flow, value]) => `| ${cell(inventoryFlowLabel(flow))} | ${formatNumber(value.amount ?? 0)} | ${cell(value.unit)} | ${cell(value.type ?? "—")} |`)
 
