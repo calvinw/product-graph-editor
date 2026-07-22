@@ -95,13 +95,18 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
 .tree-toggle-spacer { display: inline-block; width: 18px; }.clickable-process { cursor: pointer; }.clickable-process:hover td { background: #272a2e; }
 .rate-value { color: #e6e8eb; font-weight: 650; }
 .result-bar { display: inline-flex; justify-content: flex-start; width: 56px; height: 7px; margin-right: 7px; vertical-align: middle; background: #24272b; }.result-bar i { display: block; min-width: 2px; height: 100%; background: #ef304f; }.result-bar i.negative { background: #38bdf8; }
-.sankey-chart-picker { position: absolute; z-index: 5; top: 82px; left: 72px; width: 300px; padding: 7px; border: 1px solid #2c3037; border-radius: 10px; background: rgba(17,19,24,.97); box-shadow: 0 12px 32px rgba(0,0,0,.34); backdrop-filter: blur(10px); }
+.sankey-chart-picker { position: absolute; z-index: 5; top: 82px; left: 72px; width: 360px; padding: 7px; border: 1px solid #2c3037; border-radius: 10px; background: rgba(17,19,24,.97); box-shadow: 0 12px 32px rgba(0,0,0,.34); backdrop-filter: blur(10px); }
 .sankey-picker-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px; border-radius: 7px; background: #0d0f13; }
 .sankey-picker-tabs button { display: flex; align-items: center; justify-content: center; gap: 7px; height: 30px; border: 0; border-radius: 5px; color: #747b86; background: transparent; font-size: 11px; cursor: pointer; }
 .sankey-picker-tabs button.is-active { color: #f4f4f5; background: #292d35; box-shadow: 0 1px 4px rgba(0,0,0,.28); }
 .sankey-chart-picker label { display: grid; gap: 5px; padding: 9px 3px 3px; color: #777e89; font-size: 9px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
-.sankey-chart-picker select { width: 100%; height: 34px; padding: 0 30px 0 10px; overflow: hidden; border: 1px solid #343944; border-radius: 7px; outline: none; color: #d8dce3; background: #1a1e25; font-size: 11px; text-overflow: ellipsis; text-transform: none; cursor: pointer; }
-.sankey-chart-picker select:hover, .sankey-chart-picker select:focus { border-color: #4b5260; color: #fff; }
+.sankey-chart-picker select, .sankey-chart-picker input[type="number"] { width: 100%; height: 34px; padding: 0 30px 0 10px; overflow: hidden; border: 1px solid #343944; border-radius: 7px; outline: none; color: #d8dce3; background: #1a1e25; font-size: 11px; text-overflow: ellipsis; text-transform: none; cursor: pointer; }
+.sankey-chart-picker select:hover, .sankey-chart-picker select:focus, .sankey-chart-picker input[type="number"]:hover, .sankey-chart-picker input[type="number"]:focus { border-color: #4b5260; color: #fff; }
+.sankey-settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 7px; margin-top: 7px; padding-top: 2px; border-top: 1px solid #292d34; }
+.sankey-settings-grid label { min-width: 0; }
+.sankey-chart-picker .sankey-number { position: relative; }
+.sankey-chart-picker .sankey-number input { padding-right: 28px; }
+.sankey-chart-picker .sankey-number > span { position: absolute; right: 10px; top: 10px; color: #777e89; font-size: 10px; }
 .sankey-canvas { position: absolute; inset: 0; overflow: hidden; background: #0b0d10; }
 .sankey-toolbar { top: 82px; }
 .sankey-process-node { width: 210px; overflow: hidden; border: 2px solid #f06ac2; border-radius: 9px; color: #f4f4f5; background: #262634; box-shadow: 0 8px 22px rgba(0,0,0,.28); text-align: center; font-size: 10px; font-weight: 650; line-height: 1.65; }
