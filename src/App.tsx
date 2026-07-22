@@ -471,7 +471,10 @@ function GraphEditor() {
   }, [edges, hydrateBackgroundNode, setEdges, setNodes])
 
   const fit = () => fitView({ padding: 0.35, maxZoom: 0.75, duration: 350 })
-  const relayout = () => setNodes((current) => layoutNodes(current, edges))
+  const relayout = () => {
+    setNodes((current) => layoutNodes(current, edges))
+    requestAnimationFrame(fit)
+  }
 
   const showGraphMode = (mode: "scaled" | "structure") => {
     try {
@@ -614,8 +617,7 @@ function GraphEditor() {
           onPaneClick={() => setSelected(null)}
           minZoom={0.35}
           maxZoom={2.4}
-          fitView
-          fitViewOptions={{ padding: 0.35, maxZoom: 0.75 }}
+          onInit={(instance) => requestAnimationFrame(() => instance.fitView({ padding: 0.35, maxZoom: 0.75 }))}
           proOptions={{ hideAttribution: true }}
         >
           <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#242831" />
@@ -671,8 +673,8 @@ function GraphEditor() {
         {view === "graph" ? <div className="graph-meta">{nodes.length} nodes&nbsp;&nbsp;·&nbsp;&nbsp;{connectionCount} connections</div> : null}
       </div>
 
-      {view === "graph" ? <aside className={`inspector ${selected ? "is-open" : ""}`}>
-        {selected ? <>
+      {view === "graph" && selected ? <aside className="inspector">
+        <>
           <div className="inspector-head"><span>NODE DETAILS</span><Button variant="ghost" size="icon" onClick={() => setSelected(null)}><Maximize size={16} /></Button></div>
           <div className="node-icon" style={{ background: selectedNode?.data.color ?? selected.color }}><Box size={22} /></div>
           <h2>{selectedNode?.data.label ?? selected.label}</h2><p>{selectedNode?.data.detail ?? selected.detail}</p>
@@ -709,7 +711,7 @@ function GraphEditor() {
               {selectedNode.data.emissions.map((item) => <div className="property-row" key={item.label}><span>{item.label}</span>{selectedNode.data.showAmounts !== false ? <strong>{item.amount} {item.unit}</strong> : null}</div>)}
             </div> : null}
           </>}
-        </> : <div className="empty-inspector"><MousePointer2 size={24} /><strong>Nothing selected</strong><p>Select a node to inspect its properties and connections.</p></div>}
+        </>
       </aside> : null}
     </>
   )
