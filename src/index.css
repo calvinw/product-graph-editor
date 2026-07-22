@@ -104,14 +104,18 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
 .sankey-chart-picker select:hover, .sankey-chart-picker select:focus, .sankey-chart-picker input[type="number"]:hover, .sankey-chart-picker input[type="number"]:focus { border-color: #4b5260; color: #fff; }
 .sankey-settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 7px; margin-top: 7px; padding-top: 2px; border-top: 1px solid #292d34; }
 .sankey-settings-grid label { min-width: 0; }
+.sankey-stepper { display: grid; grid-template-columns: 32px minmax(0,1fr) 32px; gap: 4px; }
+.sankey-stepper > button { height: 34px; padding: 0; border: 1px solid #343944; border-radius: 7px; color: #aeb4be; background: #1a1e25; font-size: 17px; line-height: 1; cursor: pointer; }
+.sankey-stepper > button:hover { border-color: #4b5260; color: #fff; background: #222731; }
+.sankey-stepper input[type="number"] { padding-right: 8px; text-align: center; appearance: textfield; }
+.sankey-stepper input[type="number"]::-webkit-inner-spin-button, .sankey-stepper input[type="number"]::-webkit-outer-spin-button { margin: 0; appearance: none; }
 .sankey-chart-picker .sankey-number { position: relative; }
 .sankey-chart-picker .sankey-number input { padding-right: 28px; }
 .sankey-chart-picker .sankey-number > span { position: absolute; right: 10px; top: 10px; color: #777e89; font-size: 10px; }
 .sankey-canvas { position: absolute; inset: 0; overflow: hidden; background: #0b0d10; }
 .sankey-toolbar { top: 82px; }
-.sankey-process-node { width: 210px; overflow: hidden; border: 2px solid #f06ac2; border-radius: 9px; color: #f4f4f5; background: #262634; box-shadow: 0 8px 22px rgba(0,0,0,.28); text-align: center; font-size: 10px; font-weight: 650; line-height: 1.65; }
-.sankey-process-title { margin-bottom: 5px; padding: 5px 10px; overflow: hidden; border-bottom: 2px solid #f06ac2; text-align: left; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
-.sankey-process-node > div:last-of-type { padding-bottom: 6px; }
+.sankey-process-node.pg-node.is-expanded { width: 300px; min-height: 94px; }
+.sankey-process-metrics { display: grid; gap: 2px; padding: 10px 12px 11px; color: #8bdcf3; text-align: center; font-size: 12px; font-weight: 650; line-height: 1.5; }
 .sankey-process-node .react-flow__handle { width: 1px; height: 1px; min-width: 0; min-height: 0; border: 0; background: transparent; }
 .sankey-canvas .react-flow__edge-path { stroke-linecap: round; }
 .sankey-empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #90959e; text-align: center; }.sankey-empty p { margin: 7px 0 0; color: #686e78; font-size: 11px; }
