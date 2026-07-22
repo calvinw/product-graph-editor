@@ -305,25 +305,45 @@ function SankeyView({ result }: { result: LcaResult }) {
   })
   const normalize = (value: string) => value.replace(/^(?:p?\d+)\s*[:.\-–—]\s*/i, "").trim().toLowerCase()
   const direct = new Map<string, number>()
+  const directPercentage = new Map<string, number | null>()
   if (mode === "impact") {
     const contributions = new Map((category?.processes ?? []).flatMap((item) => [
-      [item.process_id, item.direct_score] as const,
-      [normalize(item.process_name), item.direct_score] as const,
+      [item.process_id, item] as const,
+      [normalize(item.process_name), item] as const,
     ]))
-    processNodes.forEach((node) => direct.set(node.id, contributions.get(node.id) ?? contributions.get(normalize(node.process_name ?? node.label)) ?? 0))
+    processNodes.forEach((node) => {
+      const contribution = contributions.get(node.id) ?? contributions.get(normalize(node.process_name ?? node.label))
+      direct.set(node.id, contribution?.direct_score ?? 0)
+      directPercentage.set(node.id, contribution?.percentage ?? null)
+    })
   } else {
     const normalizedFlow = (value: string) => value.split(/[|,]/)[0].trim().toLowerCase()
-    result.sankey.links.filter((link) => normalizedFlow(link.flow_name) === normalizedFlow(selectedFlow)).forEach((link) => {
+    const selectedUnit = result.lci[selectedFlow]?.unit
+    result.sankey.links.filter((link) => normalizedFlow(link.flow_name) === normalizedFlow(selectedFlow) && link.unit === selectedUnit).forEach((link) => {
       const processId = processIds.has(link.source) ? link.source : processIds.has(link.target) ? link.target : ""
       if (processId) direct.set(processId, (direct.get(processId) ?? 0) + link.amount)
     })
+    const total = result.lci[selectedFlow]?.amount ?? 0
+    processNodes.forEach((node) => directPercentage.set(node.id, total ? (direct.get(node.id) ?? 0) / total * 100 : null))
+  }
+  const upstreamProcessMemo = new Map<string, Set<string>>()
+  const upstreamProcesses = (nodeId: string, visiting = new Set<string>()): Set<string> => {
+    const cached = upstreamProcessMemo.get(nodeId)
+    if (cached) return new Set(cached)
+    if (visiting.has(nodeId)) return new Set()
+    const next = new Set(visiting).add(nodeId)
+    const processSet = new Set<string>()
+    ;(incoming.get(nodeId) ?? []).forEach((link) => {
+      processSet.add(link.source)
+      upstreamProcesses(link.source, next).forEach((id) => processSet.add(id))
+    })
+    upstreamProcessMemo.set(nodeId, processSet)
+    return new Set(processSet)
   }
   const upstreamMemo = new Map<string, number>()
-  const upstreamTotal = (nodeId: string, visiting = new Set<string>()): number => {
+  const upstreamTotal = (nodeId: string): number => {
     if (upstreamMemo.has(nodeId)) return upstreamMemo.get(nodeId)!
-    if (visiting.has(nodeId)) return 0
-    const next = new Set(visiting).add(nodeId)
-    const total = Math.abs(direct.get(nodeId) ?? 0) + (incoming.get(nodeId) ?? []).reduce((sum, link) => sum + upstreamTotal(link.source, next), 0)
+    const total = (direct.get(nodeId) ?? 0) + [...upstreamProcesses(nodeId)].reduce((sum, id) => sum + (direct.get(id) ?? 0), 0)
     upstreamMemo.set(nodeId, total)
     return total
   }
@@ -337,9 +357,10 @@ function SankeyView({ result }: { result: LcaResult }) {
     depthMemo.set(nodeId, value)
     return value
   }
-  const rootTotal = Math.max(...processNodes.map((node) => upstreamTotal(node.id)), 0)
+  const selectedTotal = mode === "impact" ? (category?.total_score ?? result.lcia[selectedImpact]?.score ?? 0) : (result.lci[selectedFlow]?.amount ?? 0)
+  const totalMagnitude = Math.abs(selectedTotal)
   const rootIds = new Set(processNodes.filter((node) => !(outgoing.get(node.id)?.length)).map((node) => node.id))
-  const eligibleNodes = processNodes.filter((node) => rootIds.has(node.id) || !rootTotal || upstreamTotal(node.id) / rootTotal * 100 >= minContribution)
+  const eligibleNodes = processNodes.filter((node) => rootIds.has(node.id) || !totalMagnitude || Math.abs(upstreamTotal(node.id) / selectedTotal * 100) >= minContribution)
   const visibleNodes = eligibleNodes.slice(Math.max(0, eligibleNodes.length - Math.max(1, maxProcesses)))
   const visibleIds = new Set(visibleNodes.map((node) => node.id))
   const visibleLinks = links.filter((link) => visibleIds.has(link.source) && visibleIds.has(link.target))
@@ -358,17 +379,18 @@ function SankeyView({ result }: { result: LcaResult }) {
   })))
   const unit = mode === "impact" ? (category?.unit ?? result.lcia[selectedImpact]?.unit ?? "") : (result.lci[selectedFlow]?.unit ?? "")
   const format = (value: number) => new Intl.NumberFormat("en", { maximumSignificantDigits: 4 }).format(value)
-  const percentage = (value: number) => rootTotal ? value / rootTotal * 100 : 0
+  const percentage = (value: number) => selectedTotal ? value / selectedTotal * 100 : 0
   const sankeyNodes: Node<SankeyProcessNodeData>[] = visibleNodes.map((node) => {
-    const own = Math.abs(direct.get(node.id) ?? 0)
+    const own = direct.get(node.id) ?? 0
     const total = upstreamTotal(node.id)
+    const ownPercentage = mode === "impact" ? directPercentage.get(node.id) : percentage(own)
     return {
       id: node.id,
       type: "sankeyProcess",
       position: positions.get(node.id) ?? { x: 0, y: 0 },
       data: {
         label: node.label,
-        direct: `Direct (${percentage(own).toFixed(2)}%): ${format(own)} ${unit}`,
+        direct: `Direct (${ownPercentage === null || ownPercentage === undefined ? "—" : `${ownPercentage.toFixed(2)}%`}): ${format(own)} ${unit}`,
         upstream: `Upstream (${percentage(total).toFixed(2)}%): ${format(total)} ${unit}`,
         orientation,
         scope: node.scope ?? "foreground",
@@ -382,7 +404,7 @@ function SankeyView({ result }: { result: LcaResult }) {
       source: link.source,
       target: link.target,
       type: connectionStyle === "curved" ? "default" : connectionStyle === "straight" ? "straight" : "smoothstep",
-      style: { stroke: "#343941", strokeWidth: Math.max(2, Math.min(42, percentage(value) * .42)), opacity: .9 },
+      style: { stroke: "#343941", strokeWidth: Math.max(2, Math.min(42, Math.abs(percentage(value)) * .42)), opacity: .9 },
       label: `${format(value)} ${unit}`,
       labelStyle: { fill: "#b8bbc2", fontSize: 9 },
       labelBgStyle: { fill: "#202225", fillOpacity: .9 },
@@ -416,7 +438,7 @@ function SankeyView({ result }: { result: LcaResult }) {
       </div>
     </div> : null}
     <div className="sankey-canvas">
-      {rootTotal ? <ReactFlow
+      {totalMagnitude ? <ReactFlow
         key={`sankey-layout-${layoutVersion}`}
         defaultNodes={sankeyNodes}
         defaultEdges={sankeyEdges}
@@ -430,7 +452,7 @@ function SankeyView({ result }: { result: LcaResult }) {
         proOptions={{ hideAttribution: true }}
       ><Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#242831" /></ReactFlow> : <div className="sankey-empty"><strong>No contributions for this selection</strong><p>Choose another flow or impact category.</p></div>}
     </div>
-    {rootTotal ? <div className="graph-toolbar sankey-toolbar" aria-label="Sankey graph tools">
+    {totalMagnitude ? <div className="graph-toolbar sankey-toolbar" aria-label="Sankey graph tools">
       <div className="toolbar-group"><ToolButton label="Chart settings" onClick={() => setChartPickerOpen((open) => !open)}><Settings2 size={18} /></ToolButton></div>
       <div className="toolbar-group"><ToolButton label="Select"><MousePointer2 size={18} /></ToolButton></div>
       <div className="toolbar-group">
