@@ -210,6 +210,17 @@ const indicatorAbbreviations: Record<string, string> = {
   "human toxicity: non-carcinogenic": "HTPNC",
 }
 
+export const impactCategoryAbbreviation = (category: string) => {
+  const indicator = category.split("|").at(-1)?.trim() || category
+  const parenthetical = indicator.match(/\(([^()]*)\)\s*$/)
+  if (parenthetical) return parenthetical[1].toUpperCase()
+  const known = indicatorAbbreviations[indicator.toLowerCase()]
+  if (known) return known
+  const words = indicator.match(/[A-Za-z0-9]+/g) ?? []
+  const significant = words.filter((word) => !["and", "of", "to", "in", "the", "potential"].includes(word.toLowerCase()))
+  return (significant.map((word) => word[0]).join("") || indicator).toUpperCase()
+}
+
 const impactIndicator = (category: string) => {
   const indicator = category.split("|").at(-1)?.trim() || category
   const abbreviation = indicator.match(/\(([^()]*)\)\s*$/)

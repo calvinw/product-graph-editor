@@ -9,7 +9,7 @@ import * as Tooltip from "@radix-ui/react-tooltip"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import {
-  BarChart3, Box, Scan, LayoutGrid,
+  BarChart3, Box, Scan, LayoutGrid, ChevronDown,
   FileUp, Maximize, Minus, MousePointer2, Plus, Search, Share2,
 } from "lucide-react"
 import { Button } from "./components/ui/button"
@@ -17,7 +17,7 @@ import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
 import { chemicalFlowLabel } from "./lib/flowLabels"
 import { buildGraphFromYaml, buildInventoryRequirements, nodeScopeColors } from "./lib/yamlGraph"
-import { calculateLca, getBackgroundActivityDetails, lcaResultToMarkdown, type LcaResult } from "./lib/lcaApi"
+import { calculateLca, getBackgroundActivityDetails, impactCategoryAbbreviation, lcaResultToMarkdown, type LcaResult } from "./lib/lcaApi"
 import jacketYaml from "../case_studies/jacket.yaml?raw"
 import cottonFiberYaml from "../case_studies/cotton_fiber.yaml?raw"
 import mockPlasticBroomYaml from "../case_studies/mock_plastic_broom.yaml?raw"
@@ -114,6 +114,88 @@ function InventoryView({ result, yaml, isCurrent, calculating, error, onCalculat
         {requirements.map((row) => <tr key={row.process}><td><span className="process-mark">⌘</span>{row.process}</td><td><span className="product-mark">⚙</span>{row.product}</td><td className="number">{inventoryNumber.format(row.amount)}</td><td>{row.unit}</td></tr>)}
       </tbody></table></div>}
     </details>
+  </div>
+}
+
+function ContributionView({ result, yaml, isCurrent, calculating, error, onCalculate }: {
+  result: LcaResult | null
+  yaml: string
+  isCurrent: boolean
+  calculating: boolean
+  error: string
+  onCalculate: () => void
+}) {
+  const [mode, setMode] = useState<"flow" | "impact">("flow")
+  const [flow, setFlow] = useState("")
+  const [impact, setImpact] = useState("")
+  const [expanded, setExpanded] = useState(false)
+
+  const flowNames = result ? Object.keys(result.lci) : []
+  const impactNames = result ? Object.entries(result.lcia).filter(([, value]) => value.score !== 0).map(([name]) => name) : []
+  const selectedFlow = flowNames.includes(flow) ? flow : (flowNames[0] ?? "")
+  const selectedImpact = impactNames.includes(impact) ? impact : (impactNames[0] ?? "")
+  const contributionFlowLabel = (name: string) => {
+    const abbreviation = chemicalFlowLabel(name.split(/[|,]/)[0].trim())
+      .replaceAll("₂", "2")
+      .replaceAll("₃", "3")
+      .replaceAll("₄", "4")
+      .replaceAll("ₓ", "x")
+    return `${abbreviation} - elementary flows/air`
+  }
+
+  if (!result || !isCurrent) return <div className="results-panel contribution-panel">
+    <div className="results-panel-head"><div><strong>Contribution analysis</strong><span>Compare process contributions by inventory flow or impact category.</span></div><Button onClick={onCalculate} disabled={calculating}>{calculating ? "Calculating…" : "Calculate LCA"}</Button></div>
+    <div className="results-placeholder"><div className="results-empty-icon"><BarChart3 size={22} /></div><strong>No current contribution results</strong><p>Calculate the LCA to populate this view.</p>{error ? <div className="results-error"><strong>Calculation failed</strong><p>{error}</p></div> : null}</div>
+  </div>
+
+  const category = result.process_contributions.categories.find((item) => item.label === selectedImpact || item.id === selectedImpact)
+  let requirements: ReturnType<typeof buildInventoryRequirements> = []
+  try { requirements = buildInventoryRequirements(yaml, result.scaling_vector) } catch { requirements = [] }
+  const impactTotal = result.lcia[selectedImpact]
+  const flowTotal = result.lci[selectedFlow]
+  const cleanProcessName = (name: string) => name
+    .replace(/^(?:p?\d+)\s*[:.\-–—]\s*/i, "")
+    .trim()
+  const processName = (name: string, index: number) => {
+    const visible = cleanProcessName(name)
+    if (visible && !/^(?:p?\d+)$/i.test(visible)) return visible
+    return cleanProcessName(requirements[index]?.process ?? "")
+  }
+  const requiredAmount = (id: string, name: string, index: number) => {
+    const displayName = processName(name, index).toLowerCase()
+    const matchingRequirement = requirements.find((item) => cleanProcessName(item.process).toLowerCase() === displayName)
+    return result.scaling_vector[id]
+      ?? result.scaling_vector[name]
+      ?? matchingRequirement?.amount
+      ?? requirements[index]?.amount
+  }
+  const rows = (mode === "impact"
+    ? (category?.processes ?? []).map((item, index) => ({ name: processName(item.process_name, index), required: requiredAmount(item.process_id, item.process_name, index), total: item.direct_score, percentage: item.percentage }))
+    : requirements.map((item) => ({ name: cleanProcessName(item.process), required: item.amount, total: 0, percentage: null as number | null })))
+    .filter((row) => row.name && !/^(?:p?\d+)$/i.test(row.name))
+    .sort((left, right) => mode === "impact"
+      ? Math.abs(right.total) - Math.abs(left.total)
+      : Math.abs(right.required ?? 0) - Math.abs(left.required ?? 0))
+  const total = mode === "impact" ? (category?.total_score ?? impactTotal?.score ?? 0) : (flowTotal?.amount ?? 0)
+  const unit = mode === "impact" ? (category?.unit ?? impactTotal?.unit ?? "") : (flowTotal?.unit ?? "")
+  const maxMagnitude = Math.max(Math.abs(total), ...rows.map((row) => Math.abs(row.total)), 1e-30)
+  const requiredTotal = rows.reduce((sum, row) => sum + Math.abs(row.required ?? 0), 0)
+  const number = (value: number | undefined) => value === undefined ? "—" : inventoryNumber.format(value)
+  const rate = (value: number) => value.toFixed(2)
+
+  return <div className="contribution-view">
+    <div className="contribution-title"><div><strong>{result.name}</strong><span>{result.method} · {result.functional_unit}</span></div><Button variant="ghost" onClick={onCalculate} disabled={calculating}>{calculating ? "Calculating…" : "Recalculate"}</Button></div>
+    <div className="contribution-controls">
+      <label className={mode === "flow" ? "active" : ""}><input type="radio" checked={mode === "flow"} onChange={() => setMode("flow")} />Flow</label>
+      <div className="contribution-select"><span className="flow-dot output" /><select value={selectedFlow} onChange={(event) => { setFlow(event.target.value); setMode("flow") }} aria-label="Flow category">{flowNames.map((name) => <option key={name} value={name}>{contributionFlowLabel(name)}</option>)}</select><ChevronDown size={15} /></div>
+      <label className={mode === "impact" ? "active" : ""}><input type="radio" checked={mode === "impact"} onChange={() => setMode("impact")} />Impact category</label>
+      <div className="contribution-select"><BarChart3 size={16} /><select value={selectedImpact} onChange={(event) => { setImpact(event.target.value); setMode("impact") }} aria-label="Impact category">{impactNames.map((name) => <option key={name} value={name}>{impactCategoryAbbreviation(name)}</option>)}</select><ChevronDown size={15} /></div>
+    </div>
+    <div className="contribution-table-wrap"><table className="contribution-table"><thead><tr><th>Contribution rate</th><th>Process</th><th>Required amount</th><th>Total result</th><th>Direct contribution</th></tr></thead><tbody>
+      <tr className="contribution-root"><td>100.00%</td><td><button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} downstream processes`}><ChevronDown size={14} /></button><span className="process-mark">⌘</span>{result.name}</td><td>{mode === "flow" ? "1.00000" : "—"}</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(total)} <small>{unit}</small></td><td>—</td></tr>
+      {expanded ? rows.map((row, index) => { const percent = mode === "flow" ? (requiredTotal ? Math.abs(row.required ?? 0) / requiredTotal * 100 : 0) : (row.percentage ?? (total ? row.total / total * 100 : 0)); return <tr key={`${row.name}-${index}`}><td><span className="rate-value">{rate(percent)}%</span></td><td><span className="tree-indent" /><span className="process-mark">⌘</span>{row.name}</td><td>{number(row.required)}</td><td><span className="result-bar"><i className={row.total < 0 ? "negative" : ""} style={{ width: `${Math.abs(row.total) / maxMagnitude * 100}%` }} /></span>{mode === "impact" ? number(row.total) : "—"}</td><td>{mode === "impact" ? <>{number(row.total)} <small>({rate(percent)}%)</small></> : "—"}</td></tr> }) : null}
+      {expanded && !rows.length ? <tr className="empty-row"><td colSpan={5}>{mode === "impact" ? "No process contribution rows were returned for this category." : "No process requirements are available."}</td></tr> : null}
+    </tbody></table></div>
   </div>
 }
 
@@ -512,12 +594,7 @@ function GraphEditor() {
             <span className={yamlError ? "yaml-error" : ""}>{yamlError || "Files are parsed locally in your browser."}</span>
             <Button onClick={previewYaml}>Preview graph</Button>
           </div>
-        </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} calculating={isCalculating} error={resultsError} onCalculate={runCalculation} /> : view === "contribution" ? <div className="results-empty">
-          <span className="not-implemented">NOT IMPLEMENTED YET</span>
-          <div className="results-empty-icon"><BarChart3 size={22} /></div>
-          <strong>Contribution</strong>
-          <p>Process and flow contributions from the current product graph will appear here.</p>
-        </div> : view === "sankey" ? <div className="results-empty">
+        </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} calculating={isCalculating} error={resultsError} onCalculate={runCalculation} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} calculating={isCalculating} error={resultsError} onCalculate={runCalculation} /> : view === "sankey" ? <div className="results-empty">
           <span className="not-implemented">NOT IMPLEMENTED YET</span>
           <div className="results-empty-icon"><Share2 size={22} /></div>
           <strong>Sankey Graph</strong>
