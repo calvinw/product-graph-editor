@@ -201,6 +201,16 @@ function ContributionView({ result, yaml, isCurrent, calculating, error, onCalcu
     if (next.has(name)) next.delete(name); else next.add(name)
     return next
   })
+  const ownValue = (row: (typeof rows)[number]) => mode === "impact" ? row.total : Math.abs(row.required ?? 0)
+  const rolledUpValue = (row: (typeof rows)[number], visited = new Set<string>()): number => {
+    const key = row.name.toLowerCase()
+    if (visited.has(key)) return 0
+    const nextVisited = new Set(visited).add(key)
+    const upstream = (upstreamByName.get(row.name) ?? [])
+      .map((name) => rowByName.get(name.toLowerCase()))
+      .filter((item): item is (typeof rows)[number] => Boolean(item))
+    return ownValue(row) + upstream.reduce((sum, child) => sum + rolledUpValue(child, nextVisited), 0)
+  }
   const renderContributionRows = (items: typeof rows, depth = 0): React.ReactNode[] => items.flatMap((row, index) => {
     const upstream = (upstreamByName.get(row.name) ?? [])
       .map((name) => rowByName.get(name.toLowerCase()))
@@ -208,11 +218,12 @@ function ContributionView({ result, yaml, isCurrent, calculating, error, onCalcu
       .sort((left, right) => mode === "impact" ? Math.abs(right.total) - Math.abs(left.total) : Math.abs(right.required ?? 0) - Math.abs(left.required ?? 0))
     const canExpand = upstream.length > 0
     const isOpen = expandedProcesses.has(row.name)
-    const percent = mode === "flow" ? (requiredTotal ? Math.abs(row.required ?? 0) / requiredTotal * 100 : 0) : (row.percentage ?? (total ? row.total / total * 100 : 0))
+    const displayedValue = canExpand && !isOpen ? rolledUpValue(row) : ownValue(row)
+    const percent = mode === "flow" ? (requiredTotal ? displayedValue / requiredTotal * 100 : 0) : (total ? displayedValue / total * 100 : 0)
     const processRow = <tr key={`${row.name}-${depth}-${index}`} className={canExpand ? "clickable-process" : ""} onClick={canExpand ? () => toggleProcess(row.name) : undefined}>
       <td><span className="rate-value">{rate(percent)}%</span></td>
       <td style={{ paddingLeft: `${7 + depth * 20}px` }}>{canExpand ? <button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-expanded={isOpen} aria-label={`${isOpen ? "Hide" : "Show"} inputs for ${row.name}`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className="process-mark">⌘</span>{row.name}</td>
-      <td>{number(row.required)}</td><td><span className="result-bar"><i className={row.total < 0 ? "negative" : ""} style={{ width: `${Math.abs(row.total) / maxMagnitude * 100}%` }} /></span>{mode === "impact" ? number(row.total) : "—"}</td><td>{mode === "impact" ? <>{number(row.total)} <small>({rate(percent)}%)</small></> : "—"}</td>
+      <td>{number(row.required)}</td><td><span className="result-bar"><i className={displayedValue < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(displayedValue) / maxMagnitude * 100)}%` }} /></span>{mode === "impact" ? number(displayedValue) : "—"}</td><td>{mode === "impact" ? <>{number(row.total)} <small>({rate(total ? row.total / total * 100 : 0)}% direct)</small></> : "—"}</td>
     </tr>
     return isOpen ? [processRow, ...renderContributionRows(upstream, depth + 1)] : [processRow]
   })
