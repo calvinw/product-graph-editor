@@ -129,6 +129,7 @@ function ContributionView({ result, yaml, isCurrent, calculating, error, onCalcu
   const [flow, setFlow] = useState("")
   const [impact, setImpact] = useState("")
   const [expanded, setExpanded] = useState(false)
+  const [expandedProcesses, setExpandedProcesses] = useState<Set<string>>(() => new Set())
 
   const flowNames = result ? Object.keys(result.lci) : []
   const impactNames = result ? Object.entries(result.lcia).filter(([, value]) => value.score !== 0).map(([name]) => name) : []
@@ -182,6 +183,39 @@ function ContributionView({ result, yaml, isCurrent, calculating, error, onCalcu
   const requiredTotal = rows.reduce((sum, row) => sum + Math.abs(row.required ?? 0), 0)
   const number = (value: number | undefined) => value === undefined ? "—" : inventoryNumber.format(value)
   const rate = (value: number) => value.toFixed(2)
+  let contributionGraph: ReturnType<typeof buildGraphFromYaml> | null = null
+  try { contributionGraph = buildGraphFromYaml(yaml, "structure") } catch { contributionGraph = null }
+  const graphNameById = new Map(contributionGraph?.nodes.map((node) => [node.id, cleanProcessName(node.data.label)]) ?? [])
+  const upstreamByName = new Map<string, string[]>()
+  contributionGraph?.edges.forEach((edge) => {
+    const consumer = graphNameById.get(edge.target)
+    const supplier = graphNameById.get(edge.source)
+    if (!consumer || !supplier) return
+    upstreamByName.set(consumer, [...(upstreamByName.get(consumer) ?? []), supplier])
+  })
+  const rowByName = new Map(rows.map((row) => [row.name.toLowerCase(), row]))
+  const suppliedNames = new Set([...upstreamByName.values()].flat().map((name) => name.toLowerCase()))
+  const rootRows = rows.filter((row) => !suppliedNames.has(row.name.toLowerCase()))
+  const toggleProcess = (name: string) => setExpandedProcesses((current) => {
+    const next = new Set(current)
+    if (next.has(name)) next.delete(name); else next.add(name)
+    return next
+  })
+  const renderContributionRows = (items: typeof rows, depth = 0): React.ReactNode[] => items.flatMap((row, index) => {
+    const upstream = (upstreamByName.get(row.name) ?? [])
+      .map((name) => rowByName.get(name.toLowerCase()))
+      .filter((item): item is (typeof rows)[number] => Boolean(item))
+      .sort((left, right) => mode === "impact" ? Math.abs(right.total) - Math.abs(left.total) : Math.abs(right.required ?? 0) - Math.abs(left.required ?? 0))
+    const canExpand = upstream.length > 0
+    const isOpen = expandedProcesses.has(row.name)
+    const percent = mode === "flow" ? (requiredTotal ? Math.abs(row.required ?? 0) / requiredTotal * 100 : 0) : (row.percentage ?? (total ? row.total / total * 100 : 0))
+    const processRow = <tr key={`${row.name}-${depth}-${index}`} className={canExpand ? "clickable-process" : ""} onClick={canExpand ? () => toggleProcess(row.name) : undefined}>
+      <td><span className="rate-value">{rate(percent)}%</span></td>
+      <td style={{ paddingLeft: `${7 + depth * 20}px` }}>{canExpand ? <button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-expanded={isOpen} aria-label={`${isOpen ? "Hide" : "Show"} inputs for ${row.name}`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className="process-mark">⌘</span>{row.name}</td>
+      <td>{number(row.required)}</td><td><span className="result-bar"><i className={row.total < 0 ? "negative" : ""} style={{ width: `${Math.abs(row.total) / maxMagnitude * 100}%` }} /></span>{mode === "impact" ? number(row.total) : "—"}</td><td>{mode === "impact" ? <>{number(row.total)} <small>({rate(percent)}%)</small></> : "—"}</td>
+    </tr>
+    return isOpen ? [processRow, ...renderContributionRows(upstream, depth + 1)] : [processRow]
+  })
 
   return <div className="contribution-view">
     <div className="contribution-title"><div><strong>{result.name}</strong><span>{result.method} · {result.functional_unit}</span></div><Button variant="ghost" onClick={onCalculate} disabled={calculating}>{calculating ? "Calculating…" : "Recalculate"}</Button></div>
@@ -193,7 +227,7 @@ function ContributionView({ result, yaml, isCurrent, calculating, error, onCalcu
     </div>
     <div className="contribution-table-wrap"><table className="contribution-table"><thead><tr><th>Contribution rate</th><th>Process</th><th>Required amount</th><th>Total result</th><th>Direct contribution</th></tr></thead><tbody>
       <tr className="contribution-root"><td>100.00%</td><td><button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} downstream processes`}><ChevronDown size={14} /></button><span className="process-mark">⌘</span>{result.name}</td><td>{mode === "flow" ? "1.00000" : "—"}</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(total)} <small>{unit}</small></td><td>—</td></tr>
-      {expanded ? rows.map((row, index) => { const percent = mode === "flow" ? (requiredTotal ? Math.abs(row.required ?? 0) / requiredTotal * 100 : 0) : (row.percentage ?? (total ? row.total / total * 100 : 0)); return <tr key={`${row.name}-${index}`}><td><span className="rate-value">{rate(percent)}%</span></td><td><span className="tree-indent" /><span className="process-mark">⌘</span>{row.name}</td><td>{number(row.required)}</td><td><span className="result-bar"><i className={row.total < 0 ? "negative" : ""} style={{ width: `${Math.abs(row.total) / maxMagnitude * 100}%` }} /></span>{mode === "impact" ? number(row.total) : "—"}</td><td>{mode === "impact" ? <>{number(row.total)} <small>({rate(percent)}%)</small></> : "—"}</td></tr> }) : null}
+      {expanded ? renderContributionRows(rootRows.length ? rootRows : rows) : null}
       {expanded && !rows.length ? <tr className="empty-row"><td colSpan={5}>{mode === "impact" ? "No process contribution rows were returned for this category." : "No process requirements are available."}</td></tr> : null}
     </tbody></table></div>
   </div>
