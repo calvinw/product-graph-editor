@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
   ReactFlow, ReactFlowProvider, Background, BackgroundVariant,
-  useNodesState, useEdgesState, useReactFlow,
+  useNodesState, useEdgesState, useReactFlow, useNodesInitialized,
   type Node, type Edge,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
@@ -287,11 +287,37 @@ function GraphEditor() {
   const [calculatedYaml, setCalculatedYaml] = useState("")
   const [graphMode, setGraphMode] = useState<"scaled" | "structure">("structure")
   const foldDirectionRef = useRef<"upstream" | "downstream">("upstream")
+  const initialFitDoneRef = useRef(false)
+  const editorOpenRef = useRef(false)
   const nodesRef = useRef(nodes)
   const edgesRef = useRef(edges)
   nodesRef.current = nodes
   edgesRef.current = edges
-  const { fitView, zoomIn, zoomOut } = useReactFlow()
+  const { fitView, getViewport, setViewport, zoomIn, zoomOut } = useReactFlow()
+  const nodesInitialized = useNodesInitialized()
+
+  useEffect(() => {
+    if (!nodesInitialized || initialFitDoneRef.current) return
+    const timer = window.setTimeout(() => {
+      initialFitDoneRef.current = true
+      void fitView({ nodes: nodesRef.current, padding: 0.35, maxZoom: 0.75, duration: 0 })
+    }, 150)
+    return () => window.clearTimeout(timer)
+  }, [fitView, nodesInitialized])
+
+  useEffect(() => {
+    if (!selected) {
+      editorOpenRef.current = false
+      return
+    }
+    if (!nodesInitialized || editorOpenRef.current) return
+    editorOpenRef.current = true
+    const timer = window.setTimeout(() => {
+      const viewport = getViewport()
+      void setViewport({ ...viewport, x: viewport.x - 260 }, { duration: 250 })
+    }, 50)
+    return () => window.clearTimeout(timer)
+  }, [getViewport, nodesInitialized, selected, setViewport])
 
   const removeNode = useCallback((id: string) => {
     const folded = new Set<string>()
@@ -600,7 +626,7 @@ function GraphEditor() {
           </div>
         </div>
         {view === "graph" ? <><ReactFlow
-          className="reactflow-canvas"
+          className={`reactflow-canvas ${selected ? "with-inspector" : ""}`}
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
@@ -671,8 +697,8 @@ function GraphEditor() {
         {view === "graph" ? <div className="graph-meta">{nodes.length} nodes&nbsp;&nbsp;·&nbsp;&nbsp;{connectionCount} connections</div> : null}
       </div>
 
-      {view === "graph" ? <aside className={`inspector ${selected ? "is-open" : ""}`}>
-        {selected ? <>
+      {view === "graph" && selected ? <aside className="inspector is-open">
+        <>
           <div className="inspector-head"><span>NODE DETAILS</span><Button variant="ghost" size="icon" onClick={() => setSelected(null)}><Maximize size={16} /></Button></div>
           <div className="node-icon" style={{ background: selectedNode?.data.color ?? selected.color }}><Box size={22} /></div>
           <h2>{selectedNode?.data.label ?? selected.label}</h2><p>{selectedNode?.data.detail ?? selected.detail}</p>
@@ -709,7 +735,7 @@ function GraphEditor() {
               {selectedNode.data.emissions.map((item) => <div className="property-row" key={item.label}><span>{item.label}</span>{selectedNode.data.showAmounts !== false ? <strong>{item.amount} {item.unit}</strong> : null}</div>)}
             </div> : null}
           </>}
-        </> : <div className="empty-inspector"><MousePointer2 size={24} /><strong>Nothing selected</strong><p>Select a node to inspect its properties and connections.</p></div>}
+        </>
       </aside> : null}
     </>
   )
