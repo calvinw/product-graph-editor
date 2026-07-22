@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
   ReactFlow, ReactFlowProvider, Background, BackgroundVariant,
-  useNodesState, useEdgesState, useReactFlow,
-  type Node, type Edge,
+  Handle, Position, useNodesState, useEdgesState, useReactFlow,
+  type Node, type Edge, type NodeProps, type ReactFlowInstance,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
 import * as Tooltip from "@radix-ui/react-tooltip"
@@ -34,6 +34,21 @@ const initialNodes: Node<ProcessNodeData>[] = defaultGraph.nodes.map((node) => (
 }))
 
 const nodeTypes = { process: ProcessNode }
+type SankeyProcessNodeData = {
+  label: string
+  direct: string
+  upstream: string
+}
+function SankeyProcessNode({ data }: NodeProps<Node<SankeyProcessNodeData>>) {
+  return <div className="sankey-process-node">
+    <Handle type="target" position={Position.Bottom} />
+    <div className="sankey-process-title">{data.label}</div>
+    <div>{data.direct}</div>
+    <div>{data.upstream}</div>
+    <Handle type="source" position={Position.Top} />
+  </div>
+}
+const sankeyNodeTypes = { sankeyProcess: SankeyProcessNode }
 const inputHandleIdFor = (edgeId: string) => `input-${edgeId}`
 const incomingEdgesFor = (nodeId: string, edges: Edge[], nodesById: Map<string, Node<ProcessNodeData>>) => (
   edges.filter((edge) => edge.target === nodeId).sort((left, right) => (
@@ -250,6 +265,154 @@ function ContributionView({ result, yaml, isCurrent, error }: {
       {expanded ? renderContributionRows(rootRows.length ? rootRows : rows) : null}
       {expanded && !rows.length ? <tr className="empty-row"><td colSpan={5}>{mode === "impact" ? "No process contribution rows were returned for this category." : "No process requirements are available."}</td></tr> : null}
     </tbody></table></div>
+  </div>
+}
+
+function SankeyView({ result }: { result: LcaResult }) {
+  const [mode, setMode] = useState<"flow" | "impact">("impact")
+  const [flow, setFlow] = useState("")
+  const [impact, setImpact] = useState("")
+  const [layoutVersion, setLayoutVersion] = useState(0)
+  const [chartPickerOpen, setChartPickerOpen] = useState(false)
+  const instanceRef = useRef<ReactFlowInstance<Node<SankeyProcessNodeData>, Edge> | null>(null)
+  const flowNames = Object.keys(result.lci)
+  const impactNames = [...Object.entries(result.lcia).filter(([, value]) => value.score !== 0).reduce((unique, [name, value]) => {
+    const key = `${impactCategoryAbbreviation(name)}\u001f${value.score}\u001f${value.unit}`
+    if (!unique.has(key)) unique.set(key, name)
+    return unique
+  }, new Map<string, string>()).values()]
+  const selectedFlow = flowNames.includes(flow) ? flow : (flowNames[0] ?? "")
+  const selectedImpact = impactNames.includes(impact) ? impact : (impactNames[0] ?? "")
+  const category = result.process_contributions.categories.find((item) => item.label === selectedImpact || item.id === selectedImpact)
+  const processNodes = result.sankey.nodes.filter((node) => node.kind === "process" || node.kind === "final_product")
+  const processIds = new Set(processNodes.map((node) => node.id))
+  const links = result.sankey.links.filter((link) => processIds.has(link.source) && processIds.has(link.target))
+  const incoming = new Map<string, typeof links>()
+  const outgoing = new Map<string, typeof links>()
+  links.forEach((link) => {
+    incoming.set(link.target, [...(incoming.get(link.target) ?? []), link])
+    outgoing.set(link.source, [...(outgoing.get(link.source) ?? []), link])
+  })
+  const normalize = (value: string) => value.replace(/^(?:p?\d+)\s*[:.\-–—]\s*/i, "").trim().toLowerCase()
+  const direct = new Map<string, number>()
+  if (mode === "impact") {
+    const contributions = new Map((category?.processes ?? []).flatMap((item) => [
+      [item.process_id, item.direct_score] as const,
+      [normalize(item.process_name), item.direct_score] as const,
+    ]))
+    processNodes.forEach((node) => direct.set(node.id, contributions.get(node.id) ?? contributions.get(normalize(node.process_name ?? node.label)) ?? 0))
+  } else {
+    const normalizedFlow = (value: string) => value.split(/[|,]/)[0].trim().toLowerCase()
+    result.sankey.links.filter((link) => normalizedFlow(link.flow_name) === normalizedFlow(selectedFlow)).forEach((link) => {
+      const processId = processIds.has(link.source) ? link.source : processIds.has(link.target) ? link.target : ""
+      if (processId) direct.set(processId, (direct.get(processId) ?? 0) + link.amount)
+    })
+  }
+  const upstreamMemo = new Map<string, number>()
+  const upstreamTotal = (nodeId: string, visiting = new Set<string>()): number => {
+    if (upstreamMemo.has(nodeId)) return upstreamMemo.get(nodeId)!
+    if (visiting.has(nodeId)) return 0
+    const next = new Set(visiting).add(nodeId)
+    const total = Math.abs(direct.get(nodeId) ?? 0) + (incoming.get(nodeId) ?? []).reduce((sum, link) => sum + upstreamTotal(link.source, next), 0)
+    upstreamMemo.set(nodeId, total)
+    return total
+  }
+  const depthMemo = new Map<string, number>()
+  const depth = (nodeId: string, visiting = new Set<string>()): number => {
+    if (depthMemo.has(nodeId)) return depthMemo.get(nodeId)!
+    if (visiting.has(nodeId)) return 0
+    const next = new Set(visiting).add(nodeId)
+    const nextLinks = outgoing.get(nodeId) ?? []
+    const value = nextLinks.length ? 1 + Math.max(...nextLinks.map((link) => depth(link.target, next))) : 0
+    depthMemo.set(nodeId, value)
+    return value
+  }
+  const rows = new Map<number, typeof processNodes>()
+  processNodes.forEach((node) => {
+    const row = depth(node.id)
+    rows.set(row, [...(rows.get(row) ?? []), node])
+  })
+  const width = 1000
+  const nodeWidth = 210
+  const rowGap = 150
+  const positions = new Map<string, { x: number; y: number }>()
+  rows.forEach((nodesInRow, row) => nodesInRow.forEach((node, index) => positions.set(node.id, {
+    x: (index + 1) * width / (nodesInRow.length + 1) - nodeWidth / 2,
+    y: row * rowGap,
+  })))
+  const rootTotal = Math.max(...processNodes.map((node) => upstreamTotal(node.id)), 0)
+  const unit = mode === "impact" ? (category?.unit ?? result.lcia[selectedImpact]?.unit ?? "") : (result.lci[selectedFlow]?.unit ?? "")
+  const format = (value: number) => new Intl.NumberFormat("en", { maximumSignificantDigits: 4 }).format(value)
+  const percentage = (value: number) => rootTotal ? value / rootTotal * 100 : 0
+  const sankeyNodes: Node<SankeyProcessNodeData>[] = processNodes.map((node) => {
+    const own = Math.abs(direct.get(node.id) ?? 0)
+    const total = upstreamTotal(node.id)
+    return {
+      id: node.id,
+      type: "sankeyProcess",
+      position: positions.get(node.id) ?? { x: 0, y: 0 },
+      data: {
+        label: node.label,
+        direct: `Direct (${percentage(own).toFixed(2)}%): ${format(own)} ${unit}`,
+        upstream: `Upstream (${percentage(total).toFixed(2)}%): ${format(total)} ${unit}`,
+      },
+    }
+  })
+  const sankeyEdges: Edge[] = links.map((link) => {
+    const value = upstreamTotal(link.source)
+    return {
+      id: link.id,
+      source: link.source,
+      target: link.target,
+      type: "default",
+      style: { stroke: "#e3232c", strokeWidth: Math.max(2, Math.min(42, percentage(value) * .42)), opacity: .82 },
+      label: `${format(value)} ${unit}`,
+      labelStyle: { fill: "#b8bbc2", fontSize: 9 },
+      labelBgStyle: { fill: "#202225", fillOpacity: .9 },
+    }
+  })
+
+  const fitSankey = () => instanceRef.current?.fitView({ padding: .4, maxZoom: .68, duration: 350 })
+
+  return <div className="sankey-view">
+    {chartPickerOpen ? <div className="sankey-chart-picker">
+      <div className="sankey-picker-tabs">
+        <button className={mode === "flow" ? "is-active" : ""} onClick={() => setMode("flow")}><span className="flow-dot output" />Flow</button>
+        <button className={mode === "impact" ? "is-active" : ""} onClick={() => setMode("impact")}><BarChart3 size={14} />Impact</button>
+      </div>
+      <label>
+        <span>{mode === "flow" ? "Flow category" : "Impact category"}</span>
+        {mode === "flow"
+          ? <select value={selectedFlow} onChange={(event) => setFlow(event.target.value)} aria-label="Sankey flow category">{flowNames.map((name) => <option key={name} value={name}>{inventoryFlowName(name)}</option>)}</select>
+          : <select value={selectedImpact} onChange={(event) => setImpact(event.target.value)} aria-label="Sankey impact category">{impactNames.map((name) => <option key={name} value={name}>{impactCategoryAbbreviation(name)}</option>)}</select>}
+      </label>
+    </div> : null}
+    <div className="sankey-canvas">
+      {rootTotal ? <ReactFlow
+        key={`${mode}-${mode === "impact" ? selectedImpact : selectedFlow}-${layoutVersion}`}
+        defaultNodes={sankeyNodes}
+        defaultEdges={sankeyEdges}
+        nodeTypes={sankeyNodeTypes}
+        onInit={(instance) => { instanceRef.current = instance }}
+        minZoom={0.25}
+        maxZoom={2}
+        fitView
+        fitViewOptions={{ padding: .4, maxZoom: .68 }}
+        proOptions={{ hideAttribution: true }}
+      ><Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#242831" /></ReactFlow> : <div className="sankey-empty"><strong>No contributions for this selection</strong><p>Choose another flow or impact category.</p></div>}
+    </div>
+    {rootTotal ? <div className="graph-toolbar sankey-toolbar" aria-label="Sankey graph tools">
+      <div className="toolbar-group"><ToolButton label="Change chart" onClick={() => setChartPickerOpen((open) => !open)}><BarChart3 size={18} /></ToolButton></div>
+      <div className="toolbar-group"><ToolButton label="Select"><MousePointer2 size={18} /></ToolButton></div>
+      <div className="toolbar-group">
+        <ToolButton label="Auto layout" onClick={() => setLayoutVersion((value) => value + 1)}><LayoutGrid size={18} /></ToolButton>
+        <ToolButton label="Fit graph" onClick={fitSankey}><Scan size={18} /></ToolButton>
+      </div>
+      <div className="toolbar-group">
+        <ToolButton label="Zoom in" onClick={() => instanceRef.current?.zoomIn({ duration: 200 })}><Plus size={18} /></ToolButton>
+        <ToolButton label="Zoom out" onClick={() => instanceRef.current?.zoomOut({ duration: 200 })}><Minus size={18} /></ToolButton>
+      </div>
+    </div> : null}
   </div>
 }
 
@@ -653,12 +816,7 @@ function GraphEditor() {
             <span className={yamlError ? "yaml-error" : ""}>{yamlError || "Files are parsed locally in your browser."}</span>
             <Button onClick={previewYaml}>Preview graph</Button>
           </div>
-        </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "sankey" ? <div className="results-empty">
-          <span className="not-implemented">NOT IMPLEMENTED YET</span>
-          <div className="results-empty-icon"><Share2 size={22} /></div>
-          <strong>Sankey Graph</strong>
-          <p>A Sankey view of material and environmental flows will appear here.</p>
-        </div> : <div className="results-panel">
+        </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "sankey" && lcaResult ? <SankeyView result={lcaResult} /> : <div className="results-panel">
           <div className="results-panel-head">
             <div><strong>LCA Results</strong><span>Calculated from the current YAML product graph.</span></div>
             <Button onClick={runCalculation} disabled={isCalculating}>{isCalculating ? "Calculating…" : "Calculate"}</Button>
