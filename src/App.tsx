@@ -9,7 +9,7 @@ import * as Tooltip from "@radix-ui/react-tooltip"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import {
-  BarChart3, Box, Scan, LayoutGrid, ChevronDown,
+  BarChart3, Box, Component, Scan, LayoutGrid, ChevronDown,
   FileUp, Maximize, Minus, MousePointer2, Plus, Search, Settings2, Share2,
 } from "lucide-react"
 import { Button } from "./components/ui/button"
@@ -39,13 +39,16 @@ type SankeyProcessNodeData = {
   direct: string
   upstream: string
   orientation: "vertical" | "horizontal"
+  scope: "foreground" | "background"
 }
 function SankeyProcessNode({ data }: NodeProps<Node<SankeyProcessNodeData>>) {
-  return <div className="sankey-process-node">
+  return <div className="pg-node is-expanded sankey-process-node" style={{ "--node-color": nodeScopeColors[data.scope] } as React.CSSProperties}>
     <Handle type="target" position={data.orientation === "vertical" ? Position.Bottom : Position.Right} />
-    <div className="sankey-process-title">{data.label}</div>
-    <div>{data.direct}</div>
-    <div>{data.upstream}</div>
+    <div className="pg-node-head"><Component size={14} /><span className="pg-node-label">{data.label}</span><small className="pg-node-scope">{data.scope}</small></div>
+    <div className="sankey-process-metrics">
+      <div>{data.direct}</div>
+      <div>{data.upstream}</div>
+    </div>
     <Handle type="source" position={data.orientation === "vertical" ? Position.Top : Position.Left} />
   </div>
 }
@@ -345,13 +348,13 @@ function SankeyView({ result }: { result: LcaResult }) {
     const row = depth(node.id)
     rows.set(row, [...(rows.get(row) ?? []), node])
   })
-  const width = 1000
-  const nodeWidth = 210
-  const rowGap = 150
+  const width = 1200
+  const nodeWidth = 300
+  const rowGap = 170
   const positions = new Map<string, { x: number; y: number }>()
   rows.forEach((nodesInRow, row) => nodesInRow.forEach((node, index) => positions.set(node.id, {
-    x: orientation === "vertical" ? (index + 1) * width / (nodesInRow.length + 1) - nodeWidth / 2 : row * 290,
-    y: orientation === "vertical" ? row * rowGap : index * 125,
+    x: orientation === "vertical" ? (index + 1) * width / (nodesInRow.length + 1) - nodeWidth / 2 : row * 360,
+    y: orientation === "vertical" ? row * rowGap : index * 145,
   })))
   const unit = mode === "impact" ? (category?.unit ?? result.lcia[selectedImpact]?.unit ?? "") : (result.lci[selectedFlow]?.unit ?? "")
   const format = (value: number) => new Intl.NumberFormat("en", { maximumSignificantDigits: 4 }).format(value)
@@ -368,6 +371,7 @@ function SankeyView({ result }: { result: LcaResult }) {
         direct: `Direct (${percentage(own).toFixed(2)}%): ${format(own)} ${unit}`,
         upstream: `Upstream (${percentage(total).toFixed(2)}%): ${format(total)} ${unit}`,
         orientation,
+        scope: node.scope ?? "foreground",
       },
     }
   })
@@ -378,7 +382,7 @@ function SankeyView({ result }: { result: LcaResult }) {
       source: link.source,
       target: link.target,
       type: connectionStyle === "curved" ? "default" : connectionStyle === "straight" ? "straight" : "smoothstep",
-      style: { stroke: "#e3232c", strokeWidth: Math.max(2, Math.min(42, percentage(value) * .42)), opacity: .82 },
+      style: { stroke: "#343941", strokeWidth: Math.max(2, Math.min(42, percentage(value) * .42)), opacity: .9 },
       label: `${format(value)} ${unit}`,
       labelStyle: { fill: "#b8bbc2", fontSize: 9 },
       labelBgStyle: { fill: "#202225", fillOpacity: .9 },
@@ -405,8 +409,8 @@ function SankeyView({ result }: { result: LcaResult }) {
           : <select value={selectedImpact} onChange={(event) => setImpact(event.target.value)} aria-label="Sankey impact category">{impactNames.map((name) => <option key={name} value={name}>{impactCategoryAbbreviation(name)}</option>)}</select>}
       </label>
       <div className="sankey-settings-grid">
-        <label><span>Min. contribution share</span><div className="sankey-number"><input type="number" min="0" max="100" step="0.1" value={minContribution} onChange={(event) => setMinContribution(Math.max(0, Number(event.target.value)))} /><span>%</span></div></label>
-        <label><span>Max. number of processes</span><input type="number" min="1" max={availableProcessCount} step="1" value={maxProcesses} onChange={(event) => setMaxProcesses(Math.min(availableProcessCount, Math.max(1, Math.floor(Number(event.target.value) || 1))))} /></label>
+        <label><span>Min. contribution share</span><div className="sankey-stepper"><button type="button" aria-label="Decrease minimum contribution" onClick={() => setMinContribution((value) => Math.max(0, Number((value - .1).toFixed(1))))}>−</button><div className="sankey-number"><input type="number" min="0" max="100" step="0.1" value={minContribution} onChange={(event) => setMinContribution(Math.min(100, Math.max(0, Number(event.target.value))))} /><span>%</span></div><button type="button" aria-label="Increase minimum contribution" onClick={() => setMinContribution((value) => Math.min(100, Number((value + .1).toFixed(1))))}>+</button></div></label>
+        <label><span>Max. number of processes</span><div className="sankey-stepper"><button type="button" aria-label="Decrease maximum processes" onClick={() => setMaxProcesses((value) => Math.max(1, value - 1))}>−</button><input type="number" min="1" max={availableProcessCount} step="1" value={maxProcesses} onChange={(event) => setMaxProcesses(Math.min(availableProcessCount, Math.max(1, Math.floor(Number(event.target.value) || 1))))} /><button type="button" aria-label="Increase maximum processes" onClick={() => setMaxProcesses((value) => Math.min(availableProcessCount, value + 1))}>+</button></div></label>
         <label><span>Orientation</span><select value={orientation} onChange={(event) => setOrientation(event.target.value as "vertical" | "horizontal")}><option value="vertical">Vertical</option><option value="horizontal">Horizontal</option></select></label>
         <label><span>Connections</span><select value={connectionStyle} onChange={(event) => setConnectionStyle(event.target.value as "curved" | "straight" | "step")}><option value="curved">Curved</option><option value="straight">Straight</option><option value="step">Step</option></select></label>
       </div>
@@ -418,6 +422,7 @@ function SankeyView({ result }: { result: LcaResult }) {
         defaultEdges={sankeyEdges}
         nodeTypes={sankeyNodeTypes}
         onInit={(instance) => { instanceRef.current = instance }}
+        onPaneClick={() => setChartPickerOpen(false)}
         minZoom={0.25}
         maxZoom={2}
         fitView
