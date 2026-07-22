@@ -10,7 +10,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import {
   BarChart3, Box, Scan, LayoutGrid, ChevronDown,
-  FileUp, Maximize, Minus, MousePointer2, Plus, Search, Share2,
+  FileUp, Maximize, Minus, MousePointer2, Plus, Search, Settings2, Share2,
 } from "lucide-react"
 import { Button } from "./components/ui/button"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
@@ -38,14 +38,15 @@ type SankeyProcessNodeData = {
   label: string
   direct: string
   upstream: string
+  orientation: "vertical" | "horizontal"
 }
 function SankeyProcessNode({ data }: NodeProps<Node<SankeyProcessNodeData>>) {
   return <div className="sankey-process-node">
-    <Handle type="target" position={Position.Bottom} />
+    <Handle type="target" position={data.orientation === "vertical" ? Position.Bottom : Position.Right} />
     <div className="sankey-process-title">{data.label}</div>
     <div>{data.direct}</div>
     <div>{data.upstream}</div>
-    <Handle type="source" position={Position.Top} />
+    <Handle type="source" position={data.orientation === "vertical" ? Position.Top : Position.Left} />
   </div>
 }
 const sankeyNodeTypes = { sankeyProcess: SankeyProcessNode }
@@ -269,12 +270,18 @@ function ContributionView({ result, yaml, isCurrent, error }: {
 }
 
 function SankeyView({ result }: { result: LcaResult }) {
+  const availableProcessCount = result.sankey.nodes.filter((node) => node.kind === "process" || node.kind === "final_product").length
   const [mode, setMode] = useState<"flow" | "impact">("impact")
   const [flow, setFlow] = useState("")
   const [impact, setImpact] = useState("")
   const [layoutVersion, setLayoutVersion] = useState(0)
   const [chartPickerOpen, setChartPickerOpen] = useState(false)
+  const [minContribution, setMinContribution] = useState(0)
+  const [maxProcesses, setMaxProcesses] = useState(availableProcessCount)
+  const [orientation, setOrientation] = useState<"vertical" | "horizontal">("vertical")
+  const [connectionStyle, setConnectionStyle] = useState<"curved" | "straight" | "step">("curved")
   const instanceRef = useRef<ReactFlowInstance<Node<SankeyProcessNodeData>, Edge> | null>(null)
+  useEffect(() => setMaxProcesses(availableProcessCount), [availableProcessCount])
   const flowNames = Object.keys(result.lci)
   const impactNames = [...Object.entries(result.lcia).filter(([, value]) => value.score !== 0).reduce((unique, [name, value]) => {
     const key = `${impactCategoryAbbreviation(name)}\u001f${value.score}\u001f${value.unit}`
@@ -327,8 +334,14 @@ function SankeyView({ result }: { result: LcaResult }) {
     depthMemo.set(nodeId, value)
     return value
   }
-  const rows = new Map<number, typeof processNodes>()
-  processNodes.forEach((node) => {
+  const rootTotal = Math.max(...processNodes.map((node) => upstreamTotal(node.id)), 0)
+  const rootIds = new Set(processNodes.filter((node) => !(outgoing.get(node.id)?.length)).map((node) => node.id))
+  const eligibleNodes = processNodes.filter((node) => rootIds.has(node.id) || !rootTotal || upstreamTotal(node.id) / rootTotal * 100 >= minContribution)
+  const visibleNodes = eligibleNodes.slice(Math.max(0, eligibleNodes.length - Math.max(1, maxProcesses)))
+  const visibleIds = new Set(visibleNodes.map((node) => node.id))
+  const visibleLinks = links.filter((link) => visibleIds.has(link.source) && visibleIds.has(link.target))
+  const rows = new Map<number, typeof visibleNodes>()
+  visibleNodes.forEach((node) => {
     const row = depth(node.id)
     rows.set(row, [...(rows.get(row) ?? []), node])
   })
@@ -337,14 +350,13 @@ function SankeyView({ result }: { result: LcaResult }) {
   const rowGap = 150
   const positions = new Map<string, { x: number; y: number }>()
   rows.forEach((nodesInRow, row) => nodesInRow.forEach((node, index) => positions.set(node.id, {
-    x: (index + 1) * width / (nodesInRow.length + 1) - nodeWidth / 2,
-    y: row * rowGap,
+    x: orientation === "vertical" ? (index + 1) * width / (nodesInRow.length + 1) - nodeWidth / 2 : row * 290,
+    y: orientation === "vertical" ? row * rowGap : index * 125,
   })))
-  const rootTotal = Math.max(...processNodes.map((node) => upstreamTotal(node.id)), 0)
   const unit = mode === "impact" ? (category?.unit ?? result.lcia[selectedImpact]?.unit ?? "") : (result.lci[selectedFlow]?.unit ?? "")
   const format = (value: number) => new Intl.NumberFormat("en", { maximumSignificantDigits: 4 }).format(value)
   const percentage = (value: number) => rootTotal ? value / rootTotal * 100 : 0
-  const sankeyNodes: Node<SankeyProcessNodeData>[] = processNodes.map((node) => {
+  const sankeyNodes: Node<SankeyProcessNodeData>[] = visibleNodes.map((node) => {
     const own = Math.abs(direct.get(node.id) ?? 0)
     const total = upstreamTotal(node.id)
     return {
@@ -355,22 +367,28 @@ function SankeyView({ result }: { result: LcaResult }) {
         label: node.label,
         direct: `Direct (${percentage(own).toFixed(2)}%): ${format(own)} ${unit}`,
         upstream: `Upstream (${percentage(total).toFixed(2)}%): ${format(total)} ${unit}`,
+        orientation,
       },
     }
   })
-  const sankeyEdges: Edge[] = links.map((link) => {
+  const sankeyEdges: Edge[] = visibleLinks.map((link) => {
     const value = upstreamTotal(link.source)
     return {
       id: link.id,
       source: link.source,
       target: link.target,
-      type: "default",
+      type: connectionStyle === "curved" ? "default" : connectionStyle === "straight" ? "straight" : "smoothstep",
       style: { stroke: "#e3232c", strokeWidth: Math.max(2, Math.min(42, percentage(value) * .42)), opacity: .82 },
       label: `${format(value)} ${unit}`,
       labelStyle: { fill: "#b8bbc2", fontSize: 9 },
       labelBgStyle: { fill: "#202225", fillOpacity: .9 },
     }
   })
+  useEffect(() => {
+    if (!instanceRef.current) return
+    instanceRef.current.setNodes(sankeyNodes)
+    instanceRef.current.setEdges(sankeyEdges)
+  }, [mode, selectedFlow, selectedImpact, minContribution, maxProcesses, orientation, connectionStyle])
 
   const fitSankey = () => instanceRef.current?.fitView({ padding: .4, maxZoom: .68, duration: 350 })
 
@@ -386,10 +404,16 @@ function SankeyView({ result }: { result: LcaResult }) {
           ? <select value={selectedFlow} onChange={(event) => setFlow(event.target.value)} aria-label="Sankey flow category">{flowNames.map((name) => <option key={name} value={name}>{inventoryFlowName(name)}</option>)}</select>
           : <select value={selectedImpact} onChange={(event) => setImpact(event.target.value)} aria-label="Sankey impact category">{impactNames.map((name) => <option key={name} value={name}>{impactCategoryAbbreviation(name)}</option>)}</select>}
       </label>
+      <div className="sankey-settings-grid">
+        <label><span>Min. contribution share</span><div className="sankey-number"><input type="number" min="0" max="100" step="0.1" value={minContribution} onChange={(event) => setMinContribution(Math.max(0, Number(event.target.value)))} /><span>%</span></div></label>
+        <label><span>Max. number of processes</span><input type="number" min="1" max={availableProcessCount} step="1" value={maxProcesses} onChange={(event) => setMaxProcesses(Math.min(availableProcessCount, Math.max(1, Math.floor(Number(event.target.value) || 1))))} /></label>
+        <label><span>Orientation</span><select value={orientation} onChange={(event) => setOrientation(event.target.value as "vertical" | "horizontal")}><option value="vertical">Vertical</option><option value="horizontal">Horizontal</option></select></label>
+        <label><span>Connections</span><select value={connectionStyle} onChange={(event) => setConnectionStyle(event.target.value as "curved" | "straight" | "step")}><option value="curved">Curved</option><option value="straight">Straight</option><option value="step">Step</option></select></label>
+      </div>
     </div> : null}
     <div className="sankey-canvas">
       {rootTotal ? <ReactFlow
-        key={`${mode}-${mode === "impact" ? selectedImpact : selectedFlow}-${layoutVersion}`}
+        key={`sankey-layout-${layoutVersion}`}
         defaultNodes={sankeyNodes}
         defaultEdges={sankeyEdges}
         nodeTypes={sankeyNodeTypes}
@@ -402,7 +426,7 @@ function SankeyView({ result }: { result: LcaResult }) {
       ><Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#242831" /></ReactFlow> : <div className="sankey-empty"><strong>No contributions for this selection</strong><p>Choose another flow or impact category.</p></div>}
     </div>
     {rootTotal ? <div className="graph-toolbar sankey-toolbar" aria-label="Sankey graph tools">
-      <div className="toolbar-group"><ToolButton label="Change chart" onClick={() => setChartPickerOpen((open) => !open)}><BarChart3 size={18} /></ToolButton></div>
+      <div className="toolbar-group"><ToolButton label="Chart settings" onClick={() => setChartPickerOpen((open) => !open)}><Settings2 size={18} /></ToolButton></div>
       <div className="toolbar-group"><ToolButton label="Select"><MousePointer2 size={18} /></ToolButton></div>
       <div className="toolbar-group">
         <ToolButton label="Auto layout" onClick={() => setLayoutVersion((value) => value + 1)}><LayoutGrid size={18} /></ToolButton>
