@@ -1,3 +1,5 @@
+import { chemicalFlowLabel } from "./flowLabels"
+
 export type LciValue = {
   amount: number
   unit: string
@@ -203,6 +205,15 @@ export async function getBackgroundActivityDetails({
 
 const formatNumber = (value: number) => new Intl.NumberFormat("en", { maximumSignificantDigits: 6 }).format(value)
 const cell = (value: string) => value.replaceAll("|", "\\|").replaceAll("\n", " ")
+const inventoryFlowLabel = (name: string) => {
+  const base = name.split(/[|,]/)[0].trim()
+  const symbol = chemicalFlowLabel(base)
+    .replaceAll("₂", "2")
+    .replaceAll("₃", "3")
+    .replaceAll("₄", "4")
+    .replaceAll("ₓ", "x")
+  return symbol === base ? name : `${name} (${symbol})`
+}
 const indicatorAbbreviations: Record<string, string> = {
   "ecotoxicity: freshwater": "FETP",
   "eutrophication potential": "EP",
@@ -237,7 +248,7 @@ export function lcaResultToMarkdown(result: LcaResult) {
   const impactRows = Object.entries(result.lcia)
     .sort(([, left], [, right]) => Number((left.score ?? 0) === 0) - Number((right.score ?? 0) === 0))
     .map(([category, value]) => `| ${cell(impactIndicator(category))} | ${formatNumber(value.score ?? 0)} | ${cell(value.unit)} |`)
-  const inventoryRows = Object.entries(result.lci).map(([flow, value]) => `| ${cell(flow)} | ${formatNumber(value.amount ?? 0)} | ${cell(value.unit)} | ${cell(value.type ?? "—")} |`)
+  const inventoryRows = Object.entries(result.lci).map(([flow, value]) => `| ${cell(inventoryFlowLabel(flow))} | ${formatNumber(value.amount ?? 0)} | ${cell(value.unit)} | ${cell(value.type ?? "—")} |`)
 
   return [
     `# ${result.name}`,

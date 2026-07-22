@@ -76,6 +76,15 @@ type CaseStudyId = keyof typeof caseStudies
 
 const inventoryNumber = new Intl.NumberFormat("en", { minimumFractionDigits: 5, maximumFractionDigits: 8 })
 const isInventoryInput = (type: string) => /resource|extraction|input/i.test(type)
+const inventoryFlowName = (name: string) => {
+  const base = name.split(/[|,]/)[0].trim()
+  const symbol = chemicalFlowLabel(base)
+    .replaceAll("₂", "2")
+    .replaceAll("₃", "3")
+    .replaceAll("₄", "4")
+    .replaceAll("ₓ", "x")
+  return symbol === base ? name : `${name} (${symbol})`
+}
 
 function InventoryView({ result, yaml, isCurrent, calculating, error, onCalculate }: {
   result: LcaResult | null
@@ -102,7 +111,7 @@ function InventoryView({ result, yaml, isCurrent, calculating, error, onCalculat
   try { requirements = buildInventoryRequirements(yaml, result.scaling_vector) } catch (caught) { requirementError = caught instanceof Error ? caught.message : "Could not read process requirements." }
   const FlowTable = ({ rows, empty }: { rows: typeof flows; empty: string }) => <div className="inventory-table-wrap"><table className="inventory-table">
     <thead><tr><th>Name</th><th>Category</th><th className="number">Amount</th><th>Unit</th></tr></thead>
-    <tbody>{rows.length ? rows.map((flow) => <tr key={`${flow.type}-${flow.name}`}><td><span className={isInventoryInput(flow.type) ? "flow-dot input" : "flow-dot output"} />{flow.name}</td><td>{flow.type}</td><td className="number">{inventoryNumber.format(flow.amount)}</td><td>{flow.unit}</td></tr>) : <tr className="empty-row"><td colSpan={4}>{empty}</td></tr>}</tbody>
+    <tbody>{rows.length ? rows.map((flow) => <tr key={`${flow.type}-${flow.name}`}><td><span className={isInventoryInput(flow.type) ? "flow-dot input" : "flow-dot output"} />{inventoryFlowName(flow.name)}</td><td>{flow.type}</td><td className="number">{inventoryNumber.format(flow.amount)}</td><td>{flow.unit}</td></tr>) : <tr className="empty-row"><td colSpan={4}>{empty}</td></tr>}</tbody>
   </table></div>
 
   return <div className="inventory-view">
@@ -232,9 +241,9 @@ function ContributionView({ result, yaml, isCurrent, calculating, error, onCalcu
     <div className="contribution-title"><div><strong>{result.name}</strong><span>{result.method} · {result.functional_unit}</span></div></div>
     <div className="contribution-controls">
       <label className={mode === "flow" ? "active" : ""}><input type="radio" checked={mode === "flow"} onChange={() => setMode("flow")} />Flow</label>
-      <div className="contribution-select"><span className="flow-dot output" /><select value={selectedFlow} onChange={(event) => { setFlow(event.target.value); setMode("flow") }} aria-label="Flow category">{flowNames.map((name) => <option key={name} value={name}>{contributionFlowLabel(name)}</option>)}</select><ChevronDown size={15} /></div>
+      <div className="contribution-select"><span className="flow-dot output" /><select value={selectedFlow} onChange={(event) => { setFlow(event.target.value); setMode("flow") }} aria-label="Flow category">{flowNames.map((name) => <option key={name} value={name}>{contributionFlowLabel(name)}</option>)}</select></div>
       <label className={mode === "impact" ? "active" : ""}><input type="radio" checked={mode === "impact"} onChange={() => setMode("impact")} />Impact category</label>
-      <div className="contribution-select"><BarChart3 size={16} /><select value={selectedImpact} onChange={(event) => { setImpact(event.target.value); setMode("impact") }} aria-label="Impact category">{impactNames.map((name) => <option key={name} value={name}>{impactCategoryAbbreviation(name)}</option>)}</select><ChevronDown size={15} /></div>
+      <div className="contribution-select"><BarChart3 size={16} /><select value={selectedImpact} onChange={(event) => { setImpact(event.target.value); setMode("impact") }} aria-label="Impact category">{impactNames.map((name) => <option key={name} value={name}>{impactCategoryAbbreviation(name)}</option>)}</select></div>
     </div>
     <div className="contribution-table-wrap"><table className="contribution-table"><thead><tr><th>Contribution rate</th><th>Process</th><th>Required amount</th><th>Total result</th><th>Direct contribution</th></tr></thead><tbody>
       <tr className="contribution-root"><td>100.00%</td><td><button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} downstream processes`}><ChevronDown size={14} /></button><span className="process-mark">⌘</span>{result.name}</td><td>{mode === "flow" ? "1.00000" : "—"}</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(total)} <small>{unit}</small></td><td>—</td></tr>
