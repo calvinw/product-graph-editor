@@ -18,6 +18,7 @@ import { layoutNodes } from "./lib/layout"
 import { chemicalFlowLabel } from "./lib/flowLabels"
 import { buildGraphFromYaml, buildInventoryRequirements, nodeScopeColors } from "./lib/yamlGraph"
 import { calculateLca, getBackgroundActivityDetails, impactCategoryAbbreviation, lcaResultToMarkdown, type LcaResult } from "./lib/lcaApi"
+import { unitsAreCompatible } from "./lib/units"
 import jacketYaml from "../case_studies/jacket.yaml?raw"
 import cottonFiberYaml from "../case_studies/cotton_fiber.yaml?raw"
 import mockPlasticBroomYaml from "../case_studies/mock_plastic_broom.yaml?raw"
@@ -319,7 +320,7 @@ function SankeyView({ result }: { result: LcaResult }) {
   } else {
     const normalizedFlow = (value: string) => value.split(/[|,]/)[0].trim().toLowerCase()
     const selectedUnit = result.lci[selectedFlow]?.unit
-    result.sankey.links.filter((link) => normalizedFlow(link.flow_name) === normalizedFlow(selectedFlow) && link.unit === selectedUnit).forEach((link) => {
+    result.sankey.links.filter((link) => normalizedFlow(link.flow_name) === normalizedFlow(selectedFlow) && unitsAreCompatible(link.unit, selectedUnit)).forEach((link) => {
       const processId = processIds.has(link.source) ? link.source : processIds.has(link.target) ? link.target : ""
       if (processId) direct.set(processId, (direct.get(processId) ?? 0) + link.amount)
     })
