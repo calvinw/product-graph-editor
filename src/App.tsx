@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { Fragment, useCallback, useEffect, useRef, useState } from "react"
 import {
   ReactFlow, ReactFlowProvider, Background, BackgroundVariant,
   Handle, Position, useNodesState, useEdgesState, useReactFlow,
@@ -9,9 +9,10 @@ import * as Tooltip from "@radix-ui/react-tooltip"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import {
-  BarChart3, Box, Component, Scan, LayoutGrid, ChevronDown,
+  BarChart3, Box, Component, Scan, LayoutGrid, ChevronDown, Factory, Leaf,
   FileUp, Maximize, Minus, MousePointer2, Plus, Search, Settings2, Share2,
 } from "lucide-react"
+import { parse } from "yaml"
 import { Button } from "./components/ui/button"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
@@ -141,6 +142,137 @@ function InventoryView({ result, yaml, isCurrent, error }: {
         {requirements.map((row) => <tr key={row.process}><td><span className="process-mark">⌘</span>{row.process}</td><td><span className="product-mark">⚙</span>{row.product}</td><td className="number">{inventoryNumber.format(row.amount)}</td><td>{row.unit}</td></tr>)}
       </tbody></table></div>}
     </details>
+  </div>
+}
+
+type ImpactYaml = {
+  processes?: Array<{
+    name: string
+    emissions?: Array<{ flow: string; amount: number; unit?: string }>
+    extractions?: Array<{ flow: string; amount: number; unit?: string }>
+    resources?: Array<{ flow: string; amount: number; unit?: string }>
+    resource_inputs?: Array<{ flow: string; amount: number; unit?: string }>
+  }>
+}
+
+const cleanImpactProcessName = (name: string) => name.replace(/^(?:p?\d+)\s*[:.\-–—]\s*/i, "").trim()
+const normalizedFlow = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
+const impactFactor = (category: string, flow: string) => {
+  const indicator = impactCategoryAbbreviation(category).toUpperCase()
+  const normalized = normalizedFlow(flow)
+  if (indicator === "GWP") {
+    if (/carbon dioxide|\bco2\b/.test(normalized)) return 1
+    if (/methane|\bch4\b/.test(normalized)) return 25
+  }
+  if (indicator === "EP" && /nitrogen oxides?|\bnox\b/.test(normalized)) return 0.04429
+  if (indicator === "AP" && /nitrogen oxides?|\bnox\b/.test(normalized)) return 0.7
+  if (indicator === "PMFP" && /nitrogen oxides?|\bnox\b/.test(normalized)) return 0.00722
+  if (indicator === "MIR" && /nitrogen oxides?|\bnox\b/.test(normalized)) return 0.028
+  return null
+}
+
+function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
+  result: LcaResult | null
+  yaml: string
+  isCurrent: boolean
+  error: string
+}) {
+  const [subgroup, setSubgroup] = useState<"processes" | "flows">("processes")
+  const [threshold, setThreshold] = useState(1)
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(() => new Set())
+  const [expandedProcesses, setExpandedProcesses] = useState<Set<string>>(() => new Set())
+
+  if (!result || !isCurrent) return <div className="results-panel impact-panel">
+    <div className="results-panel-head"><div><strong>Impact analysis</strong><span>Inspect characterized impacts by category, process, and elementary flow.</span></div></div>
+    <div className="results-placeholder"><div className="results-empty-icon"><BarChart3 size={22} /></div><strong>No current impact results</strong><p>Calculate the LCA to populate this view.</p>{error ? <div className="results-error"><strong>Calculation failed</strong><p>{error}</p></div> : null}</div>
+  </div>
+
+  let source: ImpactYaml = {}
+  try { source = parse(yaml) as ImpactYaml } catch { source = {} }
+  const yamlProcesses = source.processes ?? []
+  const yamlProcessByName = new Map(yamlProcesses.flatMap((process) => [
+    [process.name.toLowerCase(), process],
+    [cleanImpactProcessName(process.name).toLowerCase(), process],
+  ]))
+  const categories = [...result.process_contributions.categories]
+    .filter((category) => category.total_score !== 0)
+    .reduce((unique, category) => {
+      const key = `${impactCategoryAbbreviation(category.label)}\u001f${category.total_score}\u001f${category.unit}`
+      if (!unique.has(key)) unique.set(key, category)
+      return unique
+    }, new Map<string, LcaResult["process_contributions"]["categories"][number]>())
+  const toggleCategory = (id: string) => setCollapsedCategories((current) => {
+    const next = new Set(current)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
+  const toggleProcess = (id: string) => setExpandedProcesses((current) => {
+    const next = new Set(current)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
+  const processFlows = (processName: string, processId: string, categoryLabel: string) => {
+    const process = yamlProcessByName.get(processName.toLowerCase())
+      ?? yamlProcessByName.get(cleanImpactProcessName(processName).toLowerCase())
+    const scale = result.scaling_vector[processId]
+      ?? result.scaling_vector[processName]
+      ?? result.scaling_vector[process?.name ?? ""]
+      ?? 1
+    const flows = [...(process?.emissions ?? []), ...(process?.extractions ?? process?.resources ?? process?.resource_inputs ?? [])]
+    const relevant = flows.map((flow) => ({ ...flow, factor: impactFactor(categoryLabel, flow.flow) })).filter((flow) => flow.factor !== null)
+    return relevant.map((flow) => ({
+      name: flow.flow,
+      category: "elementary flows/air",
+      amount: flow.amount * scale,
+      factor: flow.factor!,
+      impact: flow.amount * scale * flow.factor!,
+      unit: flow.unit ?? "kg",
+    }))
+  }
+
+  return <div className="impact-view">
+    <div className="impact-title"><div><strong>{result.name}</strong><span>Impact analysis – {result.method}</span></div></div>
+    <div className="impact-controls">
+      <span>Sub-group by</span>
+      <label><input type="radio" checked={subgroup === "processes"} onChange={() => setSubgroup("processes")} /> Processes</label>
+      <label><input type="radio" checked={subgroup === "flows"} onChange={() => setSubgroup("flows")} /> Flows</label>
+      <i />
+      <label className="impact-threshold">Don’t show &lt; <input type="number" min="0" max="100" step="0.1" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label>
+    </div>
+    <div className="impact-table-wrap"><table className="impact-table">
+      <thead><tr><th>Name</th><th>Category</th><th>Inventory result</th><th>Characterization factor</th><th>Impact assessment result</th></tr></thead>
+      <tbody>{[...categories.values()].map((category) => {
+        const categoryId = category.id || category.label
+        const isOpen = !collapsedCategories.has(categoryId)
+        const processes = category.processes
+          .filter((process) => Math.abs(process.percentage ?? (category.total_score ? process.direct_score / category.total_score * 100 : 0)) >= threshold)
+          .sort((left, right) => Math.abs(right.direct_score) - Math.abs(left.direct_score))
+        return <Fragment key={categoryId}>
+          <tr className="impact-category-row" onClick={() => toggleCategory(categoryId)}>
+            <td><button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-label={`${isOpen ? "Collapse" : "Expand"} ${category.label}`}><ChevronDown size={14} /></button><BarChart3 className="impact-category-icon" size={17} /> <strong>{impactCategoryAbbreviation(category.label)}</strong></td>
+            <td /><td /><td /><td><span className="impact-result">{inventoryNumber.format(category.total_score)} <small>{category.unit}</small></span></td>
+          </tr>
+          {isOpen ? processes.flatMap((process) => {
+            const processKey = `${categoryId}:${process.process_id}`
+            const flows = processFlows(process.process_name, process.process_id, category.label)
+            const processOpen = expandedProcesses.has(processKey)
+            const displayName = cleanImpactProcessName(process.process_name)
+            const processRow = <tr className="impact-process-row" key={processKey} onClick={() => flows.length && toggleProcess(processKey)}>
+              <td><span className="impact-indent" />{flows.length ? <button className={`tree-toggle ${processOpen ? "is-expanded" : ""}`} aria-label={`${processOpen ? "Collapse" : "Expand"} ${displayName}`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className="impact-process-icon"><Factory size={14} /></span>{displayName}</td>
+              <td /><td /><td /><td><span className="impact-bar"><i style={{ width: `${Math.min(100, Math.abs(process.percentage ?? (category.total_score ? process.direct_score / category.total_score * 100 : 0)))}%` }} /></span><span className="impact-result">{inventoryNumber.format(process.direct_score)} <small>{category.unit}</small></span></td>
+            </tr>
+            const flowRows = processOpen ? flows.map((flow) => <tr className="impact-flow-row" key={`${processKey}:${flow.name}`}>
+              <td><span className="impact-indent flow" /><span className="impact-flow-icon"><Leaf size={14} /></span>{inventoryFlowName(flow.name)}</td>
+              <td>{flow.category}</td>
+              <td className="number">{inventoryNumber.format(flow.amount)} <small>{flow.unit}</small></td>
+              <td className="number">{inventoryNumber.format(flow.factor)} <small>{category.unit}/{flow.unit}</small></td>
+              <td><span className="impact-bar flow"><i style={{ width: `${Math.min(100, Math.abs(category.total_score ? flow.impact / category.total_score * 100 : 0))}%` }} /></span><span className="impact-result">{inventoryNumber.format(flow.impact)} <small>{category.unit}</small></span></td>
+            </tr>) : []
+            return [processRow, ...flowRows]
+          }) : null}
+        </Fragment>
+      })}</tbody>
+    </table></div>
   </div>
 }
 
@@ -486,7 +618,7 @@ function GraphEditor() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges)
   const [selected, setSelected] = useState<(NodeMeta & { id: string }) | null>(null)
   const [query, setQuery] = useState("")
-  const [view, setView] = useState<"graph" | "yaml" | "inventory" | "contribution" | "sankey" | "results">("graph")
+  const [view, setView] = useState<"graph" | "yaml" | "inventory" | "impact" | "contribution" | "sankey" | "results">("graph")
   const [yamlText, setYamlText] = useState(jacketYaml)
   const [selectedCaseStudy, setSelectedCaseStudy] = useState<CaseStudyId | "custom">("jacket")
   const [yamlError, setYamlError] = useState("")
@@ -810,6 +942,7 @@ function GraphEditor() {
               <button className={view === "results" ? "is-active" : ""} onClick={() => setView("results")}>LCA Results</button>
               {hasCurrentResults ? <>
                 <button className={view === "inventory" ? "is-active" : ""} onClick={() => setView("inventory")}>Inventory</button>
+                <button className={view === "impact" ? "is-active" : ""} onClick={() => setView("impact")}>Impact Analysis</button>
                 <button className={view === "contribution" ? "is-active" : ""} onClick={() => setView("contribution")}>Contribution</button>
                 <button className={view === "sankey" ? "is-active" : ""} onClick={() => setView("sankey")}>Sankey Graph</button>
               </> : null}
@@ -868,7 +1001,7 @@ function GraphEditor() {
             <span className={yamlError ? "yaml-error" : ""}>{yamlError || "Files are parsed locally in your browser."}</span>
             <Button onClick={previewYaml}>Preview graph</Button>
           </div>
-        </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "sankey" && lcaResult ? <SankeyView result={lcaResult} /> : <div className="results-panel">
+        </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "sankey" && lcaResult ? <SankeyView result={lcaResult} /> : <div className="results-panel">
           <div className="results-panel-head">
             <div><strong>LCA Results</strong><span>Calculated from the current YAML product graph.</span></div>
             <Button onClick={runCalculation} disabled={isCalculating}>{isCalculating ? "Calculating…" : "Calculate"}</Button>
