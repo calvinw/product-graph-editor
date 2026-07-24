@@ -178,6 +178,7 @@ html[data-theme="light"] .inventory-table th, html[data-theme="light"] .impact-t
 html[data-theme="light"] .impact-table-wrap, html[data-theme="light"] .impact-table, html[data-theme="light"] .impact-table tbody { border-color: #d3d8df; background: #fff; }
 html[data-theme="light"] .impact-category-row, html[data-theme="light"] .contribution-root td { background: #eef1f5; }
 html[data-theme="light"] .impact-process-row, html[data-theme="light"] .impact-flow-group-row { background: #f8fafc; }
+html[data-theme="light"] .impact-flow-row, html[data-theme="light"] .impact-flow-process-row { color: #111827; background: #fff; }
 html[data-theme="light"] .impact-bar, html[data-theme="light"] .process-result-bar, html[data-theme="light"] .result-bar { background: #e5e7eb; }
 html[data-theme="light"] .impact-bar i, html[data-theme="light"] .process-result-bar i, html[data-theme="light"] .result-bar i { background: #6366f1; }
 html[data-theme="light"] .impact-bar.flow i, html[data-theme="light"] .process-flow-table .process-result-bar i { background: #2563eb; }
