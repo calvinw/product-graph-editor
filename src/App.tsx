@@ -10,7 +10,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import {
   BarChart3, Box, Component, Scan, LayoutGrid, ChevronDown, Factory, Leaf,
-  FileUp, Maximize, Minus, MousePointer2, Plus, Search, Settings2, Share2,
+  FileUp, Maximize, Minus, Moon, MousePointer2, Plus, Search, Settings2, Share2, Sun, X,
 } from "lucide-react"
 import { parse } from "yaml"
 import { Button } from "./components/ui/button"
@@ -20,6 +20,7 @@ import { chemicalFlowLabel } from "./lib/flowLabels"
 import { buildGraphFromYaml, buildInventoryRequirements, nodeScopeColors } from "./lib/yamlGraph"
 import { calculateLca, getBackgroundActivityDetails, impactCategoryAbbreviation, lcaResultToMarkdown, type LcaResult } from "./lib/lcaApi"
 import { unitsAreCompatible } from "./lib/units"
+import { DisplaySettingsProvider, useDisplaySettings } from "./lib/displaySettings"
 import jacketYaml from "../case_studies/jacket.yaml?raw"
 import cottonFiberYaml from "../case_studies/cotton_fiber.yaml?raw"
 import mockPlasticBroomYaml from "../case_studies/mock_plastic_broom.yaml?raw"
@@ -95,8 +96,6 @@ const caseStudies = {
 } as const
 type CaseStudyId = keyof typeof caseStudies
 
-const inventoryNumber = new Intl.NumberFormat("en", { minimumFractionDigits: 5, maximumFractionDigits: 5 })
-const processResultNumber = new Intl.NumberFormat("en", { minimumFractionDigits: 5, maximumFractionDigits: 5 })
 const isInventoryInput = (type: string) => /resource|extraction|input/i.test(type)
 const inventoryFlowName = (name: string) => {
   const base = name.split(/[|,]/)[0].trim()
@@ -114,6 +113,7 @@ function InventoryView({ result, yaml, isCurrent, error }: {
   isCurrent: boolean
   error: string
 }) {
+  const { formatNumber } = useDisplaySettings()
   if (!result || !isCurrent) return <div className="results-panel inventory-panel">
     <div className="results-panel-head"><div><strong>Inventory results</strong><span>Calculated quantities for the current product graph.</span></div></div>
     <div className="results-placeholder">
@@ -131,7 +131,7 @@ function InventoryView({ result, yaml, isCurrent, error }: {
   try { requirements = buildInventoryRequirements(yaml, result.scaling_vector) } catch (caught) { requirementError = caught instanceof Error ? caught.message : "Could not read process requirements." }
   const FlowTable = ({ rows, empty }: { rows: typeof flows; empty: string }) => <div className="inventory-table-wrap"><table className="inventory-table">
     <thead><tr><th>Name</th><th>Category</th><th className="number">Amount</th><th>Unit</th></tr></thead>
-    <tbody>{rows.length ? rows.map((flow) => <tr key={`${flow.type}-${flow.name}`}><td><span className={isInventoryInput(flow.type) ? "flow-dot input" : "flow-dot output"} />{inventoryFlowName(flow.name)}</td><td>{flow.type}</td><td className="number">{inventoryNumber.format(flow.amount)}</td><td>{flow.unit}</td></tr>) : <tr className="empty-row"><td colSpan={4}>{empty}</td></tr>}</tbody>
+    <tbody>{rows.length ? rows.map((flow) => <tr key={`${flow.type}-${flow.name}`}><td><span className={isInventoryInput(flow.type) ? "flow-dot input" : "flow-dot output"} />{inventoryFlowName(flow.name)}</td><td>{flow.type}</td><td className="number">{formatNumber(flow.amount)}</td><td>{flow.unit}</td></tr>) : <tr className="empty-row"><td colSpan={4}>{empty}</td></tr>}</tbody>
   </table></div>
 
   return <div className="inventory-view">
@@ -140,7 +140,7 @@ function InventoryView({ result, yaml, isCurrent, error }: {
     <details open><summary>Outputs <span>{outputs.length}</span></summary><FlowTable rows={outputs} empty="No environmental output flows were returned." /></details>
     <details open className="requirements"><summary>Total requirements <span>{requirements.length}</span></summary>
       {requirementError ? <div className="results-error"><p>{requirementError}</p></div> : <div className="inventory-table-wrap"><table className="inventory-table"><thead><tr><th>Process</th><th>Product</th><th className="number">Amount</th><th>Unit</th></tr></thead><tbody>
-        {requirements.map((row) => <tr key={row.process}><td><span className="process-mark">⌘</span>{row.process}</td><td><span className="product-mark">⚙</span>{row.product}</td><td className="number">{inventoryNumber.format(row.amount)}</td><td>{row.unit}</td></tr>)}
+        {requirements.map((row) => <tr key={row.process}><td><span className="process-mark">⌘</span>{row.process}</td><td><span className="product-mark">⚙</span>{row.product}</td><td className="number">{formatNumber(row.amount)}</td><td>{row.unit}</td></tr>)}
       </tbody></table></div>}
     </details>
   </div>
@@ -180,6 +180,7 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
   isCurrent: boolean
   error: string
 }) {
+  const { formatNumber } = useDisplaySettings()
   const [subgroup, setSubgroup] = useState<"processes" | "flows">("processes")
   const [threshold, setThreshold] = useState(1)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => new Set())
@@ -259,7 +260,7 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
         return <Fragment key={categoryId}>
           <tr className="impact-category-row" onClick={() => toggleCategory(categoryId)}>
             <td><div className="impact-category-name"><button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-label={`${isOpen ? "Collapse" : "Expand"} ${category.label}`}><ChevronDown size={14} /></button><BarChart3 className="impact-category-icon" size={17} /><strong>{impactCategoryAbbreviation(category.label)}</strong></div></td>
-            <td /><td /><td /><td><span className="impact-result">{inventoryNumber.format(category.total_score)} <small>{category.unit}</small></span></td>
+            <td /><td /><td /><td><span className="impact-result">{formatNumber(category.total_score)} <small>{category.unit}</small></span></td>
           </tr>
           {isOpen && subgroup === "processes" ? processes.flatMap((process) => {
             const processKey = `${categoryId}:${process.process_id}`
@@ -268,14 +269,14 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
             const displayName = cleanImpactProcessName(process.process_name)
             const processRow = <tr className="impact-process-row" key={processKey} onClick={() => flows.length && toggleProcess(processKey)}>
               <td><span className="impact-indent" />{flows.length ? <button className={`tree-toggle ${processOpen ? "is-expanded" : ""}`} aria-label={`${processOpen ? "Collapse" : "Expand"} ${displayName}`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className="impact-process-icon"><Factory size={14} /></span>{displayName}</td>
-              <td /><td /><td /><td><span className="impact-bar"><i style={{ width: `${Math.min(100, Math.abs(process.percentage ?? (category.total_score ? process.direct_score / category.total_score * 100 : 0)))}%` }} /></span><span className="impact-result">{inventoryNumber.format(process.direct_score)} <small>{category.unit}</small></span></td>
+              <td /><td /><td /><td><span className="impact-bar"><i style={{ width: `${Math.min(100, Math.abs(process.percentage ?? (category.total_score ? process.direct_score / category.total_score * 100 : 0)))}%` }} /></span><span className="impact-result">{formatNumber(process.direct_score)} <small>{category.unit}</small></span></td>
             </tr>
             const flowRows = processOpen ? flows.map((flow) => <tr className="impact-flow-row" key={`${processKey}:${flow.name}`}>
               <td><span className="impact-indent flow" /><span className="impact-flow-icon"><Leaf size={14} /></span>{inventoryFlowName(flow.name)}</td>
               <td>{flow.category}</td>
-              <td className="number">{inventoryNumber.format(flow.amount)} <small>{flow.unit}</small></td>
-              <td className="number">{inventoryNumber.format(flow.factor)} <small>{category.unit}/{flow.unit}</small></td>
-              <td><span className="impact-bar flow"><i style={{ width: `${Math.min(100, Math.abs(category.total_score ? flow.impact / category.total_score * 100 : 0))}%` }} /></span><span className="impact-result">{inventoryNumber.format(flow.impact)} <small>{category.unit}</small></span></td>
+              <td className="number">{formatNumber(flow.amount)} <small>{flow.unit}</small></td>
+              <td className="number">{formatNumber(flow.factor)} <small>{category.unit}/{flow.unit}</small></td>
+              <td><span className="impact-bar flow"><i style={{ width: `${Math.min(100, Math.abs(category.total_score ? flow.impact / category.total_score * 100 : 0))}%` }} /></span><span className="impact-result">{formatNumber(flow.impact)} <small>{category.unit}</small></span></td>
             </tr>) : []
             return [processRow, ...flowRows]
           }) : null}
@@ -320,17 +321,17 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
               const flowRow = <tr className="impact-flow-group-row" key={flowId} onClick={() => toggleFlow(flowId)}>
                 <td><span className="impact-indent" /><button className={`tree-toggle ${flowOpen ? "is-expanded" : ""}`} aria-label={`${flowOpen ? "Collapse" : "Expand"} ${flow.name}`}><ChevronDown size={14} /></button><span className="impact-flow-icon"><Leaf size={14} /></span>{inventoryFlowName(flow.name)}</td>
                 <td>{flow.category}</td>
-                <td className="number">{inventoryNumber.format(flow.amount)} <small>{flow.unit}</small></td>
-                <td className="number">{inventoryNumber.format(flow.factor)} <small>{category.unit}/{flow.unit}</small></td>
-                <td><span className="impact-bar flow"><i style={{ width: `${Math.min(100, Math.abs(category.total_score ? flow.impact / category.total_score * 100 : 0))}%` }} /></span><span className="impact-result">{inventoryNumber.format(flow.impact)} <small>{category.unit}</small></span></td>
+                <td className="number">{formatNumber(flow.amount)} <small>{flow.unit}</small></td>
+                <td className="number">{formatNumber(flow.factor)} <small>{category.unit}/{flow.unit}</small></td>
+                <td><span className="impact-bar flow"><i style={{ width: `${Math.min(100, Math.abs(category.total_score ? flow.impact / category.total_score * 100 : 0))}%` }} /></span><span className="impact-result">{formatNumber(flow.impact)} <small>{category.unit}</small></span></td>
               </tr>
               const processRows = flowOpen ? flow.processes
                 .filter((process) => Math.abs(category.total_score ? process.impact / category.total_score * 100 : 0) >= threshold)
                 .sort((left, right) => Math.abs(right.impact) - Math.abs(left.impact))
                 .map((process) => <tr className="impact-flow-process-row" key={`${flowId}:${process.id}`}>
                   <td><span className="impact-indent flow-process" /><span className="impact-process-icon"><Factory size={14} /></span>{process.name}</td>
-                  <td /><td className="number">{inventoryNumber.format(process.amount)} <small>{flow.unit}</small></td><td />
-                  <td><span className="impact-bar"><i style={{ width: `${Math.min(100, Math.abs(category.total_score ? process.impact / category.total_score * 100 : 0))}%` }} /></span><span className="impact-result">{inventoryNumber.format(process.impact)} <small>{category.unit}</small></span></td>
+                  <td /><td className="number">{formatNumber(process.amount)} <small>{flow.unit}</small></td><td />
+                  <td><span className="impact-bar"><i style={{ width: `${Math.min(100, Math.abs(category.total_score ? process.impact / category.total_score * 100 : 0))}%` }} /></span><span className="impact-result">{formatNumber(process.impact)} <small>{category.unit}</small></span></td>
                 </tr>) : []
               return [flowRow, ...processRows]
             }) : null}
@@ -341,6 +342,7 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
 }
 
 function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string }) {
+  const { formatNumber, formatPercent } = useDisplaySettings()
   const processNodes = result.sankey.nodes.filter((node) => node.kind === "process")
   const [processId, setProcessId] = useState("")
   const [threshold, setThreshold] = useState(0.01)
@@ -398,7 +400,7 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
     return <table className="process-flow-table"><thead><tr><th>Contribution</th><th>Flow</th><th>Category</th><th>Upstream incl. direct</th><th>Direct</th><th>Unit</th></tr></thead>
       <tbody>{rows.length ? rows.map((flow) => <tr key={`${input}:${flow.name}`}>
         <td><span className="process-result-bar"><i style={{ width: `${Math.min(100, flowContribution(flow))}%` }} /></span></td>
-        <td>{inventoryFlowName(flow.name)}</td><td>{flow.category}</td><td>{processResultNumber.format(flow.upstream)}</td><td>{processResultNumber.format(flow.direct)}</td><td>{flow.unit}</td>
+        <td>{inventoryFlowName(flow.name)}</td><td>{flow.category}</td><td>{formatNumber(flow.upstream)}</td><td>{formatNumber(flow.direct)}</td><td>{flow.unit}</td>
       </tr>) : <tr className="empty-row"><td colSpan={6}>No {input ? "input" : "output"} flows for this process.</td></tr>}</tbody>
     </table>
   }
@@ -420,7 +422,7 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
     </details>
     <details open><summary>Impact assessment results</summary>
       <div className="process-results-controls"><label>Process <select value={selectedId} onChange={(event) => setProcessId(event.target.value)}>{processNodes.map((node) => <option key={node.id} value={node.id}>{cleanImpactProcessName(node.process_name ?? node.label)}</option>)}</select></label><label>Don’t show &lt; <input type="number" min="0" max="100" step="0.01" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label></div>
-      <div className="process-impact-table-wrap"><table className="process-impact-table"><thead><tr><th>Contribution</th><th>Impact category</th><th>Upstream incl. direct</th><th>Direct</th><th>Unit</th></tr></thead><tbody>{impactRows.map((row) => <tr key={row.category.id || row.category.label}><td><span className="process-result-bar"><i style={{ width: `${Math.min(100, Math.abs(row.contribution))}%` }} /></span>{row.contribution.toFixed(5)}%</td><td>{impactCategoryAbbreviation(row.category.label)}</td><td>{processResultNumber.format(row.upstream)}</td><td>{processResultNumber.format(row.direct)}</td><td>{row.category.unit}</td></tr>)}</tbody></table></div>
+      <div className="process-impact-table-wrap"><table className="process-impact-table"><thead><tr><th>Contribution</th><th>Impact category</th><th>Upstream incl. direct</th><th>Direct</th><th>Unit</th></tr></thead><tbody>{impactRows.map((row) => <tr key={row.category.id || row.category.label}><td><span className="process-result-bar"><i style={{ width: `${Math.min(100, Math.abs(row.contribution))}%` }} /></span>{formatPercent(row.contribution)}</td><td>{impactCategoryAbbreviation(row.category.label)}</td><td>{formatNumber(row.upstream)}</td><td>{formatNumber(row.direct)}</td><td>{row.category.unit}</td></tr>)}</tbody></table></div>
     </details>
   </div>
 }
@@ -431,6 +433,7 @@ function ContributionView({ result, yaml, isCurrent, error }: {
   isCurrent: boolean
   error: string
 }) {
+  const { formatNumber, formatPercent } = useDisplaySettings()
   const [mode, setMode] = useState<"flow" | "impact" | null>(null)
   const [flow, setFlow] = useState("")
   const [impact, setImpact] = useState("")
@@ -491,8 +494,7 @@ function ContributionView({ result, yaml, isCurrent, error }: {
   const unit = mode === "impact" ? (category?.unit ?? impactTotal?.unit ?? "") : (flowTotal?.unit ?? "")
   const maxMagnitude = Math.max(Math.abs(total), ...rows.map((row) => Math.abs(row.total)), 1e-30)
   const requiredTotal = rows.reduce((sum, row) => sum + Math.abs(row.required ?? 0), 0)
-  const number = (value: number | undefined) => value === undefined ? "—" : inventoryNumber.format(value)
-  const rate = (value: number) => value.toFixed(2)
+  const number = (value: number | undefined) => value === undefined ? "—" : formatNumber(value)
   let contributionGraph: ReturnType<typeof buildGraphFromYaml> | null = null
   try { contributionGraph = buildGraphFromYaml(yaml, "structure") } catch { contributionGraph = null }
   const graphNameById = new Map(contributionGraph?.nodes.map((node) => [node.id, cleanProcessName(node.data.label)]) ?? [])
@@ -531,9 +533,9 @@ function ContributionView({ result, yaml, isCurrent, error }: {
     const displayedValue = canExpand && !isOpen ? rolledUpValue(row) : ownValue(row)
     const percent = mode === "flow" ? (requiredTotal ? displayedValue / requiredTotal * 100 : 0) : (total ? displayedValue / total * 100 : 0)
     const processRow = <tr key={`${row.name}-${depth}-${index}`} className={canExpand ? "clickable-process" : ""} onClick={canExpand ? () => toggleProcess(row.name) : undefined}>
-      <td><span className="rate-value">{rate(percent)}%</span></td>
+      <td><span className="rate-value">{formatPercent(percent)}</span></td>
       <td style={{ paddingLeft: `${7 + depth * 20}px` }}>{canExpand ? <button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-expanded={isOpen} aria-label={`${isOpen ? "Hide" : "Show"} inputs for ${row.name}`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className="process-mark">⌘</span>{row.name}</td>
-      <td>{number(row.required)}</td><td><span className="result-bar"><i className={displayedValue < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(displayedValue) / maxMagnitude * 100)}%` }} /></span>{mode === "impact" ? number(displayedValue) : "—"}</td><td>{mode === "impact" ? <>{number(row.total)} <small>({rate(total ? row.total / total * 100 : 0)}% direct)</small></> : "—"}</td>
+      <td>{number(row.required)}</td><td><span className="result-bar"><i className={displayedValue < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(displayedValue) / maxMagnitude * 100)}%` }} /></span>{mode === "impact" ? number(displayedValue) : "—"}</td><td>{mode === "impact" ? <>{number(row.total)} <small>({formatPercent(total ? row.total / total * 100 : 0)} direct)</small></> : "—"}</td>
     </tr>
     return isOpen ? [processRow, ...renderContributionRows(upstream, depth + 1)] : [processRow]
   })
@@ -547,7 +549,7 @@ function ContributionView({ result, yaml, isCurrent, error }: {
       <div className="contribution-control-slot">{mode === null || mode === "impact" ? <div className="contribution-select"><BarChart3 size={16} /><select value={selectedImpact} onChange={(event) => { setImpact(event.target.value); setMode("impact") }} aria-label="Impact category">{impactNames.map((name) => <option key={name} value={name}>{impactCategoryAbbreviation(name)}</option>)}</select></div> : null}</div>
     </div>
     {mode !== null ? <div className="contribution-table-wrap"><table className="contribution-table"><thead><tr><th>Contribution rate</th><th>Process</th><th>Required amount</th><th>Total result</th><th>Direct contribution</th></tr></thead><tbody>
-      <tr className="contribution-root"><td>100.00%</td><td><button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} downstream processes`}><ChevronDown size={14} /></button><span className="process-mark">⌘</span>{result.name}</td><td>{mode === "flow" ? "1.00000" : "—"}</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(total)} <small>{unit}</small></td><td>—</td></tr>
+      <tr className="contribution-root"><td>{formatPercent(100)}</td><td><button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} downstream processes`}><ChevronDown size={14} /></button><span className="process-mark">⌘</span>{result.name}</td><td>{mode === "flow" ? formatNumber(1) : "—"}</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(total)} <small>{unit}</small></td><td>—</td></tr>
       {expanded ? renderContributionRows(rootRows.length ? rootRows : rows) : null}
       {expanded && !rows.length ? <tr className="empty-row"><td colSpan={5}>{mode === "impact" ? "No process contribution rows were returned for this category." : "No process requirements are available."}</td></tr> : null}
     </tbody></table></div> : null}
@@ -555,6 +557,7 @@ function ContributionView({ result, yaml, isCurrent, error }: {
 }
 
 function SankeyView({ result }: { result: LcaResult }) {
+  const { formatNumber, formatPercent } = useDisplaySettings()
   const availableProcessCount = result.sankey.nodes.filter((node) => node.kind === "process").length
   const [mode, setMode] = useState<"flow" | "impact">("impact")
   const [flow, setFlow] = useState("")
@@ -660,7 +663,7 @@ function SankeyView({ result }: { result: LcaResult }) {
     y: orientation === "vertical" ? row * rowGap : index * 170,
   })))
   const unit = mode === "impact" ? (category?.unit ?? result.lcia[selectedImpact]?.unit ?? "") : (result.lci[selectedFlow]?.unit ?? "")
-  const format = (value: number) => inventoryNumber.format(value)
+  const format = (value: number) => formatNumber(value)
   const percentage = (value: number) => selectedTotal ? value / selectedTotal * 100 : 0
   const sankeyNodes: Node<SankeyProcessNodeData>[] = visibleNodes.map((node) => {
     const own = direct.get(node.id) ?? 0
@@ -672,8 +675,8 @@ function SankeyView({ result }: { result: LcaResult }) {
       position: positions.get(node.id) ?? { x: 0, y: 0 },
       data: {
         label: node.label,
-        direct: `Direct (${ownPercentage === null || ownPercentage === undefined ? "—" : `${ownPercentage.toFixed(5)}%`}): ${format(own)} ${unit}`,
-        upstream: `Upstream (${percentage(total).toFixed(5)}%): ${format(total)} ${unit}`,
+        direct: `Direct (${ownPercentage === null || ownPercentage === undefined ? "—" : formatPercent(ownPercentage)}): ${format(own)} ${unit}`,
+        upstream: `Upstream (${formatPercent(percentage(total))}): ${format(total)} ${unit}`,
         orientation,
         scope: node.scope ?? "foreground",
       },
@@ -777,6 +780,7 @@ function ToolButton({ label, children, onClick }: { label: string; children: Rea
 }
 
 function GraphEditor() {
+  const { decimalPlaces, formatNumber, theme } = useDisplaySettings()
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<ProcessNodeData>>(layoutNodes(initialNodes, initialEdges))
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges)
   const [selected, setSelected] = useState<(NodeMeta & { id: string }) | null>(null)
@@ -811,6 +815,9 @@ function GraphEditor() {
   })()
 
   useEffect(() => setGraphMaxProcesses(availableGraphProcessCount), [availableGraphProcessCount])
+  useEffect(() => {
+    if (lcaResult) setResultsMarkdown(lcaResultToMarkdown(lcaResult, decimalPlaces))
+  }, [decimalPlaces, lcaResult])
 
   const removeNode = useCallback((id: string) => {
     const folded = new Set<string>()
@@ -1006,7 +1013,7 @@ function GraphEditor() {
     try {
       const currentResult = calculatedYaml === yamlText ? lcaResult : null
       const mode = graphMode === "scaled" && currentResult ? "scaled" : "structure"
-      const parsed = buildGraphFromYaml(yamlText, mode, currentResult?.scaling_vector)
+      const parsed = buildGraphFromYaml(yamlText, mode, currentResult?.scaling_vector, decimalPlaces)
       const foreground = parsed.nodes.filter((node) => node.data.scope !== "background")
       const cappedMaximum = Math.min(foreground.length, Math.max(1, maximum))
       const visibleForeground = new Set(foreground.slice(Math.max(0, foreground.length - cappedMaximum)).map((node) => node.id))
@@ -1030,7 +1037,7 @@ function GraphEditor() {
     try {
       const currentResult = calculatedYaml === yamlText ? lcaResult : null
       if (mode === "scaled" && !currentResult) return
-      const parsed = buildGraphFromYaml(yamlText, mode, currentResult?.scaling_vector)
+      const parsed = buildGraphFromYaml(yamlText, mode, currentResult?.scaling_vector, decimalPlaces)
       const previousById = new Map(nodesRef.current.map((node) => [node.id, node]))
       const laidOutNodes = layoutNodes(parsed.nodes, parsed.edges, { orientation: graphOrientation })
       let nextNodes: Node<ProcessNodeData>[] = laidOutNodes.map((node) => {
@@ -1071,7 +1078,7 @@ function GraphEditor() {
     try {
       const currentResult = calculatedYaml === yamlText ? lcaResult : null
       const nextMode = graphMode === "scaled" && currentResult ? "scaled" : "structure"
-      const parsed = buildGraphFromYaml(yamlText, nextMode, currentResult?.scaling_vector)
+      const parsed = buildGraphFromYaml(yamlText, nextMode, currentResult?.scaling_vector, decimalPlaces)
       foldDirectionRef.current = "upstream"
       setEdges(parsed.edges)
       setNodes(layoutNodes(parsed.nodes.map((node) => ({
@@ -1096,7 +1103,7 @@ function GraphEditor() {
       const result = await calculateLca(yamlText)
       setLcaResult(result)
       setCalculatedYaml(yamlText)
-      setResultsMarkdown(lcaResultToMarkdown(result))
+      setResultsMarkdown(lcaResultToMarkdown(result, decimalPlaces))
     } catch (error) {
       setResultsError(error instanceof Error ? error.message : "Could not calculate the current product graph.")
     } finally {
@@ -1175,7 +1182,7 @@ function GraphEditor() {
           onInit={(instance) => requestAnimationFrame(() => instance.fitView({ padding: 0.35, maxZoom: 0.75 }))}
           proOptions={{ hideAttribution: true }}
         >
-          <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#242831" />
+          <Background variant={BackgroundVariant.Dots} gap={22} size={1} color={theme === "dark" ? "#242831" : "#cbd5e1"} />
         </ReactFlow>
         {graphSettingsOpen ? <div className="graph-settings-picker">
           <div className="graph-settings-title"><Settings2 size={14} />Graph settings</div>
@@ -1244,15 +1251,15 @@ function GraphEditor() {
             {selectedNode.data.backgroundError ? <div className="property-section"><p className="property-error">{selectedNode.data.backgroundError}</p></div> : null}
             <div className="property-section">
               <h3>Direct inputs</h3>
-              {selectedNode.data.inputs?.length ? selectedNode.data.inputs.map((item, index) => <div className="property-row" key={`${item.label}-${index}`}><span>{item.label}</span>{item.amount === undefined ? null : <strong>{inventoryNumber.format(item.amount)}{item.unit ? ` ${item.unit}` : ""}</strong>}</div>) : <p>No technosphere inputs</p>}
+              {selectedNode.data.inputs?.length ? selectedNode.data.inputs.map((item, index) => <div className="property-row" key={`${item.label}-${index}`}><span>{item.label}</span>{item.amount === undefined ? null : <strong>{formatNumber(item.amount)}{item.unit ? ` ${item.unit}` : ""}</strong>}</div>) : <p>No technosphere inputs</p>}
             </div>
             <div className="property-section">
               <h3>Reference output</h3>
-              {selectedNode.data.outputs?.length ? selectedNode.data.outputs.map((item, index) => <div className="property-row" key={`${item.label}-${index}`}><span>{item.label}</span>{item.amount === undefined ? null : <strong>{inventoryNumber.format(item.amount)}{item.unit ? ` ${item.unit}` : ""}</strong>}</div>) : <p>No production exchange</p>}
+              {selectedNode.data.outputs?.length ? selectedNode.data.outputs.map((item, index) => <div className="property-row" key={`${item.label}-${index}`}><span>{item.label}</span>{item.amount === undefined ? null : <strong>{formatNumber(item.amount)}{item.unit ? ` ${item.unit}` : ""}</strong>}</div>) : <p>No production exchange</p>}
             </div>
             {selectedNode.data.biosphere?.length ? <div className="property-section is-emission">
               <h3>Biosphere exchanges</h3>
-              {selectedNode.data.biosphere.map((item, index) => <div className="property-row" key={`${item.label}-${index}`}><span>{item.label}</span>{item.amount === undefined ? null : <strong>{inventoryNumber.format(item.amount)}{item.unit ? ` ${item.unit}` : ""}</strong>}</div>)}
+              {selectedNode.data.biosphere.map((item, index) => <div className="property-row" key={`${item.label}-${index}`}><span>{item.label}</span>{item.amount === undefined ? null : <strong>{formatNumber(item.amount)}{item.unit ? ` ${item.unit}` : ""}</strong>}</div>)}
             </div> : null}
           </> : <>
             <div className="property-section">
@@ -1265,11 +1272,11 @@ function GraphEditor() {
             </div>
             {selectedNode?.data.extractions?.length ? <div className="property-section is-extraction">
               <h3>Resource extractions</h3>
-              {selectedNode.data.extractions.map((item) => <div className="property-row" key={item.label}><span>{item.label}</span>{selectedNode.data.showAmounts !== false ? <strong>{inventoryNumber.format(item.amount ?? 0)} {item.unit}</strong> : null}</div>)}
+              {selectedNode.data.extractions.map((item) => <div className="property-row" key={item.label}><span>{item.label}</span>{selectedNode.data.showAmounts !== false ? <strong>{formatNumber(item.amount ?? 0)} {item.unit}</strong> : null}</div>)}
             </div> : null}
             {selectedNode?.data.emissions?.length ? <div className="property-section is-emission">
               <h3>Emissions to air</h3>
-              {selectedNode.data.emissions.map((item) => <div className="property-row" key={item.label}><span>{item.label}</span>{selectedNode.data.showAmounts !== false ? <strong>{inventoryNumber.format(item.amount ?? 0)} {item.unit}</strong> : null}</div>)}
+              {selectedNode.data.emissions.map((item) => <div className="property-row" key={item.label}><span>{item.label}</span>{selectedNode.data.showAmounts !== false ? <strong>{formatNumber(item.amount ?? 0)} {item.unit}</strong> : null}</div>)}
             </div> : null}
           </>}
         </>
@@ -1278,12 +1285,34 @@ function GraphEditor() {
   )
 }
 
-export default function App() {
+function AppContent() {
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const { decimalPlaces, setDecimalPlaces, theme, setTheme } = useDisplaySettings()
+
   return (
     <Tooltip.Provider delayDuration={250}>
-      <main className="app-shell">
+      <main className={`app-shell theme-${theme}`}>
         <header className="topbar">
           <div className="brand"><div className="brand-mark"><Share2 size={16} /></div><span>PRISM Life Cycle Assessment</span></div>
+          <div className="top-actions">
+            <button className={`global-settings-trigger ${settingsOpen ? "is-active" : ""}`} type="button" onClick={() => setSettingsOpen((open) => !open)} aria-expanded={settingsOpen} aria-label="Global settings"><Settings2 size={16} /><span>Settings</span></button>
+          </div>
+          {settingsOpen ? <div className="global-settings-panel">
+            <div className="global-settings-title"><div><Settings2 size={15} /><span>Global settings</span></div><button type="button" onClick={() => setSettingsOpen(false)} aria-label="Close global settings"><X size={15} /></button></div>
+            <div className="global-setting-field">
+              <span>Decimal places</span>
+              <p>Applied to numerical results across the workspace.</p>
+              <div className="sankey-stepper"><button type="button" onClick={() => setDecimalPlaces(decimalPlaces - 1)} aria-label="Decrease decimal places">−</button><input type="number" min="0" max="8" step="1" value={decimalPlaces} onChange={(event) => setDecimalPlaces(Number(event.target.value) || 0)} /><button type="button" onClick={() => setDecimalPlaces(decimalPlaces + 1)} aria-label="Increase decimal places">+</button></div>
+            </div>
+            <div className="global-setting-field">
+              <span>Appearance</span>
+              <p>Choose the workspace color theme.</p>
+              <div className="theme-options">
+                <button type="button" className={theme === "dark" ? "is-active" : ""} onClick={() => setTheme("dark")}><Moon size={14} />Dark</button>
+                <button type="button" className={theme === "light" ? "is-active" : ""} onClick={() => setTheme("light")}><Sun size={14} />Light</button>
+              </div>
+            </div>
+          </div> : null}
         </header>
 
         <section className="workspace">
@@ -1294,4 +1323,8 @@ export default function App() {
       </main>
     </Tooltip.Provider>
   )
+}
+
+export default function App() {
+  return <DisplaySettingsProvider><AppContent /></DisplaySettingsProvider>
 }
