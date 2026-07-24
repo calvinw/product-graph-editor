@@ -305,5 +305,19 @@ html[data-theme="light"] .property-row small { color: #4b5563; }
 html[data-theme="light"] .property-row strong { color: #5b21b6; }
 html[data-theme="light"] .property-section.is-emission h3 { color: #dc2626; }
 html[data-theme="light"] .property-section.is-emission .property-row strong { color: #111827; }
+html[data-theme="light"] .results-panel-body { color: #111827; background: #fff; }
+html[data-theme="light"] .markdown-report,
+html[data-theme="light"] .markdown-report h1,
+html[data-theme="light"] .markdown-report h2,
+html[data-theme="light"] .markdown-report p,
+html[data-theme="light"] .markdown-report strong,
+html[data-theme="light"] .markdown-report td,
+html[data-theme="light"] .markdown-report td:nth-child(2) { color: #000; }
+html[data-theme="light"] .markdown-report table { border-color: #cbd1da; background: #fff; }
+html[data-theme="light"] .markdown-report th { border-color: #cbd1da; color: #111827; background: #dfe4ea; }
+html[data-theme="light"] .markdown-report td { border-color: #e1e5ea; }
+html[data-theme="light"] .markdown-report td:nth-child(2) { color: #7c3aed; font-weight: 650; }
+html[data-theme="light"] .results-placeholder > strong { color: #000; }
+html[data-theme="light"] .results-placeholder > p { color: #4b5563; }
 @media (max-width: 900px) { .inspector { right: 16px; top: 76px; bottom: 16px; width: 270px; }.top-actions button:first-child { display: none; } }
 @media (max-width: 620px) { .top-actions button:nth-child(2) { display: none; }.canvas-head { left: 18px; right: 16px; }.search { width: 42px; }.search input, .search kbd { display: none; }.graph-meta { display: none; } }
