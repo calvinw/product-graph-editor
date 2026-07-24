@@ -790,6 +790,11 @@ function GraphEditor() {
   const [lcaResult, setLcaResult] = useState<LcaResult | null>(null)
   const [calculatedYaml, setCalculatedYaml] = useState("")
   const [graphMode, setGraphMode] = useState<"scaled" | "structure">("structure")
+  const [graphSettingsOpen, setGraphSettingsOpen] = useState(false)
+  const [graphMinContribution, setGraphMinContribution] = useState(0)
+  const [graphMaxProcesses, setGraphMaxProcesses] = useState(initialNodes.length)
+  const [graphOrientation, setGraphOrientation] = useState<"vertical" | "horizontal">("horizontal")
+  const [graphConnectionStyle, setGraphConnectionStyle] = useState<"curved" | "straight" | "step">("curved")
   const foldDirectionRef = useRef<"upstream" | "downstream">("upstream")
   const nodesRef = useRef(nodes)
   const edgesRef = useRef(edges)
@@ -976,8 +981,43 @@ function GraphEditor() {
 
   const fit = () => fitView({ padding: 0.35, maxZoom: 0.75, duration: 350 })
   const relayout = () => {
-    setNodes((current) => layoutNodes(current, edges))
+    setNodes((current) => layoutNodes(current, edges, { orientation: graphOrientation }))
     requestAnimationFrame(fit)
+  }
+  const applyGraphSettings = ({
+    minimum = graphMinContribution,
+    maximum = graphMaxProcesses,
+    orientation = graphOrientation,
+    connectionStyle = graphConnectionStyle,
+  }: {
+    minimum?: number
+    maximum?: number
+    orientation?: "vertical" | "horizontal"
+    connectionStyle?: "curved" | "straight" | "step"
+  }) => {
+    try {
+      const currentResult = calculatedYaml === yamlText ? lcaResult : null
+      const mode = graphMode === "scaled" && currentResult ? "scaled" : "structure"
+      const parsed = buildGraphFromYaml(yamlText, mode, currentResult?.scaling_vector)
+      const foreground = parsed.nodes.filter((node) => node.data.scope !== "background")
+      const scaleFor = (node: Node<ProcessNodeData>) => currentResult?.scaling_vector[node.data.label] ?? 0
+      const largestScale = Math.max(...foreground.map(scaleFor), 0)
+      const eligible = foreground.filter((node) => !largestScale || scaleFor(node) / largestScale * 100 >= minimum)
+      const visibleForeground = new Set(eligible.slice(Math.max(0, eligible.length - maximum)).map((node) => node.id))
+      const backgroundIds = new Set(parsed.nodes.filter((node) => node.data.scope === "background").map((node) => node.id))
+      const visibleBackground = new Set(parsed.edges.filter((edge) => visibleForeground.has(edge.target) && backgroundIds.has(edge.source)).map((edge) => edge.source))
+      const nextNodes = parsed.nodes.filter((node) => visibleForeground.has(node.id) || visibleBackground.has(node.id))
+      const visibleIds = new Set(nextNodes.map((node) => node.id))
+      const nextEdges = parsed.edges.filter((edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target)).map((edge) => ({
+        ...edge,
+        type: connectionStyle === "curved" ? "default" : connectionStyle === "straight" ? "straight" : "smoothstep",
+      }))
+      setNodes(layoutNodes(nextNodes, nextEdges, { orientation }))
+      setEdges(nextEdges)
+      requestAnimationFrame(fit)
+    } catch (error) {
+      setYamlError(error instanceof Error ? error.message : "Could not apply graph settings.")
+    }
   }
 
   const showGraphMode = (mode: "scaled" | "structure") => {
@@ -986,7 +1026,7 @@ function GraphEditor() {
       if (mode === "scaled" && !currentResult) return
       const parsed = buildGraphFromYaml(yamlText, mode, currentResult?.scaling_vector)
       const previousById = new Map(nodesRef.current.map((node) => [node.id, node]))
-      const laidOutNodes = layoutNodes(parsed.nodes, parsed.edges)
+      const laidOutNodes = layoutNodes(parsed.nodes, parsed.edges, { orientation: graphOrientation })
       let nextNodes: Node<ProcessNodeData>[] = laidOutNodes.map((node) => {
         const previous = previousById.get(node.id)
         return {
@@ -1031,7 +1071,7 @@ function GraphEditor() {
       setNodes(layoutNodes(parsed.nodes.map((node) => ({
         ...node,
         data: { ...node.data, canFold: parsed.edges.some((edge) => edge.target === node.id) },
-      })), parsed.edges))
+      })), parsed.edges, { orientation: graphOrientation }))
       setGraphTitle(parsed.name)
       setGraphMode(nextMode)
       setSelected(null)
@@ -1131,7 +1171,19 @@ function GraphEditor() {
         >
           <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#242831" />
         </ReactFlow>
+        {graphSettingsOpen ? <div className="graph-settings-picker">
+          <div className="graph-settings-title"><Settings2 size={14} />Graph settings</div>
+          <div className="sankey-settings-grid">
+            <label><span>Min. contribution share</span><div className="sankey-stepper"><button type="button" aria-label="Decrease graph minimum contribution" onClick={() => { const value = Math.max(0, Number((graphMinContribution - .1).toFixed(1))); setGraphMinContribution(value); applyGraphSettings({ minimum: value }) }}>−</button><div className="sankey-number"><input type="number" min="0" max="100" step="0.1" value={graphMinContribution} onChange={(event) => { const value = Math.min(100, Math.max(0, Number(event.target.value))); setGraphMinContribution(value); applyGraphSettings({ minimum: value }) }} /><span>%</span></div><button type="button" aria-label="Increase graph minimum contribution" onClick={() => { const value = Math.min(100, Number((graphMinContribution + .1).toFixed(1))); setGraphMinContribution(value); applyGraphSettings({ minimum: value }) }}>+</button></div></label>
+            <label><span>Max. number of processes</span><div className="sankey-stepper"><button type="button" aria-label="Decrease graph maximum processes" onClick={() => { const value = Math.max(1, graphMaxProcesses - 1); setGraphMaxProcesses(value); applyGraphSettings({ maximum: value }) }}>−</button><input type="number" min="1" step="1" value={graphMaxProcesses} onChange={(event) => { const value = Math.max(1, Math.floor(Number(event.target.value)) || 1); setGraphMaxProcesses(value); applyGraphSettings({ maximum: value }) }} /><button type="button" aria-label="Increase graph maximum processes" onClick={() => { const value = graphMaxProcesses + 1; setGraphMaxProcesses(value); applyGraphSettings({ maximum: value }) }}>+</button></div></label>
+            <label><span>Orientation</span><select value={graphOrientation} onChange={(event) => { const value = event.target.value as "vertical" | "horizontal"; setGraphOrientation(value); applyGraphSettings({ orientation: value }) }}><option value="vertical">Vertical</option><option value="horizontal">Horizontal</option></select></label>
+            <label><span>Connections</span><select value={graphConnectionStyle} onChange={(event) => { const value = event.target.value as "curved" | "straight" | "step"; setGraphConnectionStyle(value); applyGraphSettings({ connectionStyle: value }) }}><option value="curved">Curved</option><option value="straight">Straight</option><option value="step">Step</option></select></label>
+          </div>
+        </div> : null}
         <div className="graph-toolbar" aria-label="Graph tools">
+          <div className="toolbar-group">
+            <ToolButton label="Graph settings" onClick={() => setGraphSettingsOpen((open) => !open)}><Settings2 size={18} /></ToolButton>
+          </div>
           <div className="toolbar-group">
             <ToolButton label="Select"><MousePointer2 size={18} /></ToolButton>
           </div>

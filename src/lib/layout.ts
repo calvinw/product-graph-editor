@@ -11,12 +11,13 @@ const BACKGROUND_BRANCH_RANK_GAP = 220
 export function layoutNodes<T extends Record<string, unknown>>(
   nodes: Node<T>[],
   edges: Edge[],
+  options: { orientation?: "vertical" | "horizontal" } = {},
 ): Node<T>[] {
   const graph = new dagre.graphlib.Graph()
   graph.setDefaultEdgeLabel(() => ({}))
   const hasBackgroundBranches = nodes.filter((node) => node.data.scope === "background").length > 1
   graph.setGraph({
-    rankdir: "LR",
+    rankdir: options.orientation === "vertical" ? "BT" : "LR",
     nodesep: hasBackgroundBranches ? BACKGROUND_BRANCH_NODE_GAP : NODE_GAP,
     ranksep: hasBackgroundBranches ? BACKGROUND_BRANCH_RANK_GAP : RANK_GAP,
     marginx: 32,
@@ -39,8 +40,8 @@ export function layoutNodes<T extends Record<string, unknown>>(
     const size = dimensions.get(node.id)!
     return {
       ...node,
-      sourcePosition: Position.Right,
-      targetPosition: Position.Left,
+      sourcePosition: options.orientation === "vertical" ? Position.Top : Position.Right,
+      targetPosition: options.orientation === "vertical" ? Position.Bottom : Position.Left,
       position: { x: x - size.width / 2, y: y - size.height / 2 },
     }
   })
