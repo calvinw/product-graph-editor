@@ -492,7 +492,7 @@ function ContributionView({ result, yaml, isCurrent, error }: {
   const maxMagnitude = Math.max(Math.abs(total), ...rows.map((row) => Math.abs(row.total)), 1e-30)
   const requiredTotal = rows.reduce((sum, row) => sum + Math.abs(row.required ?? 0), 0)
   const number = (value: number | undefined) => value === undefined ? "—" : inventoryNumber.format(value)
-  const rate = (value: number) => value.toFixed(5)
+  const rate = (value: number) => value.toFixed(2)
   let contributionGraph: ReturnType<typeof buildGraphFromYaml> | null = null
   try { contributionGraph = buildGraphFromYaml(yaml, "structure") } catch { contributionGraph = null }
   const graphNameById = new Map(contributionGraph?.nodes.map((node) => [node.id, cleanProcessName(node.data.label)]) ?? [])
