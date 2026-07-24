@@ -35,7 +35,7 @@ export type ProcessNodeData = {
   canFold?: boolean
 }
 
-function ProcessNodeImpl({ id, data, selected }: NodeProps & { data: ProcessNodeData }) {
+function ProcessNodeImpl({ id, data, selected, sourcePosition = Position.Right, targetPosition = Position.Left }: NodeProps & { data: ProcessNodeData }) {
   const updateNodeInternals = useUpdateNodeInternals()
   const inputHandleSignature = data.inputs?.map((item) => item.handleId ?? "").join("|") ?? ""
 
@@ -48,7 +48,7 @@ function ProcessNodeImpl({ id, data, selected }: NodeProps & { data: ProcessNode
       className={`pg-node ${data.expanded ? "is-expanded" : ""} ${selected ? "is-selected" : ""} ${data.faded ? "is-faded" : ""}`}
       style={{ "--node-color": data.color } as React.CSSProperties}
     >
-      <Handle type="target" position={Position.Left} className="pg-handle" />
+      <Handle type="target" position={targetPosition} className="pg-handle" />
       {data.expanded ? (
         <>
           <div className="pg-node-head">
@@ -70,7 +70,7 @@ function ProcessNodeImpl({ id, data, selected }: NodeProps & { data: ProcessNode
               : data.backgroundError ? <div className="pg-flow-empty is-error">{data.backgroundError}</div>
               : data.inputs?.length ? data.inputs.map((item) => (
                 <div className="pg-flow-row" key={item.handleId ?? `${item.kind}-${item.label}`}>
-                  {item.handleId ? <Handle id={item.handleId} type="target" position={Position.Left} className="pg-flow-handle" /> : null}
+                  {item.handleId ? <Handle id={item.handleId} type="target" position={targetPosition} className={`pg-flow-handle ${targetPosition === Position.Bottom ? "is-vertical" : ""}`} /> : null}
                   <Package size={14} style={{ color: item.color }} /><span>{item.label}</span>{item.amount === undefined ? (data.scope === "background" ? null : <small>{item.kind}</small>) : <small>{displayNumber(item.amount)}{item.unit ? ` ${item.unit}` : ""}</small>}
                 </div>
               )) : <div className="pg-flow-empty">No input flows</div>}
@@ -109,7 +109,7 @@ function ProcessNodeImpl({ id, data, selected }: NodeProps & { data: ProcessNode
           <span className="pg-node-label">{data.label}</span>
         </>
       )}
-      <Handle type="source" position={Position.Right} className="pg-handle" />
+      <Handle type="source" position={sourcePosition} className="pg-handle" />
     </div>
   )
 }
