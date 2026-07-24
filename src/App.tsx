@@ -167,7 +167,7 @@ const impactFactor = (category: string, flow: string) => {
   if (indicator === "EP" && /nitrogen oxides?|\bnox\b/.test(normalized)) return 0.04429
   if (indicator === "AP" && /nitrogen oxides?|\bnox\b/.test(normalized)) return 0.7
   if (indicator === "PMFP" && /nitrogen oxides?|\bnox\b/.test(normalized)) return 0.00722
-  if (indicator === "MIR" && /nitrogen oxides?|\bnox\b/.test(normalized)) return 0.028
+  if (indicator === "MIR" && /nitrogen oxides?|\bnox\b/.test(normalized)) return 24.79359
   return null
 }
 
@@ -179,8 +179,9 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
 }) {
   const [subgroup, setSubgroup] = useState<"processes" | "flows">("processes")
   const [threshold, setThreshold] = useState(1)
-  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(() => new Set())
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => new Set())
   const [expandedProcesses, setExpandedProcesses] = useState<Set<string>>(() => new Set())
+  const [collapsedFlows, setCollapsedFlows] = useState<Set<string>>(() => new Set())
 
   if (!result || !isCurrent) return <div className="results-panel impact-panel">
     <div className="results-panel-head"><div><strong>Impact analysis</strong><span>Inspect characterized impacts by category, process, and elementary flow.</span></div></div>
@@ -201,12 +202,17 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
       if (!unique.has(key)) unique.set(key, category)
       return unique
     }, new Map<string, LcaResult["process_contributions"]["categories"][number]>())
-  const toggleCategory = (id: string) => setCollapsedCategories((current) => {
+  const toggleCategory = (id: string) => setExpandedCategories((current) => {
     const next = new Set(current)
     if (next.has(id)) next.delete(id); else next.add(id)
     return next
   })
   const toggleProcess = (id: string) => setExpandedProcesses((current) => {
+    const next = new Set(current)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
+  const toggleFlow = (id: string) => setCollapsedFlows((current) => {
     const next = new Set(current)
     if (next.has(id)) next.delete(id); else next.add(id)
     return next
@@ -243,7 +249,7 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
       <thead><tr><th>Name</th><th>Category</th><th>Inventory result</th><th>Characterization factor</th><th>Impact assessment result</th></tr></thead>
       <tbody>{[...categories.values()].map((category) => {
         const categoryId = category.id || category.label
-        const isOpen = !collapsedCategories.has(categoryId)
+        const isOpen = expandedCategories.has(categoryId)
         const processes = category.processes
           .filter((process) => Math.abs(process.percentage ?? (category.total_score ? process.direct_score / category.total_score * 100 : 0)) >= threshold)
           .sort((left, right) => Math.abs(right.direct_score) - Math.abs(left.direct_score))
@@ -252,7 +258,7 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
             <td><button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-label={`${isOpen ? "Collapse" : "Expand"} ${category.label}`}><ChevronDown size={14} /></button><BarChart3 className="impact-category-icon" size={17} /> <strong>{impactCategoryAbbreviation(category.label)}</strong></td>
             <td /><td /><td /><td><span className="impact-result">{inventoryNumber.format(category.total_score)} <small>{category.unit}</small></span></td>
           </tr>
-          {isOpen ? processes.flatMap((process) => {
+          {isOpen && subgroup === "processes" ? processes.flatMap((process) => {
             const processKey = `${categoryId}:${process.process_id}`
             const flows = processFlows(process.process_name, process.process_id, category.label)
             const processOpen = expandedProcesses.has(processKey)
@@ -270,6 +276,61 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
             </tr>) : []
             return [processRow, ...flowRows]
           }) : null}
+          {isOpen && subgroup === "flows" ? [...processes.reduce((grouped, process) => {
+            processFlows(process.process_name, process.process_id, category.label).forEach((flow) => {
+              const key = normalizedFlow(flow.name)
+              const existing = grouped.get(key) ?? {
+                name: flow.name,
+                category: flow.category,
+                factor: flow.factor,
+                unit: flow.unit,
+                amount: 0,
+                impact: 0,
+                processes: [] as Array<{ id: string; name: string; amount: number; impact: number }>,
+              }
+              existing.amount += flow.amount
+              existing.impact += flow.impact
+              existing.processes.push({
+                id: process.process_id,
+                name: cleanImpactProcessName(process.process_name),
+                amount: flow.amount,
+                impact: flow.impact,
+              })
+              grouped.set(key, existing)
+            })
+            return grouped
+          }, new Map<string, {
+            name: string
+            category: string
+            factor: number
+            unit: string
+            amount: number
+            impact: number
+            processes: Array<{ id: string; name: string; amount: number; impact: number }>
+          }>()).entries()]
+            .map(([flowKey, flow]) => ({ flowKey, ...flow }))
+            .filter((flow) => Math.abs(category.total_score ? flow.impact / category.total_score * 100 : 0) >= threshold)
+            .sort((left, right) => Math.abs(right.impact) - Math.abs(left.impact))
+            .flatMap((flow) => {
+              const flowId = `${categoryId}:flow:${flow.flowKey}`
+              const flowOpen = !collapsedFlows.has(flowId)
+              const flowRow = <tr className="impact-flow-group-row" key={flowId} onClick={() => toggleFlow(flowId)}>
+                <td><span className="impact-indent" /><button className={`tree-toggle ${flowOpen ? "is-expanded" : ""}`} aria-label={`${flowOpen ? "Collapse" : "Expand"} ${flow.name}`}><ChevronDown size={14} /></button><span className="impact-flow-icon"><Leaf size={14} /></span>{inventoryFlowName(flow.name)}</td>
+                <td>{flow.category}</td>
+                <td className="number">{inventoryNumber.format(flow.amount)} <small>{flow.unit}</small></td>
+                <td className="number">{inventoryNumber.format(flow.factor)} <small>{category.unit}/{flow.unit}</small></td>
+                <td><span className="impact-bar flow"><i style={{ width: `${Math.min(100, Math.abs(category.total_score ? flow.impact / category.total_score * 100 : 0))}%` }} /></span><span className="impact-result">{inventoryNumber.format(flow.impact)} <small>{category.unit}</small></span></td>
+              </tr>
+              const processRows = flowOpen ? flow.processes
+                .filter((process) => Math.abs(category.total_score ? process.impact / category.total_score * 100 : 0) >= threshold)
+                .sort((left, right) => Math.abs(right.impact) - Math.abs(left.impact))
+                .map((process) => <tr className="impact-flow-process-row" key={`${flowId}:${process.id}`}>
+                  <td><span className="impact-indent flow-process" /><span className="impact-process-icon"><Factory size={14} /></span>{process.name}</td>
+                  <td /><td className="number">{inventoryNumber.format(process.amount)} <small>{flow.unit}</small></td><td />
+                  <td><span className="impact-bar"><i style={{ width: `${Math.min(100, Math.abs(category.total_score ? process.impact / category.total_score * 100 : 0))}%` }} /></span><span className="impact-result">{inventoryNumber.format(process.impact)} <small>{category.unit}</small></span></td>
+                </tr>) : []
+              return [flowRow, ...processRows]
+            }) : null}
         </Fragment>
       })}</tbody>
     </table></div>
