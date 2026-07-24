@@ -175,8 +175,13 @@ html[data-theme="light"] .inventory-view details, html[data-theme="light"] .impa
 html[data-theme="light"] .inventory-view summary { border-color: #d5dae2; color: #263244; background: linear-gradient(#f1f3f6,#e4e8ed); }
 html[data-theme="light"] .inventory-table td, html[data-theme="light"] .impact-table td, html[data-theme="light"] .process-flow-table td, html[data-theme="light"] .process-impact-table td, html[data-theme="light"] .contribution-table td { border-color: #e1e5ea; color: #344054; }
 html[data-theme="light"] .inventory-table th, html[data-theme="light"] .impact-table th, html[data-theme="light"] .process-flow-table th, html[data-theme="light"] .process-impact-table th, html[data-theme="light"] .contribution-table th { border-color: #d3d8df; color: #172033; background: #dfe4ea; }
+html[data-theme="light"] .impact-table-wrap, html[data-theme="light"] .impact-table, html[data-theme="light"] .impact-table tbody { border-color: #d3d8df; background: #fff; }
 html[data-theme="light"] .impact-category-row, html[data-theme="light"] .contribution-root td { background: #eef1f5; }
 html[data-theme="light"] .impact-process-row, html[data-theme="light"] .impact-flow-group-row { background: #f8fafc; }
+html[data-theme="light"] .impact-bar, html[data-theme="light"] .process-result-bar, html[data-theme="light"] .result-bar { background: #e5e7eb; }
+html[data-theme="light"] .impact-bar i, html[data-theme="light"] .process-result-bar i, html[data-theme="light"] .result-bar i { background: #6366f1; }
+html[data-theme="light"] .impact-bar.flow i, html[data-theme="light"] .process-flow-table .process-result-bar i { background: #2563eb; }
+html[data-theme="light"] .result-bar i.negative { background: #dc2626; }
 html[data-theme="light"] .contribution-select, html[data-theme="light"] .impact-threshold input, html[data-theme="light"] .case-study-select select, html[data-theme="light"] .yaml-upload { border-color: #cbd1da; color: #344054; background: #fff; }
 html[data-theme="light"] .pg-node { color: #263244; background: #fff; box-shadow: 0 12px 32px rgba(41,51,68,.16); }
 html[data-theme="light"] .pg-node-head, html[data-theme="light"] .pg-flow-section, html[data-theme="light"] .pg-biosphere, html[data-theme="light"] .pg-extractions, html[data-theme="light"] .pg-emissions { border-color: #dbe0e7; background: #f8fafc; }
