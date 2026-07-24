@@ -62,7 +62,7 @@ function ProcessNodeImpl({ id, data, selected, sourcePosition = Position.Right, 
             </button> : null}
             <Component size={14} />
             <span className="pg-node-label">{data.label}</span>
-            <small className="pg-node-scope">{data.scope}</small>
+            <small className={`pg-node-scope is-${data.scope}`}>{data.scope}</small>
           </div>
           <div className="pg-flow-section">
             <div className="pg-flow-title"><ArrowRight size={11} /> {data.scope === "background" ? "Direct inputs" : "Input flows"}</div>
