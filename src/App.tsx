@@ -96,6 +96,7 @@ const caseStudies = {
 type CaseStudyId = keyof typeof caseStudies
 
 const inventoryNumber = new Intl.NumberFormat("en", { minimumFractionDigits: 5, maximumFractionDigits: 8 })
+const processResultNumber = new Intl.NumberFormat("en", { minimumFractionDigits: 5, maximumFractionDigits: 5 })
 const isInventoryInput = (type: string) => /resource|extraction|input/i.test(type)
 const inventoryFlowName = (name: string) => {
   const base = name.split(/[|,]/)[0].trim()
@@ -334,6 +335,91 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
         </Fragment>
       })}</tbody>
     </table></div>
+  </div>
+}
+
+function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string }) {
+  const processNodes = result.sankey.nodes.filter((node) => node.kind === "process")
+  const [processId, setProcessId] = useState("")
+  const [threshold, setThreshold] = useState(0.01)
+  const selectedId = processNodes.some((node) => node.id === processId) ? processId : (processNodes.at(-1)?.id ?? "")
+  const selectedNode = processNodes.find((node) => node.id === selectedId)
+  const processIds = new Set(processNodes.map((node) => node.id))
+  const incoming = new Map<string, string[]>()
+  result.sankey.links.forEach((link) => {
+    if (processIds.has(link.source) && processIds.has(link.target)) incoming.set(link.target, [...(incoming.get(link.target) ?? []), link.source])
+  })
+  const upstreamIds = (id: string, found = new Set<string>()): Set<string> => {
+    if (found.has(id)) return found
+    found.add(id)
+    ;(incoming.get(id) ?? []).forEach((source) => upstreamIds(source, found))
+    return found
+  }
+  const includedIds = upstreamIds(selectedId)
+  let source: ImpactYaml = {}
+  try { source = parse(yaml) as ImpactYaml } catch { source = {} }
+  const yamlProcesses = source.processes ?? []
+  const yamlByName = new Map(yamlProcesses.flatMap((process) => [
+    [process.name.toLowerCase(), process],
+    [cleanImpactProcessName(process.name).toLowerCase(), process],
+  ]))
+  const nodeProcess = (node: (typeof processNodes)[number]) => yamlByName.get((node.process_name ?? node.label).toLowerCase())
+    ?? yamlByName.get(cleanImpactProcessName(node.process_name ?? node.label).toLowerCase())
+  const flowRows = new Map<string, { name: string; category: string; unit: string; upstream: number; direct: number; input: boolean }>()
+  processNodes.filter((node) => includedIds.has(node.id)).forEach((node) => {
+    const process = nodeProcess(node)
+    const scale = result.scaling_vector[node.id] ?? result.scaling_vector[node.process_name ?? ""] ?? result.scaling_vector[process?.name ?? ""] ?? 1
+    const exchanges = [
+      ...(process?.emissions ?? []).map((flow) => ({ ...flow, input: false })),
+      ...(process?.extractions ?? process?.resources ?? process?.resource_inputs ?? []).map((flow) => ({ ...flow, input: true })),
+    ]
+    exchanges.forEach((flow) => {
+      const key = `${flow.input}:${normalizedFlow(flow.flow)}`
+      const existing = flowRows.get(key) ?? { name: flow.flow, category: flow.input ? "elementary flows/resource" : "elementary flows/air", unit: flow.unit ?? "kg", upstream: 0, direct: 0, input: flow.input }
+      const amount = flow.amount * scale
+      existing.upstream += amount
+      if (node.id === selectedId) existing.direct += amount
+      flowRows.set(key, existing)
+    })
+  })
+  const flowTotals = [...flowRows.values()].reduce((totals, flow) => {
+    totals.set(flow.input, (totals.get(flow.input) ?? 0) + Math.abs(flow.upstream))
+    return totals
+  }, new Map<boolean, number>())
+  const flowContribution = (flow: { input: boolean; upstream: number }) => {
+    const total = flowTotals.get(flow.input) ?? 0
+    return total ? Math.abs(flow.upstream) / total * 100 : 0
+  }
+  const visibleFlows = [...flowRows.values()].filter((flow) => flowContribution(flow) >= threshold)
+  const FlowResultsTable = ({ input }: { input: boolean }) => {
+    const rows = visibleFlows.filter((flow) => flow.input === input)
+    return <table className="process-flow-table"><thead><tr><th>Contribution</th><th>Flow</th><th>Category</th><th>Upstream incl. direct</th><th>Direct</th><th>Unit</th></tr></thead>
+      <tbody>{rows.length ? rows.map((flow) => <tr key={`${input}:${flow.name}`}>
+        <td><span className="process-result-bar"><i style={{ width: `${Math.min(100, flowContribution(flow))}%` }} /></span></td>
+        <td>{inventoryFlowName(flow.name)}</td><td>{flow.category}</td><td>{processResultNumber.format(flow.upstream)}</td><td>{processResultNumber.format(flow.direct)}</td><td>{flow.unit}</td>
+      </tr>) : <tr className="empty-row"><td colSpan={6}>No {input ? "input" : "output"} flows for this process.</td></tr>}</tbody>
+    </table>
+  }
+  const impactRows = result.process_contributions.categories.map((category) => {
+    const byId = new Map(category.processes.flatMap((process) => [
+      [process.process_id, process] as const,
+      [cleanImpactProcessName(process.process_name).toLowerCase(), process] as const,
+    ]))
+    const scoreFor = (node: (typeof processNodes)[number]) => byId.get(node.id) ?? byId.get(cleanImpactProcessName(node.process_name ?? node.label).toLowerCase())
+    const upstream = processNodes.filter((node) => includedIds.has(node.id)).reduce((sum, node) => sum + (scoreFor(node)?.direct_score ?? 0), 0)
+    const direct = selectedNode ? scoreFor(selectedNode)?.direct_score ?? 0 : 0
+    return { category, upstream, direct, contribution: category.total_score ? upstream / category.total_score * 100 : 0 }
+  }).filter((row) => Math.abs(row.contribution) >= threshold && row.upstream !== 0)
+
+  return <div className="process-results-view">
+    <details open><summary>Flow contributions to process results</summary>
+      <div className="process-results-controls"><label>Process <select value={selectedId} onChange={(event) => setProcessId(event.target.value)}>{processNodes.map((node) => <option key={node.id} value={node.id}>{cleanImpactProcessName(node.process_name ?? node.label)}</option>)}</select></label><label>Don’t show &lt; <input type="number" min="0" max="100" step="0.01" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label></div>
+      <div className="process-flow-grids"><section><h3>Inputs</h3><FlowResultsTable input /></section><section><h3>Outputs</h3><FlowResultsTable input={false} /></section></div>
+    </details>
+    <details open><summary>Impact assessment results</summary>
+      <div className="process-results-controls"><label>Process <select value={selectedId} onChange={(event) => setProcessId(event.target.value)}>{processNodes.map((node) => <option key={node.id} value={node.id}>{cleanImpactProcessName(node.process_name ?? node.label)}</option>)}</select></label><label>Don’t show &lt; <input type="number" min="0" max="100" step="0.01" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label></div>
+      <div className="process-impact-table-wrap"><table className="process-impact-table"><thead><tr><th>Contribution</th><th>Impact category</th><th>Upstream incl. direct</th><th>Direct</th><th>Unit</th></tr></thead><tbody>{impactRows.map((row) => <tr key={row.category.id || row.category.label}><td><span className="process-result-bar"><i style={{ width: `${Math.min(100, Math.abs(row.contribution))}%` }} /></span>{row.contribution.toFixed(2)}%</td><td>{impactCategoryAbbreviation(row.category.label)}</td><td>{processResultNumber.format(row.upstream)}</td><td>{processResultNumber.format(row.direct)}</td><td>{row.category.unit}</td></tr>)}</tbody></table></div>
+    </details>
   </div>
 }
 
@@ -693,7 +779,7 @@ function GraphEditor() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges)
   const [selected, setSelected] = useState<(NodeMeta & { id: string }) | null>(null)
   const [query, setQuery] = useState("")
-  const [view, setView] = useState<"graph" | "yaml" | "inventory" | "impact" | "contribution" | "sankey" | "results">("graph")
+  const [view, setView] = useState<"graph" | "yaml" | "inventory" | "impact" | "process" | "contribution" | "sankey" | "results">("graph")
   const [yamlText, setYamlText] = useState(jacketYaml)
   const [selectedCaseStudy, setSelectedCaseStudy] = useState<CaseStudyId | "custom">("jacket")
   const [yamlError, setYamlError] = useState("")
@@ -1018,6 +1104,7 @@ function GraphEditor() {
               {hasCurrentResults ? <>
                 <button className={view === "inventory" ? "is-active" : ""} onClick={() => setView("inventory")}>Inventory</button>
                 <button className={view === "impact" ? "is-active" : ""} onClick={() => setView("impact")}>Impact Analysis</button>
+                <button className={view === "process" ? "is-active" : ""} onClick={() => setView("process")}>Process Results</button>
                 <button className={view === "contribution" ? "is-active" : ""} onClick={() => setView("contribution")}>Contribution</button>
                 <button className={view === "sankey" ? "is-active" : ""} onClick={() => setView("sankey")}>Sankey Graph</button>
               </> : null}
@@ -1076,7 +1163,7 @@ function GraphEditor() {
             <span className={yamlError ? "yaml-error" : ""}>{yamlError || "Files are parsed locally in your browser."}</span>
             <Button onClick={previewYaml}>Preview graph</Button>
           </div>
-        </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "sankey" && lcaResult ? <SankeyView result={lcaResult} /> : <div className="results-panel">
+        </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "process" && lcaResult ? <ProcessResultsView result={lcaResult} yaml={yamlText} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "sankey" && lcaResult ? <SankeyView result={lcaResult} /> : <div className="results-panel">
           <div className="results-panel-head">
             <div><strong>LCA Results</strong><span>Calculated from the current YAML product graph.</span></div>
             <Button onClick={runCalculation} disabled={isCalculating}>{isCalculating ? "Calculating…" : "Calculate"}</Button>
