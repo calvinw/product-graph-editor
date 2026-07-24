@@ -203,7 +203,6 @@ export async function getBackgroundActivityDetails({
   }
 }
 
-const formatNumber = (value: number) => new Intl.NumberFormat("en", { minimumFractionDigits: 5, maximumFractionDigits: 5 }).format(value)
 const cell = (value: string) => value.replaceAll("|", "\\|").replaceAll("\n", " ")
 const inventoryFlowLabel = (name: string) => {
   const base = name.split(/[|,]/)[0].trim()
@@ -244,7 +243,11 @@ const impactIndicator = (category: string) => {
   return `${fullName[0].toUpperCase()}${fullName.slice(1)} / (${abbreviation[1].toUpperCase()})`
 }
 
-export function lcaResultToMarkdown(result: LcaResult) {
+export function lcaResultToMarkdown(result: LcaResult, decimalPlaces = 5) {
+  const formatNumber = (value: number) => new Intl.NumberFormat("en", {
+    minimumFractionDigits: decimalPlaces,
+    maximumFractionDigits: decimalPlaces,
+  }).format(value)
   const seenImpacts = new Set<string>()
   const impactRows = Object.entries(result.lcia)
     .sort(([, left], [, right]) => Number((left.score ?? 0) === 0) - Number((right.score ?? 0) === 0))

@@ -49,7 +49,6 @@ export function buildInventoryRequirements(source: string, scalingVector: Record
 
 export const nodeScopeColors = { foreground: "#a78bfa", background: "#38bdf8" }
 const round = (value: number) => Number(value.toFixed(6))
-const displayNumber = (value: number) => value.toFixed(5)
 const idFor = (name: string, index: number) => `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "process"}-${index}`
 const backgroundKeyFor = (input: FlowAmount) => input.code
   ? `${input.database}\u001f${input.code}`
@@ -68,7 +67,9 @@ export function buildGraphFromYaml(
   source: string,
   mode: "scaled" | "structure" = "structure",
   scalingVector?: Record<string, number>,
+  decimalPlaces = 5,
 ): { name: string; nodes: Node<ProcessNodeData>[]; edges: Edge[] } {
+  const displayNumber = (value: number) => value.toFixed(decimalPlaces)
   const graph = parse(source) as ProductGraph
   if (!graph || !Array.isArray(graph.processes) || !graph.processes.length) throw new Error("YAML must include a non-empty processes list.")
   if (!graph.reference_process) throw new Error("YAML must define reference_process.")

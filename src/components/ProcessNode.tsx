@@ -1,8 +1,7 @@
 import { memo, useEffect } from "react"
 import { Handle, Position, useUpdateNodeInternals, type NodeProps } from "@xyflow/react"
 import { ArrowRight, Component, Minus, Package, Plus } from "lucide-react"
-
-const displayNumber = (value: number) => value.toFixed(5)
+import { useDisplaySettings } from "../lib/displaySettings"
 
 type FlowItem = { label: string; kind: string; color: string; amount?: number; unit?: string; handleId?: string }
 type InventoryItem = { label: string; amount?: number; unit?: string }
@@ -37,6 +36,7 @@ export type ProcessNodeData = {
 
 function ProcessNodeImpl({ id, data, selected, sourcePosition = Position.Right, targetPosition = Position.Left }: NodeProps & { data: ProcessNodeData }) {
   const updateNodeInternals = useUpdateNodeInternals()
+  const { formatNumber: displayNumber } = useDisplaySettings()
   const inputHandleSignature = data.inputs?.map((item) => item.handleId ?? "").join("|") ?? ""
 
   useEffect(() => {
