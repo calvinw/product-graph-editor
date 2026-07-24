@@ -467,7 +467,7 @@ function ContributionView({ result, yaml, isCurrent, error }: {
 }
 
 function SankeyView({ result }: { result: LcaResult }) {
-  const availableProcessCount = result.sankey.nodes.filter((node) => node.kind === "process" || node.kind === "final_product").length
+  const availableProcessCount = result.sankey.nodes.filter((node) => node.kind === "process").length
   const [mode, setMode] = useState<"flow" | "impact">("impact")
   const [flow, setFlow] = useState("")
   const [impact, setImpact] = useState("")
@@ -488,7 +488,7 @@ function SankeyView({ result }: { result: LcaResult }) {
   const selectedFlow = flowNames.includes(flow) ? flow : (flowNames[0] ?? "")
   const selectedImpact = impactNames.includes(impact) ? impact : (impactNames[0] ?? "")
   const category = result.process_contributions.categories.find((item) => item.label === selectedImpact || item.id === selectedImpact)
-  const processNodes = result.sankey.nodes.filter((node) => node.kind === "process" || node.kind === "final_product")
+  const processNodes = result.sankey.nodes.filter((node) => node.kind === "process")
   const processIds = new Set(processNodes.map((node) => node.id))
   const links = result.sankey.links.filter((link) => processIds.has(link.source) && processIds.has(link.target))
   const incoming = new Map<string, typeof links>()
@@ -565,11 +565,11 @@ function SankeyView({ result }: { result: LcaResult }) {
   })
   const width = 1200
   const nodeWidth = 300
-  const rowGap = 170
+  const rowGap = 205
   const positions = new Map<string, { x: number; y: number }>()
   rows.forEach((nodesInRow, row) => nodesInRow.forEach((node, index) => positions.set(node.id, {
-    x: orientation === "vertical" ? (index + 1) * width / (nodesInRow.length + 1) - nodeWidth / 2 : row * 360,
-    y: orientation === "vertical" ? row * rowGap : index * 145,
+    x: orientation === "vertical" ? (index + 1) * width / (nodesInRow.length + 1) - nodeWidth / 2 : row * 410,
+    y: orientation === "vertical" ? row * rowGap : index * 170,
   })))
   const unit = mode === "impact" ? (category?.unit ?? result.lcia[selectedImpact]?.unit ?? "") : (result.lci[selectedFlow]?.unit ?? "")
   const format = (value: number) => new Intl.NumberFormat("en", { maximumSignificantDigits: 4 }).format(value)
