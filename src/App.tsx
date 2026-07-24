@@ -160,8 +160,10 @@ const cleanImpactProcessName = (name: string) => name.replace(/^(?:p?\d+)\s*[:.\
 const normalizedFlow = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
 const impactFactor = (category: string, flow: string) => {
   const indicator = impactCategoryAbbreviation(category).toUpperCase()
+  const normalizedCategory = normalizedFlow(category)
   const normalized = normalizedFlow(flow)
-  if (indicator === "GWP") {
+  const isGlobalWarming = /^GWP(?:\d+)?$/.test(indicator) || /global warming|climate change/.test(normalizedCategory)
+  if (isGlobalWarming) {
     if (/carbon dioxide|\bco2\b/.test(normalized)) return 1
     if (/methane|\bch4\b/.test(normalized)) return 25
   }
