@@ -49,6 +49,7 @@ export function buildInventoryRequirements(source: string, scalingVector: Record
 
 export const nodeScopeColors = { foreground: "#a78bfa", background: "#38bdf8" }
 const round = (value: number) => Number(value.toFixed(6))
+const displayNumber = (value: number) => value.toFixed(5)
 const idFor = (name: string, index: number) => `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "process"}-${index}`
 const backgroundKeyFor = (input: FlowAmount) => input.code
   ? `${input.database}\u001f${input.code}`
@@ -135,7 +136,7 @@ export function buildGraphFromYaml(
         color: nodeScopeColors.foreground,
         scope: "foreground",
         detail: mode === "scaled"
-          ? `Scaled contribution: ${outputAmount} ${outputUnit} ${process.reference_output.flow}`
+          ? `Scaled contribution: ${displayNumber(outputAmount)} ${outputUnit} ${process.reference_output.flow}`
           : `Output flow: ${process.reference_output.flow}`,
         showAmounts: mode === "scaled",
         emissions: (process.emissions ?? []).map((emission) => ({ label: chemicalFlowLabel(emission.flow), amount: round(emission.amount * scale), unit: "kg" })),
@@ -178,7 +179,7 @@ export function buildGraphFromYaml(
       const unit = input.unit ?? productUnits.get(input.flow)
       edges.push({
         id: `${source}-${ids.get(consumer.name)}-${consumerIndex}-${inputIndex}`,
-        source, target: ids.get(consumer.name)!, label: mode === "scaled" ? `${input.flow} · ${amount}${unit ? ` ${unit}` : ""}` : input.flow,
+        source, target: ids.get(consumer.name)!, label: mode === "scaled" ? `${input.flow} · ${displayNumber(amount)}${unit ? ` ${unit}` : ""}` : input.flow,
         style: { stroke: "#343941", strokeWidth: 1.5 },
         labelStyle: { fill: "#9aa2ae", fontSize: 12, fontWeight: 650 },
         labelBgStyle: { fill: "#111318", fillOpacity: 0.92 }, labelBgPadding: [5, 3], labelBgBorderRadius: 4,
