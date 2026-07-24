@@ -658,6 +658,20 @@ function SankeyView({ result }: { result: LcaResult }) {
         <ToolButton label="Zoom out" onClick={() => instanceRef.current?.zoomOut({ duration: 200 })}><Minus size={18} /></ToolButton>
       </div>
     </div> : null}
+    <div className="sankey-selection-summary" aria-label="Active Sankey settings">
+      <div className="sankey-selection-title">
+        {mode === "impact" ? <BarChart3 size={14} /> : <span className="flow-dot output" />}
+        <span>{mode === "impact" ? "Impact category" : "Flow"}</span>
+      </div>
+      <strong>{mode === "impact" ? impactCategoryAbbreviation(selectedImpact) : inventoryFlowName(selectedFlow)}</strong>
+      <span className="sankey-selection-result">{format(selectedTotal)} {unit}</span>
+      <dl>
+        <div><dt>Min. contribution</dt><dd>{minContribution}%</dd></div>
+        <div><dt>Max. processes</dt><dd>{maxProcesses}</dd></div>
+        <div><dt>Orientation</dt><dd>{orientation}</dd></div>
+        <div><dt>Connections</dt><dd>{connectionStyle}</dd></div>
+      </dl>
+    </div>
   </div>
 }
 
