@@ -203,7 +203,7 @@ export async function getBackgroundActivityDetails({
   }
 }
 
-const formatNumber = (value: number) => new Intl.NumberFormat("en", { maximumSignificantDigits: 6 }).format(value)
+const formatNumber = (value: number) => new Intl.NumberFormat("en", { minimumFractionDigits: 5, maximumFractionDigits: 5 }).format(value)
 const cell = (value: string) => value.replaceAll("|", "\\|").replaceAll("\n", " ")
 const inventoryFlowLabel = (name: string) => {
   const base = name.split(/[|,]/)[0].trim()

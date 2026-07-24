@@ -95,7 +95,7 @@ const caseStudies = {
 } as const
 type CaseStudyId = keyof typeof caseStudies
 
-const inventoryNumber = new Intl.NumberFormat("en", { minimumFractionDigits: 5, maximumFractionDigits: 8 })
+const inventoryNumber = new Intl.NumberFormat("en", { minimumFractionDigits: 5, maximumFractionDigits: 5 })
 const processResultNumber = new Intl.NumberFormat("en", { minimumFractionDigits: 5, maximumFractionDigits: 5 })
 const isInventoryInput = (type: string) => /resource|extraction|input/i.test(type)
 const inventoryFlowName = (name: string) => {
@@ -418,7 +418,7 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
     </details>
     <details open><summary>Impact assessment results</summary>
       <div className="process-results-controls"><label>Process <select value={selectedId} onChange={(event) => setProcessId(event.target.value)}>{processNodes.map((node) => <option key={node.id} value={node.id}>{cleanImpactProcessName(node.process_name ?? node.label)}</option>)}</select></label><label>Don’t show &lt; <input type="number" min="0" max="100" step="0.01" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label></div>
-      <div className="process-impact-table-wrap"><table className="process-impact-table"><thead><tr><th>Contribution</th><th>Impact category</th><th>Upstream incl. direct</th><th>Direct</th><th>Unit</th></tr></thead><tbody>{impactRows.map((row) => <tr key={row.category.id || row.category.label}><td><span className="process-result-bar"><i style={{ width: `${Math.min(100, Math.abs(row.contribution))}%` }} /></span>{row.contribution.toFixed(2)}%</td><td>{impactCategoryAbbreviation(row.category.label)}</td><td>{processResultNumber.format(row.upstream)}</td><td>{processResultNumber.format(row.direct)}</td><td>{row.category.unit}</td></tr>)}</tbody></table></div>
+      <div className="process-impact-table-wrap"><table className="process-impact-table"><thead><tr><th>Contribution</th><th>Impact category</th><th>Upstream incl. direct</th><th>Direct</th><th>Unit</th></tr></thead><tbody>{impactRows.map((row) => <tr key={row.category.id || row.category.label}><td><span className="process-result-bar"><i style={{ width: `${Math.min(100, Math.abs(row.contribution))}%` }} /></span>{row.contribution.toFixed(5)}%</td><td>{impactCategoryAbbreviation(row.category.label)}</td><td>{processResultNumber.format(row.upstream)}</td><td>{processResultNumber.format(row.direct)}</td><td>{row.category.unit}</td></tr>)}</tbody></table></div>
     </details>
   </div>
 }
@@ -490,7 +490,7 @@ function ContributionView({ result, yaml, isCurrent, error }: {
   const maxMagnitude = Math.max(Math.abs(total), ...rows.map((row) => Math.abs(row.total)), 1e-30)
   const requiredTotal = rows.reduce((sum, row) => sum + Math.abs(row.required ?? 0), 0)
   const number = (value: number | undefined) => value === undefined ? "—" : inventoryNumber.format(value)
-  const rate = (value: number) => value.toFixed(2)
+  const rate = (value: number) => value.toFixed(5)
   let contributionGraph: ReturnType<typeof buildGraphFromYaml> | null = null
   try { contributionGraph = buildGraphFromYaml(yaml, "structure") } catch { contributionGraph = null }
   const graphNameById = new Map(contributionGraph?.nodes.map((node) => [node.id, cleanProcessName(node.data.label)]) ?? [])
@@ -658,7 +658,7 @@ function SankeyView({ result }: { result: LcaResult }) {
     y: orientation === "vertical" ? row * rowGap : index * 170,
   })))
   const unit = mode === "impact" ? (category?.unit ?? result.lcia[selectedImpact]?.unit ?? "") : (result.lci[selectedFlow]?.unit ?? "")
-  const format = (value: number) => new Intl.NumberFormat("en", { maximumSignificantDigits: 4 }).format(value)
+  const format = (value: number) => inventoryNumber.format(value)
   const percentage = (value: number) => selectedTotal ? value / selectedTotal * 100 : 0
   const sankeyNodes: Node<SankeyProcessNodeData>[] = visibleNodes.map((node) => {
     const own = direct.get(node.id) ?? 0
@@ -670,8 +670,8 @@ function SankeyView({ result }: { result: LcaResult }) {
       position: positions.get(node.id) ?? { x: 0, y: 0 },
       data: {
         label: node.label,
-        direct: `Direct (${ownPercentage === null || ownPercentage === undefined ? "—" : `${ownPercentage.toFixed(2)}%`}): ${format(own)} ${unit}`,
-        upstream: `Upstream (${percentage(total).toFixed(2)}%): ${format(total)} ${unit}`,
+        direct: `Direct (${ownPercentage === null || ownPercentage === undefined ? "—" : `${ownPercentage.toFixed(5)}%`}): ${format(own)} ${unit}`,
+        upstream: `Upstream (${percentage(total).toFixed(5)}%): ${format(total)} ${unit}`,
         orientation,
         scope: node.scope ?? "foreground",
       },
@@ -1239,15 +1239,15 @@ function GraphEditor() {
             {selectedNode.data.backgroundError ? <div className="property-section"><p className="property-error">{selectedNode.data.backgroundError}</p></div> : null}
             <div className="property-section">
               <h3>Direct inputs</h3>
-              {selectedNode.data.inputs?.length ? selectedNode.data.inputs.map((item, index) => <div className="property-row" key={`${item.label}-${index}`}><span>{item.label}</span>{item.amount === undefined ? null : <strong>{item.amount}{item.unit ? ` ${item.unit}` : ""}</strong>}</div>) : <p>No technosphere inputs</p>}
+              {selectedNode.data.inputs?.length ? selectedNode.data.inputs.map((item, index) => <div className="property-row" key={`${item.label}-${index}`}><span>{item.label}</span>{item.amount === undefined ? null : <strong>{inventoryNumber.format(item.amount)}{item.unit ? ` ${item.unit}` : ""}</strong>}</div>) : <p>No technosphere inputs</p>}
             </div>
             <div className="property-section">
               <h3>Reference output</h3>
-              {selectedNode.data.outputs?.length ? selectedNode.data.outputs.map((item, index) => <div className="property-row" key={`${item.label}-${index}`}><span>{item.label}</span>{item.amount === undefined ? null : <strong>{item.amount}{item.unit ? ` ${item.unit}` : ""}</strong>}</div>) : <p>No production exchange</p>}
+              {selectedNode.data.outputs?.length ? selectedNode.data.outputs.map((item, index) => <div className="property-row" key={`${item.label}-${index}`}><span>{item.label}</span>{item.amount === undefined ? null : <strong>{inventoryNumber.format(item.amount)}{item.unit ? ` ${item.unit}` : ""}</strong>}</div>) : <p>No production exchange</p>}
             </div>
             {selectedNode.data.biosphere?.length ? <div className="property-section is-emission">
               <h3>Biosphere exchanges</h3>
-              {selectedNode.data.biosphere.map((item, index) => <div className="property-row" key={`${item.label}-${index}`}><span>{item.label}</span>{item.amount === undefined ? null : <strong>{item.amount}{item.unit ? ` ${item.unit}` : ""}</strong>}</div>)}
+              {selectedNode.data.biosphere.map((item, index) => <div className="property-row" key={`${item.label}-${index}`}><span>{item.label}</span>{item.amount === undefined ? null : <strong>{inventoryNumber.format(item.amount)}{item.unit ? ` ${item.unit}` : ""}</strong>}</div>)}
             </div> : null}
           </> : <>
             <div className="property-section">
@@ -1260,11 +1260,11 @@ function GraphEditor() {
             </div>
             {selectedNode?.data.extractions?.length ? <div className="property-section is-extraction">
               <h3>Resource extractions</h3>
-              {selectedNode.data.extractions.map((item) => <div className="property-row" key={item.label}><span>{item.label}</span>{selectedNode.data.showAmounts !== false ? <strong>{item.amount} {item.unit}</strong> : null}</div>)}
+              {selectedNode.data.extractions.map((item) => <div className="property-row" key={item.label}><span>{item.label}</span>{selectedNode.data.showAmounts !== false ? <strong>{inventoryNumber.format(item.amount ?? 0)} {item.unit}</strong> : null}</div>)}
             </div> : null}
             {selectedNode?.data.emissions?.length ? <div className="property-section is-emission">
               <h3>Emissions to air</h3>
-              {selectedNode.data.emissions.map((item) => <div className="property-row" key={item.label}><span>{item.label}</span>{selectedNode.data.showAmounts !== false ? <strong>{item.amount} {item.unit}</strong> : null}</div>)}
+              {selectedNode.data.emissions.map((item) => <div className="property-row" key={item.label}><span>{item.label}</span>{selectedNode.data.showAmounts !== false ? <strong>{inventoryNumber.format(item.amount ?? 0)} {item.unit}</strong> : null}</div>)}
             </div> : null}
           </>}
         </>
