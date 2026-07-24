@@ -47,7 +47,7 @@ type SankeyProcessNodeData = {
 function SankeyProcessNode({ data }: NodeProps<Node<SankeyProcessNodeData>>) {
   return <div className="pg-node is-expanded sankey-process-node" style={{ "--node-color": nodeScopeColors[data.scope] } as React.CSSProperties}>
     <Handle type="target" position={data.orientation === "vertical" ? Position.Bottom : Position.Right} />
-    <div className="pg-node-head"><Component size={14} /><span className="pg-node-label">{data.label}</span><small className="pg-node-scope">{data.scope}</small></div>
+    <div className="pg-node-head"><Component size={14} /><span className="pg-node-label">{data.label}</span><small className={`pg-node-scope is-${data.scope}`}>{data.scope}</small></div>
     <div className="sankey-process-metrics">
       <div>{data.direct}</div>
       <div>{data.upstream}</div>
