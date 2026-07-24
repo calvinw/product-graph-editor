@@ -258,7 +258,7 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
           .sort((left, right) => Math.abs(right.direct_score) - Math.abs(left.direct_score))
         return <Fragment key={categoryId}>
           <tr className="impact-category-row" onClick={() => toggleCategory(categoryId)}>
-            <td><button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-label={`${isOpen ? "Collapse" : "Expand"} ${category.label}`}><ChevronDown size={14} /></button><BarChart3 className="impact-category-icon" size={17} /> <strong>{impactCategoryAbbreviation(category.label)}</strong></td>
+            <td><div className="impact-category-name"><button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-label={`${isOpen ? "Collapse" : "Expand"} ${category.label}`}><ChevronDown size={14} /></button><BarChart3 className="impact-category-icon" size={17} /><strong>{impactCategoryAbbreviation(category.label)}</strong></div></td>
             <td /><td /><td /><td><span className="impact-result">{inventoryNumber.format(category.total_score)} <small>{category.unit}</small></span></td>
           </tr>
           {isOpen && subgroup === "processes" ? processes.flatMap((process) => {
@@ -1145,7 +1145,7 @@ function GraphEditor() {
             {view === "graph" ? <div className="search"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a node…" aria-label="Find a node" /><kbd>⌘ K</kbd></div> : null}
             <div className="view-tabs" role="tablist" aria-label="Graph views">
               <button className={view === "graph" ? "is-active" : ""} onClick={() => setView("graph")}>Graph</button>
-              <button className={view === "yaml" ? "is-active" : ""} onClick={() => setView("yaml")}>YAML</button>
+              <button className={view === "yaml" ? "is-active" : ""} onClick={() => setView("yaml")}>FILE</button>
               <button className={view === "results" ? "is-active" : ""} onClick={() => setView("results")}>LCA Results</button>
               {hasCurrentResults ? <>
                 <button className={view === "inventory" ? "is-active" : ""} onClick={() => setView("inventory")}>Inventory</button>
