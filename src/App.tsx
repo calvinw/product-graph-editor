@@ -1184,14 +1184,17 @@ function GraphEditor() {
         >
           <Background variant={BackgroundVariant.Dots} gap={22} size={1} color={theme === "dark" ? "#242831" : "#cbd5e1"} />
         </ReactFlow>
-        {graphSettingsOpen ? <div className="graph-settings-picker">
-          <div className="graph-settings-title"><Settings2 size={14} />Graph settings</div>
-          <div className="sankey-settings-grid">
-            <label><span>Max. number of processes</span><div className="sankey-stepper"><button type="button" aria-label="Decrease graph maximum processes" onClick={() => { const value = Math.max(1, graphMaxProcesses - 1); setGraphMaxProcesses(value); applyGraphSettings({ maximum: value }) }}>−</button><input type="number" min="1" max={availableGraphProcessCount} step="1" value={graphMaxProcesses} onChange={(event) => { const value = Math.min(availableGraphProcessCount, Math.max(1, Math.floor(Number(event.target.value)) || 1)); setGraphMaxProcesses(value); applyGraphSettings({ maximum: value }) }} /><button type="button" aria-label="Increase graph maximum processes" onClick={() => { const value = Math.min(availableGraphProcessCount, graphMaxProcesses + 1); setGraphMaxProcesses(value); applyGraphSettings({ maximum: value }) }}>+</button></div></label>
-            <label><span>Orientation</span><select value={graphOrientation} onChange={(event) => { const value = event.target.value as "vertical" | "horizontal"; setGraphOrientation(value); applyGraphSettings({ orientation: value }) }}><option value="vertical">Vertical</option><option value="horizontal">Horizontal</option></select></label>
-            <label><span>Connections</span><select value={graphConnectionStyle} onChange={(event) => { const value = event.target.value as "curved" | "straight" | "step"; setGraphConnectionStyle(value); applyGraphSettings({ connectionStyle: value }) }}><option value="curved">Curved</option><option value="straight">Straight</option><option value="step">Step</option></select></label>
+        {graphSettingsOpen ? <>
+          <div className="graph-settings-backdrop" onClick={() => setGraphSettingsOpen(false)} aria-hidden="true" />
+          <div className="graph-settings-picker">
+            <div className="graph-settings-title"><div><Settings2 size={15} /><span>Graph settings</span></div><button type="button" onClick={() => setGraphSettingsOpen(false)} aria-label="Close graph settings"><X size={15} /></button></div>
+            <div className="graph-settings-grid">
+              <label><span>Max. number of processes</span><div className="sankey-stepper"><button type="button" aria-label="Decrease graph maximum processes" onClick={() => { const value = Math.max(1, graphMaxProcesses - 1); setGraphMaxProcesses(value); applyGraphSettings({ maximum: value }) }}>−</button><input type="number" min="1" max={availableGraphProcessCount} step="1" value={graphMaxProcesses} onChange={(event) => { const value = Math.min(availableGraphProcessCount, Math.max(1, Math.floor(Number(event.target.value)) || 1)); setGraphMaxProcesses(value); applyGraphSettings({ maximum: value }) }} /><button type="button" aria-label="Increase graph maximum processes" onClick={() => { const value = Math.min(availableGraphProcessCount, graphMaxProcesses + 1); setGraphMaxProcesses(value); applyGraphSettings({ maximum: value }) }}>+</button></div></label>
+              <label><span>Orientation</span><select value={graphOrientation} onChange={(event) => { const value = event.target.value as "vertical" | "horizontal"; setGraphOrientation(value); applyGraphSettings({ orientation: value }) }}><option value="vertical">Vertical</option><option value="horizontal">Horizontal</option></select></label>
+              <label><span>Connections</span><select value={graphConnectionStyle} onChange={(event) => { const value = event.target.value as "curved" | "straight" | "step"; setGraphConnectionStyle(value); applyGraphSettings({ connectionStyle: value }) }}><option value="curved">Curved</option><option value="straight">Straight</option><option value="step">Step</option></select></label>
+            </div>
           </div>
-        </div> : null}
+        </> : null}
         <div className="graph-toolbar" aria-label="Graph tools">
           <div className="toolbar-group">
             <ToolButton label="Graph settings" onClick={() => setGraphSettingsOpen((open) => !open)}><Settings2 size={18} /></ToolButton>
