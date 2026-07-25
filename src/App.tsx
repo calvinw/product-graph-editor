@@ -818,6 +818,17 @@ function GraphEditor() {
   useEffect(() => {
     if (lcaResult) setResultsMarkdown(lcaResultToMarkdown(lcaResult, decimalPlaces))
   }, [decimalPlaces, lcaResult])
+  useEffect(() => {
+    try {
+      const currentResult = calculatedYaml === yamlText ? lcaResult : null
+      const mode = graphMode === "scaled" && currentResult ? "scaled" : "structure"
+      const refreshedEdges = buildGraphFromYaml(yamlText, mode, currentResult?.scaling_vector, decimalPlaces).edges
+      const labelsById = new Map(refreshedEdges.map((edge) => [edge.id, edge.label]))
+      setEdges((current) => current.map((edge) => labelsById.has(edge.id) ? { ...edge, label: labelsById.get(edge.id) } : edge))
+    } catch {
+      // Keep the currently displayed graph intact while the YAML editor contains invalid input.
+    }
+  }, [decimalPlaces])
 
   const removeNode = useCallback((id: string) => {
     const folded = new Set<string>()
