@@ -1297,22 +1297,25 @@ function AppContent() {
           <div className="top-actions">
             <button className={`global-settings-trigger ${settingsOpen ? "is-active" : ""}`} type="button" onClick={() => setSettingsOpen((open) => !open)} aria-expanded={settingsOpen} aria-label="Global settings"><Settings2 size={16} /><span>Settings</span></button>
           </div>
-          {settingsOpen ? <div className="global-settings-panel">
-            <div className="global-settings-title"><div><Settings2 size={15} /><span>Global settings</span></div><button type="button" onClick={() => setSettingsOpen(false)} aria-label="Close global settings"><X size={15} /></button></div>
-            <div className="global-setting-field">
-              <span>Decimal places</span>
-              <p>Applied to numerical results across the workspace.</p>
-              <div className="sankey-stepper"><button type="button" onClick={() => setDecimalPlaces(decimalPlaces - 1)} aria-label="Decrease decimal places">−</button><input type="number" min="0" max="8" step="1" value={decimalPlaces} onChange={(event) => setDecimalPlaces(Number(event.target.value) || 0)} /><button type="button" onClick={() => setDecimalPlaces(decimalPlaces + 1)} aria-label="Increase decimal places">+</button></div>
-            </div>
-            <div className="global-setting-field">
-              <span>Appearance</span>
-              <p>Choose the workspace color theme.</p>
-              <div className="theme-options">
-                <button type="button" className={theme === "dark" ? "is-active" : ""} onClick={() => setTheme("dark")}><Moon size={14} />Dark</button>
-                <button type="button" className={theme === "light" ? "is-active" : ""} onClick={() => setTheme("light")}><Sun size={14} />Light</button>
+          {settingsOpen ? <>
+            <div className="global-settings-backdrop" onClick={() => setSettingsOpen(false)} aria-hidden="true" />
+            <div className="global-settings-panel">
+              <div className="global-settings-title"><div><Settings2 size={15} /><span>Global settings</span></div><button type="button" onClick={() => setSettingsOpen(false)} aria-label="Close global settings"><X size={15} /></button></div>
+              <div className="global-setting-field">
+                <span>Decimal places</span>
+                <p>Applied to numerical results across the workspace.</p>
+                <div className="sankey-stepper"><button type="button" onClick={() => setDecimalPlaces(decimalPlaces - 1)} aria-label="Decrease decimal places">−</button><input type="number" min="0" max="8" step="1" value={decimalPlaces} onChange={(event) => setDecimalPlaces(Number(event.target.value) || 0)} /><button type="button" onClick={() => setDecimalPlaces(decimalPlaces + 1)} aria-label="Increase decimal places">+</button></div>
+              </div>
+              <div className="global-setting-field">
+                <span>Appearance</span>
+                <p>Choose the workspace color theme.</p>
+                <div className="theme-options">
+                  <button type="button" className={theme === "dark" ? "is-active" : ""} onClick={() => setTheme("dark")}><Moon size={14} />Dark</button>
+                  <button type="button" className={theme === "light" ? "is-active" : ""} onClick={() => setTheme("light")}><Sun size={14} />Light</button>
+                </div>
               </div>
             </div>
-          </div> : null}
+          </> : null}
         </header>
 
         <section className="workspace">
