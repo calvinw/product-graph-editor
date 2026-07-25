@@ -557,7 +557,7 @@ function ContributionView({ result, yaml, isCurrent, error }: {
 }
 
 function SankeyView({ result }: { result: LcaResult }) {
-  const { formatNumber, formatPercent } = useDisplaySettings()
+  const { decimalPlaces, formatNumber, formatPercent } = useDisplaySettings()
   const availableProcessCount = result.sankey.nodes.filter((node) => node.kind === "process").length
   const [mode, setMode] = useState<"flow" | "impact">("impact")
   const [flow, setFlow] = useState("")
@@ -699,7 +699,7 @@ function SankeyView({ result }: { result: LcaResult }) {
     if (!instanceRef.current) return
     instanceRef.current.setNodes(sankeyNodes)
     instanceRef.current.setEdges(sankeyEdges)
-  }, [mode, selectedFlow, selectedImpact, minContribution, maxProcesses, orientation, connectionStyle])
+  }, [mode, selectedFlow, selectedImpact, minContribution, maxProcesses, orientation, connectionStyle, decimalPlaces])
 
   const fitSankey = () => instanceRef.current?.fitView({ padding: .4, maxZoom: .68, duration: 350 })
 
