@@ -434,7 +434,7 @@ function ContributionView({ result, yaml, isCurrent, error }: {
   error: string
 }) {
   const { formatNumber, formatPercent } = useDisplaySettings()
-  const [mode, setMode] = useState<"flow" | "impact" | null>(null)
+  const [mode, setMode] = useState<"flow" | "impact" | null>("impact")
   const [flow, setFlow] = useState("")
   const [impact, setImpact] = useState("")
   const [expanded, setExpanded] = useState(false)
@@ -447,7 +447,11 @@ function ContributionView({ result, yaml, isCurrent, error }: {
     return unique
   }, new Map<string, string>()).values()] : []
   const selectedFlow = flowNames.includes(flow) ? flow : (flowNames[0] ?? "")
-  const selectedImpact = impactNames.includes(impact) ? impact : (impactNames[0] ?? "")
+  const defaultImpact = impactNames.find((name) => impactCategoryAbbreviation(name).replaceAll(/\s+/g, "").toUpperCase() === "GWP100")
+    ?? impactNames.find((name) => /global warming|climate change/i.test(name))
+    ?? impactNames[0]
+    ?? ""
+  const selectedImpact = impactNames.includes(impact) ? impact : defaultImpact
   const contributionFlowLabel = (name: string) => {
     const abbreviation = chemicalFlowLabel(name.split(/[|,]/)[0].trim())
       .replaceAll("₂", "2")
