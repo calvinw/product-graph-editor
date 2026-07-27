@@ -4,7 +4,7 @@
 
 Revised after feasibility review on July 27, 2026.
 
-PR 0 guardrails, PR 1a CLI foundation, the prerequisite YAML consistency work, PR 1b semantic tokens, PR 1c Button/Tooltip primitives, PR 2 selection controls, and PR 3 form controls are implemented on `shadcn-conversion`. PR 4 and later component migrations remain pending.
+PR 0 guardrails, PR 1a CLI foundation, the prerequisite YAML consistency work, PR 1b semantic tokens, PR 1c Button/Tooltip primitives, PR 2 selection controls, PR 3 form controls, and PR 4 settings Popovers are implemented on `shadcn-conversion`. Only the optional cleanup and separate responsive follow-up remain.
 
 ## Objective
 

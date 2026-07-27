@@ -238,6 +238,37 @@ test("form controls preserve selection, clamping, and disabled behavior", async 
   await expect(page.getByText("Unapplied changes. Preview changes before calculating.")).toBeVisible()
 })
 
+test("settings popovers dismiss predictably and restore trigger focus", async ({ page }) => {
+  await mockLcaApi(page)
+  await page.goto("/")
+
+  const graphSettings = page.getByRole("button", { name: "Graph settings" })
+  await graphSettings.click()
+  await page.getByRole("combobox", { name: "Graph orientation" }).click()
+  await expect(page.getByRole("listbox")).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("listbox")).toBeHidden()
+  await expect(page.locator(".graph-settings-picker")).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(page.locator(".graph-settings-picker")).toBeHidden()
+  await expect(graphSettings).toBeFocused()
+
+  await graphSettings.click()
+  await page.mouse.click(700, 700)
+  await expect(page.locator(".graph-settings-picker")).toBeHidden()
+
+  const globalSettings = page.getByRole("button", { name: "Global settings" })
+  await globalSettings.click()
+  await page.keyboard.press("Escape")
+  await expect(page.locator(".global-settings-panel")).toBeHidden()
+  await expect(globalSettings).toBeFocused()
+
+  await globalSettings.click()
+  await page.mouse.click(700, 700)
+  await expect(page.locator(".global-settings-panel")).toBeHidden()
+  await expect(page.locator(".global-settings-backdrop, .graph-settings-backdrop")).toHaveCount(0)
+})
+
 for (const theme of ["dark", "light"] as const) {
   test(`${theme} application views`, async ({ page }) => {
     await mockLcaApi(page)
