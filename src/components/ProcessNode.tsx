@@ -25,6 +25,7 @@ export type ProcessNodeData = {
   extractions?: InventoryItem[]
   biosphere?: InventoryItem[]
   backgroundLoading?: boolean
+  backgroundExploring?: boolean
   backgroundLoaded?: boolean
   backgroundError?: string
   backgroundParentId?: string

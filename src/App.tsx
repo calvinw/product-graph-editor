@@ -1097,7 +1097,7 @@ function GraphEditor() {
 
   const toggleBackgroundBranch = useCallback(async (nodeId: string) => {
     const node = nodesRef.current.find((candidate) => candidate.id === nodeId)
-    if (!node || node.data.scope !== "background" || !node.data.database || node.data.backgroundLoading) return
+    if (!node || node.data.scope !== "background" || !node.data.database || node.data.backgroundExploring) return
 
     if (node.data.backgroundExplored) {
       const descendants = new Set<string>()
@@ -1121,7 +1121,7 @@ function GraphEditor() {
     }
 
     setNodes((current) => current.map((candidate) => candidate.id === nodeId
-      ? { ...candidate, data: { ...candidate.data, backgroundLoading: true, backgroundError: undefined } }
+      ? { ...candidate, data: { ...candidate.data, expanded: true, backgroundLoading: true, backgroundExploring: true, backgroundError: undefined } }
       : candidate))
     try {
       const details = await getBackgroundActivityDetails({
@@ -1194,6 +1194,7 @@ function GraphEditor() {
           outputs,
           biosphere,
           backgroundLoading: false,
+          backgroundExploring: false,
           backgroundLoaded: true,
           backgroundExplored: true,
         },
@@ -1208,6 +1209,7 @@ function GraphEditor() {
         ? { ...candidate, data: {
             ...candidate.data,
             backgroundLoading: false,
+            backgroundExploring: false,
             backgroundError: error instanceof Error ? error.message : "Could not load this background activity.",
           } }
         : candidate))
