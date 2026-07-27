@@ -18,7 +18,10 @@ import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
 import { chemicalFlowLabel } from "./lib/flowLabels"
 import { buildGraphFromYaml, buildInventoryRequirements, nodeScopeColors } from "./lib/yamlGraph"
-import { calculateLca, getBackgroundActivityDetails, impactCategoryAbbreviation, impactCategoryDisplayName, lcaResultToMarkdown, type LcaResult } from "./lib/lcaApi"
+import {
+  calculateLca, getBackgroundActivityDetails, impactCategoryAbbreviation, impactCategoryDisplayName, lcaResultToMarkdown,
+  type ContributionGraphEdge, type ContributionGraphFlow, type ContributionGraphNode, type LcaResult,
+} from "./lib/lcaApi"
 import { unitsAreCompatible } from "./lib/units"
 import { DisplaySettingsProvider, useDisplaySettings } from "./lib/displaySettings"
 import jacketYaml from "../case_studies/jacket.yaml?raw"
@@ -449,11 +452,7 @@ function ContributionView({ result, yaml, isCurrent, error }: {
   const [expandedProcesses, setExpandedProcesses] = useState<Set<string>>(() => new Set())
 
   const flowNames = result ? Object.keys(result.lci) : []
-  const impactNames = result ? [...Object.entries(result.lcia).filter(([, value]) => value.score !== 0).reduce((unique, [name, value]) => {
-    const key = name
-    if (!unique.has(key)) unique.set(key, name)
-    return unique
-  }, new Map<string, string>()).values()] : []
+  const impactNames = result ? Object.keys(result.lcia) : []
   const selectedFlow = flowNames.includes(flow) ? flow : (flowNames[0] ?? "")
   const defaultImpact = impactNames.find((name) => impactCategoryAbbreviation(name).replaceAll(/\s+/g, "").toUpperCase() === "GWP100")
     ?? impactNames.find((name) => /global warming|climate change/i.test(name))
@@ -475,6 +474,9 @@ function ContributionView({ result, yaml, isCurrent, error }: {
   </div>
 
   const category = result.process_contributions.categories.find((item) => item.label === selectedImpact || item.id === selectedImpact)
+  const selectedContributionGraph = mode === "impact"
+    ? result.contribution_graphs.find((item) => item.label === selectedImpact)
+    : undefined
   let requirements: ReturnType<typeof buildInventoryRequirements> = []
   try { requirements = buildInventoryRequirements(yaml, result.scaling_vector) } catch { requirements = [] }
   const impactTotal = result.lcia[selectedImpact]
@@ -507,11 +509,11 @@ function ContributionView({ result, yaml, isCurrent, error }: {
   const maxMagnitude = Math.max(Math.abs(total), ...rows.map((row) => Math.abs(row.total)), 1e-30)
   const requiredTotal = rows.reduce((sum, row) => sum + Math.abs(row.required ?? 0), 0)
   const number = (value: number | undefined) => value === undefined ? "—" : formatNumber(value)
-  let contributionGraph: ReturnType<typeof buildGraphFromYaml> | null = null
-  try { contributionGraph = buildGraphFromYaml(yaml, "structure") } catch { contributionGraph = null }
-  const graphNameById = new Map(contributionGraph?.nodes.map((node) => [node.id, cleanProcessName(node.data.label)]) ?? [])
+  let legacyGraph: ReturnType<typeof buildGraphFromYaml> | null = null
+  try { legacyGraph = buildGraphFromYaml(yaml, "structure") } catch { legacyGraph = null }
+  const graphNameById = new Map(legacyGraph?.nodes.map((node) => [node.id, cleanProcessName(node.data.label)]) ?? [])
   const upstreamByName = new Map<string, string[]>()
-  contributionGraph?.edges.forEach((edge) => {
+  legacyGraph?.edges.forEach((edge) => {
     const consumer = graphNameById.get(edge.target)
     const supplier = graphNameById.get(edge.source)
     if (!consumer || !supplier) return
@@ -520,9 +522,9 @@ function ContributionView({ result, yaml, isCurrent, error }: {
   const rowByName = new Map(rows.map((row) => [row.name.toLowerCase(), row]))
   const suppliedNames = new Set([...upstreamByName.values()].flat().map((name) => name.toLowerCase()))
   const rootRows = rows.filter((row) => !suppliedNames.has(row.name.toLowerCase()))
-  const toggleProcess = (name: string) => setExpandedProcesses((current) => {
+  const toggleProcess = (key: string) => setExpandedProcesses((current) => {
     const next = new Set(current)
-    if (next.has(name)) next.delete(name); else next.add(name)
+    if (next.has(key)) next.delete(key); else next.add(key)
     return next
   })
   const ownValue = (row: (typeof rows)[number]) => mode === "impact" ? row.total : Math.abs(row.required ?? 0)
@@ -552,18 +554,119 @@ function ContributionView({ result, yaml, isCurrent, error }: {
     return isOpen ? [processRow, ...renderContributionRows(upstream, depth + 1)] : [processRow]
   })
 
+  const graphNodesById = new Map(selectedContributionGraph?.nodes.map((node) => [node.id, node]) ?? [])
+  const graphChildren = new Map<string, Array<{ node: ContributionGraphNode; edge: ContributionGraphEdge }>>()
+  selectedContributionGraph?.edges.forEach((edge) => {
+    const node = graphNodesById.get(edge.producer_id)
+    if (!node) return
+    graphChildren.set(edge.consumer_id, [...(graphChildren.get(edge.consumer_id) ?? []), { node, edge }])
+  })
+  const graphFlows = new Map<string, ContributionGraphFlow[]>()
+  selectedContributionGraph?.flows.forEach((item) => {
+    graphFlows.set(item.process_occurrence_id, [...(graphFlows.get(item.process_occurrence_id) ?? []), item])
+  })
+  const graphRoot = selectedContributionGraph?.nodes.find((node) => node.kind === "functional_unit")
+  const graphFallbackRoots = selectedContributionGraph?.nodes.filter((node) => (
+    node.kind === "process"
+    && !selectedContributionGraph.edges.some((edge) => edge.producer_id === node.id)
+  )) ?? []
+  const graphTolerance = selectedContributionGraph
+    ? Math.max(1e-12, Math.abs(selectedContributionGraph.total_score) * 1e-9)
+    : 1e-12
+  const isMaterial = (value: number) => Math.abs(value) > graphTolerance
+
+  const renderFlowRows = (items: ContributionGraphFlow[], depth: number) => items.map((item) => <tr className={`contribution-flow-row is-${item.kind}`} key={item.id}>
+    <td><span className="rate-value">{item.percentage === null ? "—" : formatPercent(item.percentage)}</span></td>
+    <td style={{ paddingLeft: `${29 + depth * 20}px` }} title={item.categories.join(" · ")}><Leaf size={13} /><span>{inventoryFlowName(item.flow_name)}</span><small>{item.kind}</small></td>
+    <td>{number(item.amount)} <small>{item.unit}</small></td>
+    <td>{number(item.score)} <small>{selectedContributionGraph?.unit}</small></td>
+    <td>—</td>
+  </tr>)
+
+  function renderUnexpandedRow(node: ContributionGraphNode, depth: number) {
+    const percent = selectedContributionGraph?.total_score
+      ? node.unexpanded_score / selectedContributionGraph.total_score * 100
+      : null
+    return <tr className="contribution-unexpanded-row" key={`${node.id}:unexpanded`}>
+      <td><span className="rate-value">{percent === null ? "—" : formatPercent(percent)}</span></td>
+      <td style={{ paddingLeft: `${29 + depth * 20}px` }}><span className="unexpanded-mark">…</span>Unexpanded impact <small>cutoff/depth</small></td>
+      <td>—</td>
+      <td>{number(node.unexpanded_score)} <small>{selectedContributionGraph?.unit}</small></td>
+      <td>—</td>
+    </tr>
+  }
+
+  function renderGraphChildren(parent: ContributionGraphNode, depth: number): React.ReactNode[] {
+    const children = [...(graphChildren.get(parent.id) ?? [])]
+      .sort((left, right) => Math.abs(right.node.cumulative_score) - Math.abs(left.node.cumulative_score))
+      .flatMap(({ node, edge }) => renderGraphNode(node, edge, depth))
+    return isMaterial(parent.unexpanded_score)
+      ? [...children, renderUnexpandedRow(parent, depth)]
+      : children
+  }
+
+  function renderGraphNode(node: ContributionGraphNode, edge: ContributionGraphEdge | null, depth: number): React.ReactNode[] {
+    const children = graphChildren.get(node.id) ?? []
+    const canExpand = children.length > 0 || isMaterial(node.unexpanded_score)
+    const isOpen = expandedProcesses.has(node.id)
+    const attachedFlows = graphFlows.get(node.id) ?? []
+    const extractions = attachedFlows.filter((item) => item.kind === "extraction")
+    const emissions = attachedFlows.filter((item) => item.kind === "emission")
+    const percentage = node.cumulative_percentage
+    const processRow = <tr key={node.id} className={canExpand ? "clickable-process" : ""} onClick={canExpand ? () => toggleProcess(node.id) : undefined}>
+      <td><span className="rate-value">{percentage === null ? "—" : formatPercent(percentage)}</span></td>
+      <td style={{ paddingLeft: `${7 + depth * 20}px` }} title={edge ? `${edge.flow_name}: ${formatNumber(edge.amount)} ${edge.unit}` : undefined}>
+        {canExpand ? <button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-expanded={isOpen} aria-label={`${isOpen ? "Hide" : "Show"} inputs for ${node.process_name}`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}
+        <span className="process-mark">⌘</span><span>{node.process_name}</span>
+        {node.scope ? <small className={`contribution-scope is-${node.scope}`}>{node.scope}</small> : null}
+        {node.location ? <small>{node.location}</small> : null}
+        {node.terminal ? <small>terminal</small> : null}
+      </td>
+      <td>{number(node.supply_amount)} <small>{node.unit}</small></td>
+      <td><span className="result-bar"><i className={node.cumulative_score < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(selectedContributionGraph?.total_score ? node.cumulative_score / selectedContributionGraph.total_score * 100 : 0))}%` }} /></span>{number(node.cumulative_score)} <small>{selectedContributionGraph?.unit}</small></td>
+      <td>{number(node.direct_score)} <small>{selectedContributionGraph?.unit}</small></td>
+    </tr>
+    return [
+      ...renderFlowRows(extractions, depth),
+      processRow,
+      ...renderFlowRows(emissions, depth),
+      ...(isOpen ? renderGraphChildren(node, depth + 1) : []),
+    ]
+  }
+
+  const graphRootPercentage = graphRoot?.cumulative_percentage
+    ?? (selectedContributionGraph?.status === "zero_total" ? null : 100)
+  const graphRootCumulative = graphRoot?.cumulative_score ?? selectedContributionGraph?.total_score ?? total
+  const graphRootDirect = graphRoot?.direct_score ?? 0
+  const graphCanExpand = graphRoot
+    ? (graphChildren.get(graphRoot.id)?.length ?? 0) > 0 || isMaterial(graphRoot.unexpanded_score)
+    : graphFallbackRoots.length > 0
+
   return <div className="contribution-view">
-    <div className="contribution-title"><div><strong>{result.name}</strong><span>{result.method} · {result.functional_unit}</span></div></div>
+    <div className="contribution-title"><div><strong>{result.name}</strong><span>{result.method} · {result.functional_unit}</span></div>
+      {selectedContributionGraph ? <aside className={`contribution-graph-summary is-${selectedContributionGraph.status}`}>
+        <strong>{selectedContributionGraph.status.replace("_", " ")}</strong>
+        <span>Coverage {selectedContributionGraph.coverage === null ? "—" : formatPercent(selectedContributionGraph.coverage * 100)} · Unexpanded {formatNumber(selectedContributionGraph.unexpanded_score)} {selectedContributionGraph.unit}</span>
+      </aside> : null}
+    </div>
     <div className="contribution-controls">
       <label className={mode === "flow" ? "active" : ""}><input type="radio" checked={mode === "flow"} onChange={() => setMode("flow")} />Flow</label>
       <div className="contribution-control-slot">{mode === null || mode === "flow" ? <div className="contribution-select is-flow"><span className="flow-dot output" /><select value={selectedFlow} onChange={(event) => { setFlow(event.target.value); setMode("flow") }} aria-label="Flow category">{flowNames.map((name) => <option key={name} value={name}>{contributionFlowLabel(name)}</option>)}</select></div> : null}</div>
       <label className={mode === "impact" ? "active" : ""}><input type="radio" checked={mode === "impact"} onChange={() => setMode("impact")} />Impact category</label>
       <div className="contribution-control-slot">{mode === null || mode === "impact" ? <div className="contribution-select is-impact"><BarChart3 size={16} /><select value={selectedImpact} onChange={(event) => { setImpact(event.target.value); setMode("impact") }} aria-label="Impact category">{impactNames.map((name) => <option key={name} value={name}>{impactCategoryDisplayName(name)}</option>)}</select></div> : null}</div>
+      {mode === "impact" && !selectedContributionGraph ? <p className="contribution-fallback-note">Recursive contributions were not requested for this category. Showing the available process-contribution results.</p> : null}
     </div>
-    {mode !== null ? <div className="contribution-table-wrap"><table className="contribution-table"><thead><tr><th>Contribution rate</th><th>Process</th><th>Required amount</th><th>Total result</th><th>Direct contribution</th></tr></thead><tbody>
-      <tr className="contribution-root"><td>{formatPercent(100)}</td><td><button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} downstream processes`}><ChevronDown size={14} /></button><span className="process-mark">⌘</span>{result.name}</td><td>{mode === "flow" ? formatNumber(1) : "—"}</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(total)} <small>{unit}</small></td><td>—</td></tr>
-      {expanded ? renderContributionRows(rootRows.length ? rootRows : rows) : null}
-      {expanded && !rows.length ? <tr className="empty-row"><td colSpan={5}>{mode === "impact" ? "No process contribution rows were returned for this category." : "No process requirements are available."}</td></tr> : null}
+    {mode !== null ? <div className="contribution-table-wrap"><table className="contribution-table"><thead><tr><th>Contribution rate</th><th>Process</th><th>{selectedContributionGraph ? "Supply amount" : "Required amount"}</th><th>{selectedContributionGraph ? "Cumulative result" : "Total result"}</th><th>Direct contribution</th></tr></thead><tbody>
+      {selectedContributionGraph ? <>
+        <tr className="contribution-root"><td>{graphRootPercentage === null ? "—" : formatPercent(graphRootPercentage)}</td><td>{graphCanExpand ? <button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} upstream processes`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className="process-mark">⌘</span>{graphRoot?.process_name || result.name}</td><td>{graphRoot ? <>{number(graphRoot.supply_amount)} <small>{graphRoot.unit}</small></> : "—"}</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(graphRootCumulative)} <small>{selectedContributionGraph.unit}</small></td><td>{number(graphRootDirect)} <small>{selectedContributionGraph.unit}</small></td></tr>
+        {expanded && graphRoot ? renderGraphChildren(graphRoot, 0) : null}
+        {expanded && !graphRoot ? graphFallbackRoots.flatMap((node) => renderGraphNode(node, null, 0)) : null}
+        {expanded && !graphCanExpand ? <tr className="empty-row"><td colSpan={5}>{selectedContributionGraph.status === "zero_total" ? "This impact category has a zero total, so contribution percentages are unavailable." : "No contribution graph nodes were returned for this category."}</td></tr> : null}
+      </> : <>
+        <tr className="contribution-root"><td>{formatPercent(100)}</td><td><button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} downstream processes`}><ChevronDown size={14} /></button><span className="process-mark">⌘</span>{result.name}</td><td>{mode === "flow" ? formatNumber(1) : "—"}</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(total)} <small>{unit}</small></td><td>—</td></tr>
+        {expanded ? renderContributionRows(rootRows.length ? rootRows : rows) : null}
+        {expanded && !rows.length ? <tr className="empty-row"><td colSpan={5}>{mode === "impact" ? "No process contribution rows were returned for this category." : "No process requirements are available."}</td></tr> : null}
+      </>}
     </tbody></table></div> : null}
   </div>
 }

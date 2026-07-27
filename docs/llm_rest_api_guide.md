@@ -352,7 +352,7 @@ The operation is stateless. The submitted YAML is the complete calculation
 input: no session, saved-result identifier, or earlier request is required.
 The request does not contain an API version. Instead, the response declares its
 result contract with `result_schema_version`. This application requires result
-schema version 2.
+schema version 3.
 
 Response fields include:
 
@@ -369,7 +369,7 @@ Response fields include:
     }
   },
   "scaling_vector": {},
-  "result_schema_version": 2,
+  "result_schema_version": 3,
   "process_contributions": {
     "categories": [
       {
@@ -390,6 +390,7 @@ Response fields include:
       }
     ]
   },
+  "contribution_graphs": [],
   "sankey": {
     "nodes": [],
     "links": [],
@@ -402,9 +403,9 @@ Response fields include:
 
 Report impact values with their returned units. Never infer or replace units.
 
-#### Result schema version 2
+#### Result schema version 3
 
-Require `result_schema_version === 2` before enabling Inventory, Contribution,
+Require `result_schema_version === 3` before enabling Inventory, Contribution,
 or Sankey views. Existing fields retain their original meaning:
 
 - `lci` contains total scaled inventory flows.
@@ -428,6 +429,14 @@ each key in `lcia`:
   contribution. Never discard it.
 - The invariant is `sum(direct_score) + residual_score ~= total_score` within
   floating-point tolerance.
+
+`contribution_graphs` contains opt-in recursive impact graphs requested through
+`lcia.contribution_graph` in the submitted YAML. Match a graph to an impact
+category by exact `label`. Build its tree by following
+`consumer_id -> producer_id`; preserve occurrence `node.id` values even when
+several nodes share an `activity_id`. Display the returned `cumulative_score`
+directly and never sum cumulative values across nodes. When the array is empty,
+fall back to `process_contributions` without making another calculation request.
 
 `sankey` is renderer-neutral scaled graph data:
 
@@ -524,7 +533,7 @@ of guessing. The response is `{"svg":"<svg ...>"}`.
 3. `GET /api/case-studies/{name}`
 4. Extract the `product_graph` string.
 5. `POST /api/lca/run` with that string.
-6. Require `result_schema_version === 2`.
+6. Require `result_schema_version === 3`.
 7. Present `lcia` scores with their units and derive Inventory, Contribution,
    and Sankey views from this one response; show returned SVGs only if useful.
 
@@ -571,8 +580,9 @@ object. Search before selecting BAFU activities; preserve the returned database
 and code key. Call /api/database/schema before writing one read-only SQL query.
 Treat exchange amounts as inventory quantities, not impact scores. Report LCIA
 scores with their returned units. For POST /api/lca/run require
-result_schema_version=2. Use process_contributions for exclusive per-process
-scores and include residual_score when reconciling totals. Use returned Sankey
+result_schema_version=3. Use contribution_graphs for requested recursive impact
+trees and process_contributions as the fallback; never issue separate background
+calculations. Use returned Sankey
 amounts without scaling them again, and compare widths only within compatible
 available_units. Never invent missing activities, method names, process names,
 results, or units. On HTTP 400 read detail and correct the call; on 503 retry

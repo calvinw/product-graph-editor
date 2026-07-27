@@ -28,6 +28,81 @@ export type ProcessContributionCategory = {
   residual_score: number
 }
 
+export type ContributionScope = "foreground" | "background"
+
+export type ContributionGraphNode = {
+  id: string
+  kind: "functional_unit" | "process"
+  activity_id: string | null
+  process_name: string
+  database: string | null
+  code: string | null
+  location: string | null
+  scope: ContributionScope | null
+  depth: number
+  supply_amount: number
+  unit: string
+  direct_score: number
+  cumulative_score: number
+  cumulative_percentage: number | null
+  unexpanded_score: number
+  terminal: boolean
+}
+
+export type ContributionGraphEdge = {
+  id: string
+  source: string
+  target: string
+  consumer_id: string
+  producer_id: string
+  flow_name: string
+  amount: number
+  unit: string
+}
+
+export type ContributionGraphFlow = {
+  id: string
+  process_occurrence_id: string
+  flow_name: string
+  categories: string[]
+  kind: "extraction" | "emission"
+  amount: number
+  unit: string
+  score: number
+  percentage: number | null
+}
+
+export type ActivityContribution = {
+  activity_id: string
+  process_name: string
+  database: string
+  code: string
+  location: string | null
+  scope: ContributionScope
+  direct_score: number
+  percentage: number | null
+  occurrence_count: number
+}
+
+export type ContributionGraph = {
+  id: string
+  label: string
+  unit: string
+  total_score: number
+  cutoff: number
+  biosphere_cutoff: number
+  max_depth: number | null
+  max_calculations: number
+  calculation_count: number
+  coverage: number | null
+  unexpanded_score: number
+  status: "complete" | "partial" | "zero_total"
+  nodes: ContributionGraphNode[]
+  edges: ContributionGraphEdge[]
+  flows: ContributionGraphFlow[]
+  activity_contributions: ActivityContribution[]
+}
+
 export type SankeyNode = {
   id: string
   label: string
@@ -54,10 +129,11 @@ export type LcaResult = {
   lci: Record<string, LciValue>
   lcia: Record<string, LciaValue>
   scaling_vector: Record<string, number>
-  result_schema_version: 2
+  result_schema_version: 3
   process_contributions: {
     categories: ProcessContributionCategory[]
   }
+  contribution_graphs: ContributionGraph[]
   sankey: {
     nodes: SankeyNode[]
     links: SankeyLink[]
@@ -104,37 +180,6 @@ type ToolDefinition = {
 const configuredBase = import.meta.env.VITE_LCA_API_BASE as string | undefined
 const apiBase = (configuredBase ?? (import.meta.env.DEV ? "/lca-api" : "https://lca-mcp.mathplosion.com")).replace(/\/$/, "")
 
-// Reference totals exported in Plastic_broom_assembly.xlsx using
-// "EF 3.1 Method (adapted)". The live engine uses a newer background snapshot,
-// so this calibration is limited to the unchanged bundled Plastic Broom model.
-const plasticBroomReferenceImpacts: Record<string, number> = {
-  "acidification": 0.006520696643958362,
-  "climate change": 1.7102099980901158,
-  "climate change: biogenic": 0.006919214671219269,
-  "climate change: fossil": 1.702852627139899,
-  "climate change: land use and land use change": 0.0004381562789973756,
-  "ecotoxicity: freshwater": 20.79579672003581,
-  "ecotoxicity: freshwater, inorganics": 7.152990573646727,
-  "ecotoxicity: freshwater, organics": 13.645242480324942,
-  "energy resources: non-renewable": 25.767917359885274,
-  "eutrophication: freshwater": 0.0005037117747744912,
-  "eutrophication: marine": 0.006544700707674718,
-  "eutrophication: terrestrial": 0.02246139673464005,
-  "human toxicity: carcinogenic": 4.335915453043129e-10,
-  "human toxicity: carcinogenic, inorganics": 1.2033120457307857e-10,
-  "human toxicity: carcinogenic, organics": 3.132573967942455e-10,
-  "human toxicity: non-carcinogenic": 9.622096168340998e-09,
-  "human toxicity: non-carcinogenic, inorganics": 7.80377516836957e-09,
-  "human toxicity: non-carcinogenic, organics": 1.8183209999714282e-09,
-  "ionising radiation: human health": 0.4440484162067883,
-  "land use": 33.679897055174315,
-  "material resources: metals/minerals": 5.508106601862554e-06,
-  "ozone depletion": 3.99612712937946e-08,
-  "particulate matter formation": 4.8043189715273696e-08,
-  "photochemical oxidant formation: human health": 0.005182117992086979,
-  "water use": 0.10117580316759832,
-}
-
 async function readJson(response: Response) {
   const body = await response.json().catch(() => null)
   if (!response.ok) {
@@ -149,7 +194,7 @@ const isObject = (value: unknown): value is Record<string, unknown> => (
 )
 
 function readLcaResult(value: unknown): LcaResult {
-  if (!isObject(value) || value.result_schema_version !== 2) {
+  if (!isObject(value) || value.result_schema_version !== 3) {
     throw new Error("The LCA calculation engine returned an unsupported result version.")
   }
   if (!isObject(value.process_contributions) || !Array.isArray(value.process_contributions.categories)) {
@@ -161,7 +206,13 @@ function readLcaResult(value: unknown): LcaResult {
   if (typeof value.svg_scaled !== "string" || typeof value.svg_structure !== "string") {
     throw new Error("The LCA calculation response is missing graph SVGs.")
   }
-  return value as LcaResult
+  if (value.contribution_graphs !== undefined && !Array.isArray(value.contribution_graphs)) {
+    throw new Error("The LCA calculation response contains invalid contribution graphs.")
+  }
+  return {
+    ...value,
+    contribution_graphs: value.contribution_graphs ?? [],
+  } as LcaResult
 }
 
 export async function calculateLca(productGraph: string): Promise<LcaResult> {
@@ -177,71 +228,7 @@ export async function calculateLca(productGraph: string): Promise<LcaResult> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ product_graph: productGraph }),
   }))
-  const parsed = readLcaResult(result)
-  const isBundledPlasticBroom = parsed.name === "Plastic Broom(bafu-linked)"
-    && /Polylactide, granulate, at plant[^}\n]*amount:\s*0\.52\b/.test(productGraph)
-    && /Nylon 6, at plant[^}\n]*amount:\s*0\.03\b/.test(productGraph)
-    && /Transport, freight, lorry, 16t-32t gross weight, fleet average[^}\n]*amount:\s*0\.1055\b/.test(productGraph)
-  if (!isBundledPlasticBroom) return parsed
-
-  const backgroundInputs = [
-    { name: "Polylactide, granulate, at plant", location: "GLO", amount: 0.52, unit: "kg" },
-    { name: "Nylon 6, at plant", location: "RER", amount: 0.03, unit: "kg" },
-    { name: "Transport, freight, lorry, 16t-32t gross weight, fleet average", location: "RER", amount: 0.1055, unit: "tkm" },
-  ]
-  const backgroundRequests = await Promise.allSettled(backgroundInputs.map(async (input) => {
-    const wrapper = JSON.stringify({
-      name: `${input.name} contribution`,
-      functional_unit: { description: `Contribution from ${input.name}`, amount: 1, unit: "unit" },
-      products: [{ name: "Contribution wrapper", unit: "unit" }],
-      processes: [{
-        name: `${input.name} contribution`,
-        reference_output: { flow: "Contribution wrapper", amount: 1, unit: "unit" },
-        inputs: [{ flow: input.name, location: input.location, database: "bafu", amount: input.amount, unit: input.unit }],
-      }],
-      reference_process: `${input.name} contribution`,
-      lcia: { method_name: "EF v3.1" },
-    })
-    const response = await readJson(await fetch(`${apiBase}${operation.rest!.path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ product_graph: wrapper }),
-    }))
-    return { input, result: readLcaResult(response) }
-  }))
-  const backgroundResults = backgroundRequests.flatMap((request) => request.status === "fulfilled" ? [request.value] : [])
-  const hasAllBackgroundResults = backgroundResults.length === backgroundInputs.length
-
-  Object.entries(parsed.lcia).forEach(([category, value]) => {
-    const reference = plasticBroomReferenceImpacts[category.split("|")[0].trim().toLowerCase()]
-    if (reference !== undefined) value.score = reference
-  })
-  parsed.process_contributions.categories.forEach((category) => {
-    const reference = plasticBroomReferenceImpacts[category.label.split("|")[0].trim().toLowerCase()]
-    if (reference === undefined) return
-    const upstream = (hasAllBackgroundResults ? backgroundResults : []).map(({ input, result }) => {
-      const score = result.lcia[category.label]?.score ?? 0
-      const node = parsed.sankey.nodes.find((candidate) => candidate.scope === "background" && candidate.process_name === input.name)
-      return { input, node, score }
-    }).filter(({ node, score }) => node && score !== 0)
-    const upstreamTotal = upstream.reduce((sum, item) => sum + item.score, 0)
-    const scale = upstreamTotal ? reference / upstreamTotal : 0
-    const foreground = category.processes.filter((process) => process.scope !== "background")
-    const background: ProcessContribution[] = upstream.map(({ input, node, score }) => ({
-      process_id: node!.id,
-      process_name: input.name,
-      direct_score: score * scale,
-      percentage: reference ? score * scale / reference * 100 : null,
-      scope: "background",
-    }))
-    category.processes = [...foreground, ...background]
-    category.processes.forEach((process) => {
-      process.percentage = reference ? process.direct_score / reference * 100 : null
-    })
-    category.residual_score = reference - category.processes.reduce((sum, process) => sum + process.direct_score, 0)
-    category.total_score = reference
-  })
-  return parsed
+  return readLcaResult(result)
 }
 
 export async function getBackgroundActivityDetails({
