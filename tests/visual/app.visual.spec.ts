@@ -129,6 +129,20 @@ test("a calculation for an older applied revision cannot populate results", asyn
   await expect(page.getByRole("button", { name: "Calculate LCA" })).toBeEnabled()
 })
 
+test("toolbar tooltips open from keyboard focus and pointer input", async ({ page }) => {
+  await mockLcaApi(page)
+  await page.goto("/")
+  const graphSettings = page.getByRole("button", { name: "Graph settings" })
+
+  await graphSettings.focus()
+  await expect(graphSettings).toBeFocused()
+  await expect(page.getByRole("tooltip", { name: "Graph settings" })).toBeVisible()
+
+  await page.reload()
+  await graphSettings.hover()
+  await expect(page.getByRole("tooltip", { name: "Graph settings" })).toBeVisible()
+})
+
 for (const theme of ["dark", "light"] as const) {
   test(`${theme} application views`, async ({ page }) => {
     await mockLcaApi(page)

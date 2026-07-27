@@ -5,7 +5,6 @@ import {
   type Node, type Edge, type NodeProps, type ReactFlowInstance,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
-import * as Tooltip from "@radix-ui/react-tooltip"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import {
@@ -13,7 +12,8 @@ import {
   FileUp, Minus, Moon, MousePointer2, Plus, Search, Settings2, Share2, Sun, X,
 } from "lucide-react"
 import { parse } from "yaml"
-import { Button } from "./components/ui/button"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
 import { chemicalFlowLabel } from "./lib/flowLabels"
@@ -883,14 +883,14 @@ function SankeyView({ result }: { result: LcaResult }) {
 
 function ToolButton({ label, children, onClick }: { label: string; children: React.ReactNode; onClick?: () => void }) {
   return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
+    <Tooltip>
+      <TooltipTrigger asChild>
         <Button aria-label={label} onClick={onClick} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
           {children}
         </Button>
-      </Tooltip.Trigger>
-      <Tooltip.Portal><Tooltip.Content side="right" sideOffset={8} className="tooltip">{label}</Tooltip.Content></Tooltip.Portal>
-    </Tooltip.Root>
+      </TooltipTrigger>
+      <TooltipContent side="right" sideOffset={8} className="tooltip">{label}</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -1443,7 +1443,7 @@ function AppContent() {
   const { decimalPlaces, setDecimalPlaces, showAllDecimalPlaces, setShowAllDecimalPlaces, theme, setTheme } = useDisplaySettings()
 
   return (
-    <Tooltip.Provider delayDuration={250}>
+    <TooltipProvider delayDuration={250}>
       <main className={`app-shell theme-${theme}`}>
         <header className="topbar">
           <div className="brand"><div className="brand-mark"><Share2 size={16} /></div><span>PRISM Life Cycle Assessment</span></div>
@@ -1478,7 +1478,7 @@ function AppContent() {
           </ReactFlowProvider>
         </section>
       </main>
-    </Tooltip.Provider>
+    </TooltipProvider>
   )
 }
 
