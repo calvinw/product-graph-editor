@@ -4,7 +4,7 @@
 
 Revised after feasibility review on July 27, 2026.
 
-PR 0 guardrails, PR 1a CLI foundation, and the prerequisite YAML consistency work are implemented on `shadcn-conversion`. PR 1b and later component migrations remain pending.
+PR 0 guardrails, PR 1a CLI foundation, the prerequisite YAML consistency work, and PR 1b semantic tokens are implemented on `shadcn-conversion`. PR 1c and later component migrations remain pending.
 
 ## Objective
 
