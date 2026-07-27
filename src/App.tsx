@@ -12,7 +12,7 @@ import {
   BarChart3, Box, Component, Scan, LayoutGrid, ChevronDown, Factory, Leaf,
   FileUp, Minus, Moon, MousePointer2, Plus, Search, Settings2, Share2, Sun, X,
 } from "lucide-react"
-import { parse } from "yaml"
+import { parse, stringify } from "yaml"
 import { Button } from "./components/ui/button"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
@@ -254,6 +254,16 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => new Set())
   const [expandedProcesses, setExpandedProcesses] = useState<Set<string>>(() => new Set())
   const [collapsedFlows, setCollapsedFlows] = useState<Set<string>>(() => new Set())
+  const [loadedGraphs, setLoadedGraphs] = useState<Map<string, LcaResult["contribution_graphs"][number]>>(() => new Map())
+  const [loadingCategories, setLoadingCategories] = useState<Set<string>>(() => new Set())
+  const [categoryErrors, setCategoryErrors] = useState<Map<string, string>>(() => new Map())
+  useEffect(() => {
+    setLoadedGraphs(new Map())
+    setLoadingCategories(new Set())
+    setCategoryErrors(new Map())
+    setExpandedCategories(new Set())
+    setExpandedProcesses(new Set())
+  }, [result])
 
   if (!result || !isCurrent) return <div className="results-panel impact-panel">
     <div className="results-panel-head"><div><strong>Impact analysis</strong><span>Inspect characterized impacts by category, process, and elementary flow.</span></div></div>
@@ -274,11 +284,41 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
       if (!unique.has(key)) unique.set(key, category)
       return unique
     }, new Map<string, LcaResult["process_contributions"]["categories"][number]>())
+  const contributionGraphFor = (label: string) => result.contribution_graphs.find((graph) => graph.label === label) ?? loadedGraphs.get(label)
   const toggleCategory = (id: string) => setExpandedCategories((current) => {
     const next = new Set(current)
     if (next.has(id)) next.delete(id); else next.add(id)
     return next
   })
+  const openCategory = async (id: string, label: string) => {
+    if (expandedCategories.has(id)) { toggleCategory(id); return }
+    toggleCategory(id)
+    if (contributionGraphFor(label) || loadingCategories.has(id)) return
+    setLoadingCategories((current) => new Set(current).add(id))
+    setCategoryErrors((current) => { const next = new Map(current); next.delete(id); return next })
+    try {
+      const source = parse(yaml) as Record<string, unknown>
+      const lcia = typeof source.lcia === "object" && source.lcia !== null ? source.lcia as Record<string, unknown> : {}
+      const existing = typeof lcia.contribution_graph === "object" && lcia.contribution_graph !== null
+        ? lcia.contribution_graph as Record<string, unknown>
+        : {}
+      source.lcia = {
+        ...lcia,
+        contribution_graph: {
+          ...existing,
+          categories: [label.split("|")[0].trim()],
+        },
+      }
+      const categoryResult = await calculateLca(stringify(source))
+      const graph = categoryResult.contribution_graphs.find((candidate) => candidate.label === label)
+      if (!graph) throw new Error("The calculation engine returned no child contribution graph for this category.")
+      setLoadedGraphs((current) => new Map(current).set(label, graph))
+    } catch (caught) {
+      setCategoryErrors((current) => new Map(current).set(id, caught instanceof Error ? caught.message : "Could not calculate this category breakdown."))
+    } finally {
+      setLoadingCategories((current) => { const next = new Set(current); next.delete(id); return next })
+    }
+  }
   const toggleProcess = (id: string) => setExpandedProcesses((current) => {
     const next = new Set(current)
     if (next.has(id)) next.delete(id); else next.add(id)
@@ -290,7 +330,7 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
     return next
   })
   const processFlows = (processName: string, processId: string, categoryLabel: string) => {
-    const contributionGraph = result.contribution_graphs.find((graph) => graph.label === categoryLabel)
+    const contributionGraph = contributionGraphFor(categoryLabel)
     if (contributionGraph) {
       const occurrenceIds = new Set(contributionGraph.nodes
         .filter((node) => node.kind === "process" && (
@@ -355,10 +395,12 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
           .filter((process) => Math.abs(process.percentage ?? (category.total_score ? process.direct_score / category.total_score * 100 : 0)) >= threshold)
           .sort((left, right) => Math.abs(right.direct_score) - Math.abs(left.direct_score))
         return <Fragment key={categoryId}>
-          <tr className="impact-category-row" onClick={() => toggleCategory(categoryId)}>
-            <td><div className="impact-category-name"><button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} onClick={(event) => { event.stopPropagation(); toggleCategory(categoryId) }} aria-expanded={isOpen} aria-label={`${isOpen ? "Collapse" : "Expand"} ${category.label}`}><ChevronDown size={14} /></button><BarChart3 className="impact-category-icon" size={17} /><strong>{impactCategoryDisplayName(category.label)}</strong></div></td>
+          <tr className="impact-category-row" onClick={() => void openCategory(categoryId, category.label)}>
+            <td><div className="impact-category-name"><button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} onClick={(event) => { event.stopPropagation(); void openCategory(categoryId, category.label) }} aria-expanded={isOpen} aria-label={`${isOpen ? "Collapse" : "Expand"} ${category.label}`}><ChevronDown size={14} /></button><BarChart3 className="impact-category-icon" size={17} /><strong>{impactCategoryDisplayName(category.label)}</strong></div></td>
             <td /><td /><td /><td><span className="impact-result">{formatNumber(category.total_score)} <small>{category.unit}</small></span></td>
           </tr>
+          {isOpen && loadingCategories.has(categoryId) ? <tr className="impact-breakdown-status"><td colSpan={5}>Calculating process and elementary-flow children…</td></tr> : null}
+          {isOpen && categoryErrors.has(categoryId) ? <tr className="impact-breakdown-status is-error"><td colSpan={5}>{categoryErrors.get(categoryId)}</td></tr> : null}
           {isOpen && subgroup === "processes" ? processes.flatMap((process) => {
             const processKey = `${categoryId}:${process.process_id}`
             const flows = processFlows(process.process_name, process.process_id, category.label)
