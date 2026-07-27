@@ -137,6 +137,8 @@ function InventoryView({ result, yaml, isCurrent, error }: {
   error: string
 }) {
   const { formatNumber } = useDisplaySettings()
+  const [expandedFlows, setExpandedFlows] = useState<Set<string>>(() => new Set())
+  const [collapsedRequirements, setCollapsedRequirements] = useState<Set<string>>(() => new Set())
   if (!result || !isCurrent) return <div className="results-panel inventory-panel">
     <div className="results-panel-head"><div><strong>Inventory results</strong><span>Calculated quantities for the current product graph.</span></div></div>
     <div className="results-placeholder">
@@ -149,22 +151,77 @@ function InventoryView({ result, yaml, isCurrent, error }: {
   const flows = Object.entries(result.lci).map(([name, value]) => ({ name, ...value }))
   const inputs = flows.filter((flow) => isInventoryInput(flow.type))
   const outputs = flows.filter((flow) => !isInventoryInput(flow.type))
-  let requirements: ReturnType<typeof buildInventoryRequirements> = []
-  let requirementError = ""
-  try { requirements = buildInventoryRequirements(yaml, result.scaling_vector) } catch (caught) { requirementError = caught instanceof Error ? caught.message : "Could not read process requirements." }
+  const toggleFlow = (key: string) => setExpandedFlows((current) => {
+    const next = new Set(current)
+    if (next.has(key)) next.delete(key); else next.add(key)
+    return next
+  })
+  const toggleRequirement = (id: string) => setCollapsedRequirements((current) => {
+    const next = new Set(current)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
+  const normalizedInventoryName = (name: string) => normalizedFlow(name.split("|")[0])
+  const flowChildren = (flowName: string) => {
+    const candidates = result.contribution_graphs.map((graph) => {
+      const nodes = new Map(graph.nodes.map((node) => [node.id, node]))
+      const rows = graph.flows.filter((flow) => normalizedInventoryName(flow.flow_name) === normalizedInventoryName(flowName))
+        .map((flow) => ({ flow, process: nodes.get(flow.process_occurrence_id) }))
+        .filter((row): row is { flow: (typeof graph.flows)[number]; process: NonNullable<typeof row.process> } => Boolean(row.process))
+      return rows
+    })
+    return candidates.sort((left, right) => right.length - left.length)[0] ?? []
+  }
   const FlowTable = ({ rows, empty }: { rows: typeof flows; empty: string }) => <div className="inventory-table-wrap"><table className="inventory-table">
     <thead><tr><th>Name</th><th>Category</th><th className="number">Amount</th><th>Unit</th></tr></thead>
-    <tbody>{rows.length ? rows.map((flow) => <tr key={`${flow.type}-${flow.name}`}><td><span className={isInventoryInput(flow.type) ? "flow-dot input" : "flow-dot output"} />{inventoryFlowName(flow.name)}</td><td>{flow.type}</td><td className="number">{formatNumber(flow.amount)}</td><td>{flow.unit}</td></tr>) : <tr className="empty-row"><td colSpan={4}>{empty}</td></tr>}</tbody>
+    <tbody>{rows.length ? rows.flatMap((flow) => {
+      const key = `${flow.type}-${flow.name}`
+      const children = flowChildren(flow.name)
+      const open = expandedFlows.has(key)
+      const parent = <tr className={children.length ? "inventory-tree-parent" : ""} key={key} onClick={children.length ? () => toggleFlow(key) : undefined}>
+        <td>{children.length ? <button className={`tree-toggle ${open ? "is-expanded" : ""}`} aria-expanded={open} aria-label={`${open ? "Hide" : "Show"} processes for ${flow.name}`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className={isInventoryInput(flow.type) ? "flow-dot input" : "flow-dot output"} />{inventoryFlowName(flow.name)}</td>
+        <td>{flow.type}</td><td className="number">{formatNumber(flow.amount)}</td><td>{flow.unit}</td>
+      </tr>
+      const childRows = open ? children.map(({ flow: childFlow, process }) => <tr className="inventory-flow-child" key={`${key}:${childFlow.id}`}>
+        <td><span className="inventory-tree-indent" /><span className="process-mark">⌘</span>{process.process_name}</td>
+        <td>{childFlow.categories.join("/") || `${process.scope ?? "process"}`}</td><td className="number">{formatNumber(childFlow.amount)}</td><td>{childFlow.unit}</td>
+      </tr>) : []
+      return [parent, ...childRows]
+    }) : <tr className="empty-row"><td colSpan={4}>{empty}</td></tr>}</tbody>
   </table></div>
+
+  const requirementGraph = [...result.contribution_graphs].sort((left, right) => right.nodes.length - left.nodes.length)[0]
+  const requirementNodes = new Map(requirementGraph?.nodes.map((node) => [node.id, node]) ?? [])
+  const requirementChildren = new Map<string, string[]>()
+  const requirementEdgeByProducer = new Map<string, NonNullable<typeof requirementGraph>["edges"][number]>()
+  requirementGraph?.edges.forEach((edge) => {
+    requirementChildren.set(edge.consumer_id, [...(requirementChildren.get(edge.consumer_id) ?? []), edge.producer_id])
+    requirementEdgeByProducer.set(edge.producer_id, edge)
+  })
+  const requirementRoot = requirementGraph?.nodes.find((node) => node.kind === "functional_unit")
+  let fallbackRequirements: ReturnType<typeof buildInventoryRequirements> = []
+  try { fallbackRequirements = buildInventoryRequirements(yaml, result.scaling_vector) } catch { fallbackRequirements = [] }
+  const renderRequirementRows = (ids: string[], depth: number): React.ReactNode[] => ids.flatMap((id) => {
+    const node = requirementNodes.get(id)
+    if (!node) return []
+    const children = requirementChildren.get(id) ?? []
+    const open = !collapsedRequirements.has(id)
+    const edge = requirementEdgeByProducer.get(id)
+    const row = <tr key={id} className={children.length ? "inventory-tree-parent" : ""} onClick={children.length ? () => toggleRequirement(id) : undefined}>
+      <td style={{ paddingLeft: `${6 + depth * 20}px` }}>{children.length ? <button className={`tree-toggle ${open ? "is-expanded" : ""}`} aria-expanded={open} aria-label={`${open ? "Hide" : "Show"} children of ${node.process_name}`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className="process-mark">⌘</span>{node.process_name}<small className={`inventory-scope is-${node.scope ?? "functional"}`}>{node.scope ?? "functional unit"}</small></td>
+      <td><span className="product-mark">⚙</span>{edge?.flow_name ?? result.name}</td><td className="number">{formatNumber(node.supply_amount)}</td><td>{node.unit}</td>
+    </tr>
+    return open ? [row, ...renderRequirementRows(children, depth + 1)] : [row]
+  })
 
   return <div className="inventory-view">
     <div className="inventory-title"><div><strong>{result.name}</strong><span>{result.functional_unit}</span></div></div>
     <details open><summary>Inputs <span>{inputs.length}</span></summary><FlowTable rows={inputs} empty="No environmental input flows were returned." /></details>
     <details open><summary>Outputs <span>{outputs.length}</span></summary><FlowTable rows={outputs} empty="No environmental output flows were returned." /></details>
-    <details open className="requirements"><summary>Total requirements <span>{requirements.length}</span></summary>
-      {requirementError ? <div className="results-error"><p>{requirementError}</p></div> : <div className="inventory-table-wrap"><table className="inventory-table"><thead><tr><th>Process</th><th>Product</th><th className="number">Amount</th><th>Unit</th></tr></thead><tbody>
-        {requirements.map((row) => <tr key={row.process}><td><span className="process-mark">⌘</span>{row.process}</td><td><span className="product-mark">⚙</span>{row.product}</td><td className="number">{formatNumber(row.amount)}</td><td>{row.unit}</td></tr>)}
-      </tbody></table></div>}
+    <details open className="requirements"><summary>Total requirements <span>{requirementGraph?.nodes.filter((node) => node.kind === "process").length ?? fallbackRequirements.length}</span></summary>
+      <div className="inventory-table-wrap"><table className="inventory-table"><thead><tr><th>Process</th><th>Product</th><th className="number">Amount</th><th>Unit</th></tr></thead><tbody>
+        {requirementRoot ? renderRequirementRows([requirementRoot.id], 0) : fallbackRequirements.map((row) => <tr key={row.process}><td><span className="process-mark">⌘</span>{row.process}</td><td><span className="product-mark">⚙</span>{row.product}</td><td className="number">{formatNumber(row.amount)}</td><td>{row.unit}</td></tr>)}
+      </tbody></table></div>
     </details>
   </div>
 }
@@ -245,6 +302,35 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
     return next
   })
   const processFlows = (processName: string, processId: string, categoryLabel: string) => {
+    const contributionGraph = result.contribution_graphs.find((graph) => graph.label === categoryLabel)
+    if (contributionGraph) {
+      const occurrenceIds = new Set(contributionGraph.nodes
+        .filter((node) => node.kind === "process" && (
+          node.activity_id === processId
+          || cleanImpactProcessName(node.process_name).toLowerCase() === cleanImpactProcessName(processName).toLowerCase()
+        ))
+        .map((node) => node.id))
+      const grouped = contributionGraph.flows
+        .filter((flow) => occurrenceIds.has(flow.process_occurrence_id))
+        .reduce((rows, flow) => {
+          const key = `${flow.kind}:${normalizedFlow(flow.flow_name)}:${flow.unit}`
+          const existing = rows.get(key) ?? {
+            name: flow.flow_name,
+            category: `elementary flows/${flow.categories.join("/") || (flow.kind === "emission" ? "air" : "resource")}`,
+            amount: 0,
+            impact: 0,
+            unit: flow.unit,
+          }
+          existing.amount += flow.amount
+          existing.impact += flow.score
+          rows.set(key, existing)
+          return rows
+        }, new Map<string, { name: string; category: string; amount: number; impact: number; unit: string }>())
+      return [...grouped.values()].map((flow) => ({
+        ...flow,
+        factor: flow.amount ? flow.impact / flow.amount : 0,
+      })).sort((left, right) => Math.abs(right.impact) - Math.abs(left.impact))
+    }
     const process = yamlProcessByName.get(processName.toLowerCase())
       ?? yamlProcessByName.get(cleanImpactProcessName(processName).toLowerCase())
     const scale = result.scaling_vector[processId]
@@ -284,7 +370,7 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
           .sort((left, right) => Math.abs(right.direct_score) - Math.abs(left.direct_score))
         return <Fragment key={categoryId}>
           <tr className="impact-category-row" onClick={() => toggleCategory(categoryId)}>
-            <td><div className="impact-category-name"><button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-label={`${isOpen ? "Collapse" : "Expand"} ${category.label}`}><ChevronDown size={14} /></button><BarChart3 className="impact-category-icon" size={17} /><strong>{impactCategoryDisplayName(category.label)}</strong></div></td>
+            <td><div className="impact-category-name"><button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} onClick={(event) => { event.stopPropagation(); toggleCategory(categoryId) }} aria-expanded={isOpen} aria-label={`${isOpen ? "Collapse" : "Expand"} ${category.label}`}><ChevronDown size={14} /></button><BarChart3 className="impact-category-icon" size={17} /><strong>{impactCategoryDisplayName(category.label)}</strong></div></td>
             <td /><td /><td /><td><span className="impact-result">{formatNumber(category.total_score)} <small>{category.unit}</small></span></td>
           </tr>
           {isOpen && subgroup === "processes" ? processes.flatMap((process) => {
@@ -293,7 +379,7 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
             const processOpen = expandedProcesses.has(processKey)
             const displayName = cleanImpactProcessName(process.process_name)
             const processRow = <tr className="impact-process-row" key={processKey} onClick={() => flows.length && toggleProcess(processKey)}>
-              <td><span className="impact-indent" />{flows.length ? <button className={`tree-toggle ${processOpen ? "is-expanded" : ""}`} aria-label={`${processOpen ? "Collapse" : "Expand"} ${displayName}`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className="impact-process-icon"><Factory size={14} /></span>{displayName}</td>
+              <td><span className="impact-indent" />{flows.length ? <button className={`tree-toggle ${processOpen ? "is-expanded" : ""}`} onClick={(event) => { event.stopPropagation(); toggleProcess(processKey) }} aria-expanded={processOpen} aria-label={`${processOpen ? "Collapse" : "Expand"} ${displayName}`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className="impact-process-icon"><Factory size={14} /></span>{displayName}</td>
               <td /><td /><td /><td><span className="impact-bar"><i style={{ width: `${Math.min(100, Math.abs(process.percentage ?? (category.total_score ? process.direct_score / category.total_score * 100 : 0)))}%` }} /></span><span className="impact-result">{formatNumber(process.direct_score)} <small>{category.unit}</small></span></td>
             </tr>
             const flowRows = processOpen ? flows.map((flow) => <tr className="impact-flow-row" key={`${processKey}:${flow.name}`}>
@@ -344,7 +430,7 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
               const flowId = `${categoryId}:flow:${flow.flowKey}`
               const flowOpen = !collapsedFlows.has(flowId)
               const flowRow = <tr className="impact-flow-group-row" key={flowId} onClick={() => toggleFlow(flowId)}>
-                <td><span className="impact-indent" /><button className={`tree-toggle ${flowOpen ? "is-expanded" : ""}`} aria-label={`${flowOpen ? "Collapse" : "Expand"} ${flow.name}`}><ChevronDown size={14} /></button><span className="impact-flow-icon"><Leaf size={14} /></span>{inventoryFlowName(flow.name)}</td>
+                <td><span className="impact-indent" /><button className={`tree-toggle ${flowOpen ? "is-expanded" : ""}`} onClick={(event) => { event.stopPropagation(); toggleFlow(flowId) }} aria-expanded={flowOpen} aria-label={`${flowOpen ? "Collapse" : "Expand"} ${flow.name}`}><ChevronDown size={14} /></button><span className="impact-flow-icon"><Leaf size={14} /></span>{inventoryFlowName(flow.name)}</td>
                 <td>{flow.category}</td>
                 <td className="number">{formatNumber(flow.amount)} <small>{flow.unit}</small></td>
                 <td className="number">{formatNumber(flow.factor)} <small>{category.unit}/{flow.unit}</small></td>
@@ -1136,6 +1222,133 @@ function GraphEditor() {
         : candidate))
     }
   }, [setNodes])
+
+  const toggleBackgroundBranch = useCallback(async (nodeId: string) => {
+    const node = nodesRef.current.find((candidate) => candidate.id === nodeId)
+    if (!node || node.data.scope !== "background" || !node.data.database || node.data.backgroundExploring) return
+
+    if (node.data.backgroundExplored) {
+      const descendants = new Set<string>()
+      let changed = true
+      while (changed) {
+        changed = false
+        nodesRef.current.forEach((candidate) => {
+          if (candidate.data.backgroundParentId === nodeId || (candidate.data.backgroundParentId && descendants.has(candidate.data.backgroundParentId))) {
+            if (!descendants.has(candidate.id)) { descendants.add(candidate.id); changed = true }
+          }
+        })
+      }
+      const nextNodes = nodesRef.current
+        .filter((candidate) => !descendants.has(candidate.id))
+        .map((candidate) => candidate.id === nodeId ? { ...candidate, data: { ...candidate.data, backgroundExplored: false } } : candidate)
+      const nextEdges = edgesRef.current.filter((edge) => !descendants.has(edge.source) && !descendants.has(edge.target))
+      setNodes(layoutNodes(nextNodes, nextEdges, { orientation: graphOrientation }))
+      setEdges(nextEdges)
+      requestAnimationFrame(() => fitView({ padding: .35, maxZoom: .75, duration: 350 }))
+      return
+    }
+
+    setNodes((current) => current.map((candidate) => candidate.id === nodeId
+      ? { ...candidate, data: { ...candidate.data, expanded: true, backgroundLoading: true, backgroundExploring: true, backgroundError: undefined } }
+      : candidate))
+    try {
+      const details = await getBackgroundActivityDetails({
+        database: node.data.database,
+        code: node.data.code,
+        name: node.data.label,
+        location: node.data.location,
+      })
+      const production = details.exchanges.find((exchange) => exchange.exchange_type === "production")
+      const productionAmount = production?.amount ?? 1
+      if (productionAmount === 0) throw new Error("The background activity has a zero production amount and cannot be scaled.")
+      const activityScale = (node.data.backgroundDemand ?? 1) / productionAmount
+      const scaled = (amount: number) => Number((amount * activityScale).toPrecision(8))
+      const technosphere = details.exchanges.filter((exchange) => exchange.exchange_type === "technosphere")
+      const childNodes: Node<ProcessNodeData>[] = technosphere.map((exchange) => ({
+        id: `${nodeId}::background::${exchange.input_database}::${exchange.input_code}`,
+        type: "process",
+        position: { x: node.position.x - 360, y: node.position.y },
+        data: {
+          label: exchange.input_name,
+          kind: "process",
+          detail: `Background activity · ${exchange.input_database}${exchange.input_location ? ` · ${exchange.input_location}` : ""}`,
+          color: nodeScopeColors.background,
+          scope: "background",
+          database: exchange.input_database,
+          code: exchange.input_code,
+          location: exchange.input_location ?? undefined,
+          backgroundDemand: scaled(exchange.amount),
+          backgroundDemandUnit: exchange.unit ?? undefined,
+          backgroundParentId: nodeId,
+        },
+      }))
+      const childEdges: Edge[] = technosphere.map((exchange, index) => {
+        const amount = scaled(exchange.amount)
+        return {
+          id: `${nodeId}::background-edge::${index}::${exchange.input_code}`,
+          source: `${nodeId}::background::${exchange.input_database}::${exchange.input_code}`,
+          target: nodeId,
+          label: `${exchange.input_product ?? exchange.input_name} · ${formatNumber(amount)}${exchange.unit ? ` ${exchange.unit}` : ""}`,
+          type: graphConnectionStyle === "curved" ? "default" : graphConnectionStyle === "straight" ? "straight" : "smoothstep",
+          style: { stroke: "#2563eb", strokeWidth: 1.5 },
+          labelStyle: { fill: "#9aa2ae", fontSize: 12, fontWeight: 650 },
+          labelBgStyle: { fill: "#111318", fillOpacity: .92 },
+          labelBgPadding: [5, 3],
+          labelBgBorderRadius: 4,
+        }
+      })
+      const inputs = technosphere.map((exchange) => ({
+        label: exchange.input_name, kind: "background input", color: nodeScopeColors.background,
+        amount: scaled(exchange.amount), unit: exchange.unit ?? undefined,
+      }))
+      const outputs = details.exchanges.filter((exchange) => exchange.exchange_type === "production").map((exchange) => ({
+        label: exchange.input_product ?? exchange.input_name, kind: "reference output", color: nodeScopeColors.background,
+        amount: scaled(exchange.amount), unit: exchange.unit ?? details.unit ?? node.data.backgroundDemandUnit,
+      }))
+      const biosphere = details.exchanges.filter((exchange) => exchange.exchange_type === "biosphere").map((exchange) => ({
+        label: chemicalFlowLabel(exchange.input_name), amount: scaled(exchange.amount), unit: exchange.unit ?? "",
+      }))
+      const currentNodes = nodesRef.current.filter((candidate) => candidate.id !== nodeId && candidate.data.backgroundParentId !== nodeId)
+      const updatedParent: Node<ProcessNodeData> = {
+        ...node,
+        data: {
+          ...node.data,
+          label: details.name,
+          detail: `Background activity · ${details.database}${details.location ? ` · ${details.location}` : ""}`,
+          code: details.code,
+          location: details.location ?? undefined,
+          expanded: true,
+          inputs,
+          outputs,
+          biosphere,
+          backgroundLoading: false,
+          backgroundExploring: false,
+          backgroundLoaded: true,
+          backgroundExplored: true,
+        },
+      }
+      const nextNodes = [...currentNodes, updatedParent, ...childNodes]
+      const nextEdges = [...edgesRef.current.filter((edge) => !edge.id.startsWith(`${nodeId}::background-edge::`)), ...childEdges]
+      setNodes(layoutNodes(nextNodes, nextEdges, { orientation: graphOrientation }))
+      setEdges(nextEdges)
+      requestAnimationFrame(() => fitView({ padding: .35, maxZoom: .75, duration: 350 }))
+    } catch (error) {
+      setNodes((current) => current.map((candidate) => candidate.id === nodeId
+        ? { ...candidate, data: {
+            ...candidate.data,
+            backgroundLoading: false,
+            backgroundExploring: false,
+            backgroundError: error instanceof Error ? error.message : "Could not load this background activity.",
+          } }
+        : candidate))
+    }
+  }, [fitView, formatNumber, graphConnectionStyle, graphOrientation, setEdges, setNodes])
+
+  useEffect(() => {
+    setNodes((current) => current.map((node) => node.data.scope === "background" && node.data.onToggleBackground !== toggleBackgroundBranch
+      ? { ...node, data: { ...node.data, onToggleBackground: toggleBackgroundBranch } }
+      : node))
+  }, [setNodes, toggleBackgroundBranch])
 
   const toggleExpanded = useCallback((nodeId: string) => {
     const target = nodesRef.current.find((node) => node.id === nodeId)
