@@ -50,6 +50,85 @@ async function calculate(page: Page) {
   await expect(page.locator(".markdown-report")).toBeVisible()
 }
 
+test("YAML drafts apply only through Preview Graph", async ({ page }) => {
+  await mockLcaApi(page)
+  await page.goto("/")
+  await expect(page.locator(".react-flow__node")).toHaveCount(5)
+  await calculate(page)
+
+  await page.getByRole("button", { name: "FILE", exact: true }).click()
+  const editor = page.getByRole("textbox", { name: "Product graph YAML" })
+  const appliedSource = await editor.inputValue()
+  await editor.fill(appliedSource.replace("Jacket", "Draft jacket"))
+  await expect(page.getByText("Unapplied changes. Preview changes before calculating.")).toBeVisible()
+
+  await page.getByRole("button", { name: "LCA Results", exact: true }).click()
+  await expect(page.getByRole("button", { name: "Calculate LCA" })).toBeDisabled()
+  await expect(page.locator(".markdown-report")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Inventory", exact: true })).toBeVisible()
+
+  await page.getByRole("button", { name: "Graph", exact: true }).click()
+  await expect(page.getByRole("heading", { name: "Jacket" })).toBeVisible()
+  await page.getByRole("button", { name: "FILE", exact: true }).click()
+  await editor.fill("not: [valid")
+  await page.getByRole("button", { name: "Preview graph" }).click()
+  await expect(page.locator(".yaml-error")).toBeVisible()
+  await page.getByRole("button", { name: "Graph", exact: true }).click()
+  await expect(page.getByRole("heading", { name: "Jacket" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Inventory", exact: true })).toBeVisible()
+
+  await page.getByRole("button", { name: "FILE", exact: true }).click()
+  await editor.fill(appliedSource.replace("Jacket", "Previewed jacket"))
+  await page.getByRole("button", { name: "Preview graph" }).click()
+  await expect(page.getByRole("heading", { name: "Previewed jacket" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Inventory", exact: true })).toHaveCount(0)
+  await page.getByRole("button", { name: "LCA Results", exact: true }).click()
+  await expect(page.getByRole("button", { name: "Calculate LCA" })).toBeEnabled()
+  await expect(page.locator(".results-placeholder")).toBeVisible()
+})
+
+test("a calculation for an older applied revision cannot populate results", async ({ page }) => {
+  let releaseCalculation: (() => void) | undefined
+  const calculationRequested = new Promise<void>((resolve) => {
+    releaseCalculation = resolve
+  })
+  await page.route("**/lca-api/api/**", async (route) => {
+    const { pathname } = new URL(route.request().url())
+    if (pathname.endsWith("/api/health")) {
+      await route.fulfill({ json: { running: true } })
+      return
+    }
+    if (pathname.endsWith("/api/tools")) {
+      await route.fulfill({ json: [{ name: "run_lca", rest: { method: "POST", path: "/api/lca/run" } }] })
+      return
+    }
+    if (pathname.endsWith("/api/lca/run")) {
+      releaseCalculation?.()
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      await route.fulfill({ json: lcaResultFixture }).catch(() => undefined)
+      return
+    }
+    await route.abort("blockedbyclient")
+  })
+
+  await page.goto("/")
+  await page.getByRole("button", { name: "LCA Results", exact: true }).click()
+  await page.getByRole("button", { name: "Calculate LCA" }).click()
+  await calculationRequested
+
+  await page.getByRole("button", { name: "FILE", exact: true }).click()
+  const editor = page.getByRole("textbox", { name: "Product graph YAML" })
+  await editor.fill((await editor.inputValue()).replace("Jacket", "New revision"))
+  await page.getByRole("button", { name: "Preview graph" }).click()
+  await expect(page.getByRole("heading", { name: "New revision" })).toBeVisible()
+  await page.waitForTimeout(650)
+
+  await page.getByRole("button", { name: "LCA Results", exact: true }).click()
+  await expect(page.locator(".markdown-report")).toHaveCount(0)
+  await expect(page.locator(".results-placeholder")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Calculate LCA" })).toBeEnabled()
+})
+
 for (const theme of ["dark", "light"] as const) {
   test(`${theme} application views`, async ({ page }) => {
     await mockLcaApi(page)
