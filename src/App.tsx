@@ -792,7 +792,8 @@ function ToolButton({ label, children, onClick }: { label: string; children: Rea
 }
 
 function GraphEditor() {
-  const { decimalPlaces, formatNumber, theme } = useDisplaySettings()
+  const { decimalPlaces, showAllDecimalPlaces, formatNumber, theme } = useDisplaySettings()
+  const graphDecimalPlaces = showAllDecimalPlaces ? 20 : decimalPlaces
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<ProcessNodeData>>(layoutNodes(initialNodes, initialEdges))
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges)
   const [selected, setSelected] = useState<(NodeMeta & { id: string }) | null>(null)
@@ -828,19 +829,19 @@ function GraphEditor() {
 
   useEffect(() => setGraphMaxProcesses(availableGraphProcessCount), [availableGraphProcessCount])
   useEffect(() => {
-    if (lcaResult) setResultsMarkdown(lcaResultToMarkdown(lcaResult, decimalPlaces))
-  }, [decimalPlaces, lcaResult])
+    if (lcaResult) setResultsMarkdown(lcaResultToMarkdown(lcaResult, decimalPlaces, showAllDecimalPlaces))
+  }, [decimalPlaces, showAllDecimalPlaces, lcaResult])
   useEffect(() => {
     try {
       const currentResult = calculatedYaml === yamlText ? lcaResult : null
       const mode = graphMode === "scaled" && currentResult ? "scaled" : "structure"
-      const refreshedEdges = buildGraphFromYaml(yamlText, mode, currentResult?.scaling_vector, decimalPlaces).edges
+      const refreshedEdges = buildGraphFromYaml(yamlText, mode, currentResult?.scaling_vector, graphDecimalPlaces).edges
       const labelsById = new Map(refreshedEdges.map((edge) => [edge.id, edge.label]))
       setEdges((current) => current.map((edge) => labelsById.has(edge.id) ? { ...edge, label: labelsById.get(edge.id) } : edge))
     } catch {
       // Keep the currently displayed graph intact while the YAML editor contains invalid input.
     }
-  }, [decimalPlaces])
+  }, [graphDecimalPlaces])
 
   const removeNode = useCallback((id: string) => {
     const folded = new Set<string>()
@@ -1036,7 +1037,7 @@ function GraphEditor() {
     try {
       const currentResult = calculatedYaml === yamlText ? lcaResult : null
       const mode = graphMode === "scaled" && currentResult ? "scaled" : "structure"
-      const parsed = buildGraphFromYaml(yamlText, mode, currentResult?.scaling_vector, decimalPlaces)
+      const parsed = buildGraphFromYaml(yamlText, mode, currentResult?.scaling_vector, graphDecimalPlaces)
       const foreground = parsed.nodes.filter((node) => node.data.scope !== "background")
       const cappedMaximum = Math.min(foreground.length, Math.max(1, maximum))
       const visibleForeground = new Set(foreground.slice(Math.max(0, foreground.length - cappedMaximum)).map((node) => node.id))
@@ -1060,7 +1061,7 @@ function GraphEditor() {
     try {
       const currentResult = calculatedYaml === yamlText ? lcaResult : null
       if (mode === "scaled" && !currentResult) return
-      const parsed = buildGraphFromYaml(yamlText, mode, currentResult?.scaling_vector, decimalPlaces)
+      const parsed = buildGraphFromYaml(yamlText, mode, currentResult?.scaling_vector, graphDecimalPlaces)
       const previousById = new Map(nodesRef.current.map((node) => [node.id, node]))
       const laidOutNodes = layoutNodes(parsed.nodes, parsed.edges, { orientation: graphOrientation })
       let nextNodes: Node<ProcessNodeData>[] = laidOutNodes.map((node) => {
@@ -1101,7 +1102,7 @@ function GraphEditor() {
     try {
       const currentResult = calculatedYaml === yamlText ? lcaResult : null
       const nextMode = graphMode === "scaled" && currentResult ? "scaled" : "structure"
-      const parsed = buildGraphFromYaml(yamlText, nextMode, currentResult?.scaling_vector, decimalPlaces)
+      const parsed = buildGraphFromYaml(yamlText, nextMode, currentResult?.scaling_vector, graphDecimalPlaces)
       foldDirectionRef.current = "upstream"
       setEdges(parsed.edges)
       setNodes(layoutNodes(parsed.nodes.map((node) => ({
@@ -1126,7 +1127,7 @@ function GraphEditor() {
       const result = await calculateLca(yamlText)
       setLcaResult(result)
       setCalculatedYaml(yamlText)
-      setResultsMarkdown(lcaResultToMarkdown(result, decimalPlaces))
+      setResultsMarkdown(lcaResultToMarkdown(result, decimalPlaces, showAllDecimalPlaces))
     } catch (error) {
       setResultsError(error instanceof Error ? error.message : "Could not calculate the current product graph.")
     } finally {
@@ -1315,7 +1316,7 @@ function GraphEditor() {
 
 function AppContent() {
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const { decimalPlaces, setDecimalPlaces, theme, setTheme } = useDisplaySettings()
+  const { decimalPlaces, setDecimalPlaces, showAllDecimalPlaces, setShowAllDecimalPlaces, theme, setTheme } = useDisplaySettings()
 
   return (
     <Tooltip.Provider delayDuration={250}>
@@ -1332,7 +1333,8 @@ function AppContent() {
               <div className="global-setting-field">
                 <span>Decimal places</span>
                 <p>Applied to numerical results across the workspace.</p>
-                <div className="sankey-stepper"><button type="button" onClick={() => setDecimalPlaces(decimalPlaces - 1)} aria-label="Decrease decimal places">−</button><input type="number" min="0" max="8" step="1" value={decimalPlaces} onChange={(event) => setDecimalPlaces(Number(event.target.value) || 0)} /><button type="button" onClick={() => setDecimalPlaces(decimalPlaces + 1)} aria-label="Increase decimal places">+</button></div>
+                <label className="all-decimals-toggle"><input type="checkbox" checked={showAllDecimalPlaces} onChange={(event) => setShowAllDecimalPlaces(event.target.checked)} /><span>Show all decimal places</span></label>
+                <div className="sankey-stepper"><button type="button" disabled={showAllDecimalPlaces} onClick={() => setDecimalPlaces(decimalPlaces - 1)} aria-label="Decrease decimal places">−</button><input type="number" min="0" max="8" step="1" disabled={showAllDecimalPlaces} value={decimalPlaces} onChange={(event) => setDecimalPlaces(Number(event.target.value) || 0)} /><button type="button" disabled={showAllDecimalPlaces} onClick={() => setDecimalPlaces(decimalPlaces + 1)} aria-label="Increase decimal places">+</button></div>
               </div>
               <div className="global-setting-field">
                 <span>Appearance</span>

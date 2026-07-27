@@ -5,6 +5,8 @@ type Theme = "dark" | "light"
 type DisplaySettings = {
   decimalPlaces: number
   setDecimalPlaces: (value: number) => void
+  showAllDecimalPlaces: boolean
+  setShowAllDecimalPlaces: (value: boolean) => void
   theme: Theme
   setTheme: (value: Theme) => void
   formatNumber: (value: number) => string
@@ -15,12 +17,13 @@ const DisplaySettingsContext = createContext<DisplaySettings | null>(null)
 
 export function DisplaySettingsProvider({ children }: { children: ReactNode }) {
   const [decimalPlaces, setDecimalPlacesState] = useState(2)
+  const [showAllDecimalPlaces, setShowAllDecimalPlaces] = useState(false)
   const [theme, setTheme] = useState<Theme>("dark")
   const setDecimalPlaces = (value: number) => setDecimalPlacesState(Math.min(8, Math.max(0, Math.floor(value))))
   const formatter = useMemo(() => new Intl.NumberFormat("en", {
-    minimumFractionDigits: decimalPlaces,
-    maximumFractionDigits: decimalPlaces,
-  }), [decimalPlaces])
+    minimumFractionDigits: showAllDecimalPlaces ? 0 : decimalPlaces,
+    maximumFractionDigits: showAllDecimalPlaces ? 20 : decimalPlaces,
+  }), [decimalPlaces, showAllDecimalPlaces])
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -30,11 +33,13 @@ export function DisplaySettingsProvider({ children }: { children: ReactNode }) {
   const value = useMemo(() => ({
     decimalPlaces,
     setDecimalPlaces,
+    showAllDecimalPlaces,
+    setShowAllDecimalPlaces,
     theme,
     setTheme,
     formatNumber: (number: number) => formatter.format(number),
     formatPercent: (number: number) => `${formatter.format(number)}%`,
-  }), [decimalPlaces, formatter, theme])
+  }), [decimalPlaces, formatter, showAllDecimalPlaces, theme])
 
   return <DisplaySettingsContext.Provider value={value}>{children}</DisplaySettingsContext.Provider>
 }

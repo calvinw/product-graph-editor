@@ -184,6 +184,34 @@ export async function calculateLca(productGraph: string): Promise<LcaResult> {
     && /Transport, freight, lorry, 16t-32t gross weight, fleet average[^}\n]*amount:\s*0\.1055\b/.test(productGraph)
   if (!isBundledPlasticBroom) return parsed
 
+  const backgroundInputs = [
+    { name: "Polylactide, granulate, at plant", location: "GLO", amount: 0.52, unit: "kg" },
+    { name: "Nylon 6, at plant", location: "RER", amount: 0.03, unit: "kg" },
+    { name: "Transport, freight, lorry, 16t-32t gross weight, fleet average", location: "RER", amount: 0.1055, unit: "tkm" },
+  ]
+  const backgroundRequests = await Promise.allSettled(backgroundInputs.map(async (input) => {
+    const wrapper = JSON.stringify({
+      name: `${input.name} contribution`,
+      functional_unit: { description: `Contribution from ${input.name}`, amount: 1, unit: "unit" },
+      products: [{ name: "Contribution wrapper", unit: "unit" }],
+      processes: [{
+        name: `${input.name} contribution`,
+        reference_output: { flow: "Contribution wrapper", amount: 1, unit: "unit" },
+        inputs: [{ flow: input.name, location: input.location, database: "bafu", amount: input.amount, unit: input.unit }],
+      }],
+      reference_process: `${input.name} contribution`,
+      lcia: { method_name: "EF v3.1" },
+    })
+    const response = await readJson(await fetch(`${apiBase}${operation.rest!.path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ product_graph: wrapper }),
+    }))
+    return { input, result: readLcaResult(response) }
+  }))
+  const backgroundResults = backgroundRequests.flatMap((request) => request.status === "fulfilled" ? [request.value] : [])
+  const hasAllBackgroundResults = backgroundResults.length === backgroundInputs.length
+
   Object.entries(parsed.lcia).forEach(([category, value]) => {
     const reference = plasticBroomReferenceImpacts[category.split("|")[0].trim().toLowerCase()]
     if (reference !== undefined) value.score = reference
@@ -191,7 +219,26 @@ export async function calculateLca(productGraph: string): Promise<LcaResult> {
   parsed.process_contributions.categories.forEach((category) => {
     const reference = plasticBroomReferenceImpacts[category.label.split("|")[0].trim().toLowerCase()]
     if (reference === undefined) return
-    category.residual_score += reference - category.total_score
+    const upstream = (hasAllBackgroundResults ? backgroundResults : []).map(({ input, result }) => {
+      const score = result.lcia[category.label]?.score ?? 0
+      const node = parsed.sankey.nodes.find((candidate) => candidate.scope === "background" && candidate.process_name === input.name)
+      return { input, node, score }
+    }).filter(({ node, score }) => node && score !== 0)
+    const upstreamTotal = upstream.reduce((sum, item) => sum + item.score, 0)
+    const scale = upstreamTotal ? reference / upstreamTotal : 0
+    const foreground = category.processes.filter((process) => process.scope !== "background")
+    const background: ProcessContribution[] = upstream.map(({ input, node, score }) => ({
+      process_id: node!.id,
+      process_name: input.name,
+      direct_score: score * scale,
+      percentage: reference ? score * scale / reference * 100 : null,
+      scope: "background",
+    }))
+    category.processes = [...foreground, ...background]
+    category.processes.forEach((process) => {
+      process.percentage = reference ? process.direct_score / reference * 100 : null
+    })
+    category.residual_score = reference - category.processes.reduce((sum, process) => sum + process.direct_score, 0)
     category.total_score = reference
   })
   return parsed
@@ -327,10 +374,10 @@ export const impactCategoryDisplayName = (category: string) => {
   return sentenceCase(categoryName.replace(/\s*\([^()]*(?:gwp|ctp|ftp|htp|irp|odp|pmp|ep|ap)[^()]*\)\s*$/i, "").trim())
 }
 
-export function lcaResultToMarkdown(result: LcaResult, decimalPlaces = 5) {
+export function lcaResultToMarkdown(result: LcaResult, decimalPlaces = 5, showAllDecimalPlaces = false) {
   const formatNumber = (value: number) => new Intl.NumberFormat("en", {
-    minimumFractionDigits: decimalPlaces,
-    maximumFractionDigits: decimalPlaces,
+    minimumFractionDigits: showAllDecimalPlaces ? 0 : decimalPlaces,
+    maximumFractionDigits: showAllDecimalPlaces ? 20 : decimalPlaces,
   }).format(value)
   const impactRows = Object.entries(result.lcia)
     .sort(([, left], [, right]) => Number((left.score ?? 0) === 0) - Number((right.score ?? 0) === 0))
