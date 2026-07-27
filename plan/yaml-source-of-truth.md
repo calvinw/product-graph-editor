@@ -1,306 +1,371 @@
-# YAML Source-of-Truth and LCA State Plan
+# YAML Draft, Preview, and LCA Consistency Plan
+
+## Status
+
+Revised on July 27, 2026. Implementation pending.
 
 ## Purpose
 
-Refactor the editor state so that YAML is the only source of truth for the product graph. The graph is a read-only visualization: graph interactions may change how the graph is viewed, but they must not modify the product definition.
+Make the YAML shown by the graph, the YAML sent to the LCA engine, and the result-dependent views agree at all times.
 
-This work should be scheduled while other contributors are not changing the UI because the main integration point is currently `src/App.tsx`.
+The editor will retain an explicit **Preview Graph** boundary:
+
+```text
+Edit YAML
+  → draft becomes dirty
+  → Calculate is disabled
+  → Preview Graph validates and applies the draft
+  → previous results are cleared
+  → Calculate is enabled for the newly visible graph
+```
+
+This is a focused consistency fix. It does not redesign the editor, introduce a global state library, or change LCA calculations.
+
+## Why This Work Is Still Needed
+
+The application currently uses one `yamlText` value for several different meanings:
+
+- YAML being edited
+- YAML used by Preview Graph
+- YAML parsed by graph settings and graph-mode changes
+- YAML sent to the LCA engine
+- YAML compared with `calculatedYaml`
+
+This creates a hybrid state:
+
+- The main graph does not normally update until Preview Graph is selected.
+- Calculate can still analyze an unpreviewed draft.
+- Graph settings and graph-mode actions can parse an unpreviewed draft.
+- Editing immediately clears results even though the visible graph still represents the previously previewed YAML.
+- A late calculation response is not protected from a newer successful preview.
+
+The graph editing boundary itself is already largely correct: Add and Connect actions have been removed, and current graph interactions are view-only.
 
 ## Decisions
 
-- Do not introduce Zustand at this stage.
-- Do not add `localStorage`, IndexedDB, or another persistence layer yet.
-- User accounts, saved projects, and durable state will eventually be handled by a backend database.
-- YAML is the sole product-graph source of truth.
-- The YAML editor has an explicit apply boundary: **Preview Graph**.
-- Typing in the editor does not immediately rebuild the graph.
-- A successful preview rebuilds the graph and invalidates all previous LCA results.
-- Inventory, Contribution, and Sankey are available only after a successful LCA calculation for the currently applied YAML.
-- Graph selection, dragging, folding, expansion, search, layout, pan, and zoom are view-only actions.
-- Creating, connecting, deleting, or editing product nodes in the graph is out of scope and should not be presented as available graph actions.
+- YAML remains the sole product-definition source of truth.
+- Keep state local to `GraphEditor`; do not introduce Zustand.
+- Do not add browser persistence.
+- Maintain separate `yamlDraft` and `appliedYaml` values.
+- Editing changes `yamlDraft` only.
+- Preview Graph is the only action that applies a draft to the visible graph.
+- Calculate is disabled while `yamlDraft !== appliedYaml`.
+- Calculate always sends `appliedYaml`, never `yamlDraft`.
+- Graph settings, graph modes, process counts, and graph label refreshes use `appliedYaml`.
+- A successful Preview Graph clears results for the previously applied graph.
+- An invalid preview leaves the applied graph and its matching results unchanged.
+- An in-flight result must be aborted or ignored if a different YAML revision is successfully applied.
+- Existing results may remain visible while the user edits a new draft because they still match the applied graph.
+- The YAML editor must clearly indicate that unapplied changes exist and that the graph and results still represent the last successful preview.
 
 ## State Model
 
-Keep the state local to the editor using ordinary React state.
+A reducer is optional. Separate React state values are sufficient if preview and calculation transitions remain atomic.
 
 ```ts
-type CalculationStatus = "idle" | "running" | "success" | "error"
-
-type EditorState = {
-  // YAML currently being edited. It may be incomplete or invalid.
+type EditorSourceState = {
+  // Editable text. It may be incomplete or invalid.
   yamlDraft: string
 
-  // Last YAML successfully accepted through Preview Graph.
+  // Last draft successfully accepted through Preview Graph.
   appliedYaml: string
+
+  // Incremented after each successful preview.
+  appliedRevision: number
 
   yamlError: string
 
-  // Read-only graph projection of appliedYaml.
-  nodes: Node<ProcessNodeData>[]
-  edges: Edge[]
-  graphTitle: string
-
-  calculationStatus: CalculationStatus
-  calculationError: string
+  // Result metadata must identify the applied source it represents.
   lcaResult: LcaResult | null
-
-  // Temporary view state.
-  view: EditorView
-  selectedNodeId: string | null
-  query: string
-  graphMode: "structure" | "scaled"
+  calculatedRevision: number | null
+  calculationError: string
+  isCalculating: boolean
 }
 ```
 
-Not every field needs to be placed in one state object. Separate `useState` values or a local `useReducer` are both acceptable. A reducer may be preferable if it makes the preview and calculation transitions atomic and easier to test.
+Derived values:
 
-## Source and Derived State
+```ts
+const isDirty = yamlDraft !== appliedYaml
 
-### Stored state
+const hasCurrentResults =
+  lcaResult !== null &&
+  calculatedRevision === appliedRevision
 
-- `yamlDraft`
-- `appliedYaml`
-- YAML parsing error
-- LCA result, status, and error
-- Temporary graph/view interaction state
+const canCalculate =
+  !isDirty &&
+  !isCalculating
+```
 
-### Derived state
+An exact `calculatedYaml` comparison can be retained instead of numeric revisions, but revisions make stale-request checks and intent clearer.
 
-Do not store values that can be computed reliably from existing state:
+## User-Visible Behavior
 
-- Results Markdown is derived from `lcaResult` using `lcaResultToMarkdown`.
-- Inventory data is derived from `lcaResult.lci`.
-- Contribution data is derived from the appropriate LCA result fields.
-- Sankey data is derived from `appliedYaml` and `lcaResult`.
-- Selected-node details are derived from `selectedNodeId` and the current nodes.
-- Connection count is derived from `edges.length`.
-- Whether result-dependent views are available is derived from `calculationStatus === "success" && lcaResult !== null`.
-
-Do not keep a copied selected-node label, kind, or detail in separate state. Store only the selected node ID so the inspector cannot show stale node metadata.
-
-## State Transitions
-
-### 1. Edit YAML
+### Editing YAML
 
 When the textarea changes:
 
-- Update `yamlDraft` only.
-- Do not rebuild the graph.
-- Do not change `appliedYaml`.
-- Do not discard the current graph or its matching LCA result.
-- Indicate that the draft differs from the applied YAML if the UI has an appropriate existing location for that message.
+- Update `yamlDraft`.
+- Do not update `appliedYaml`.
+- Do not rebuild or relabel the graph.
+- Do not clear a result that still matches `appliedYaml`.
+- Mark the editor as having unapplied changes.
+- Disable Calculate.
+- Show guidance such as: **Preview changes before calculating.**
 
-The existing graph and results continue to represent `appliedYaml`, not the uncommitted draft.
+The visible graph and any existing results continue to represent `appliedYaml`.
 
-### 2. Preview Graph
+### Loading a case study or YAML file
 
-When **Preview Graph** is selected:
+Loading a case study or local file follows the same draft behavior:
 
-1. Parse `yamlDraft` with `buildGraphFromYaml` in structure mode.
-2. If parsing fails:
-   - Set `yamlError`.
-   - Keep `appliedYaml` unchanged.
-   - Keep the existing graph unchanged.
-   - Keep the existing LCA result unchanged because it still corresponds to the unchanged applied graph.
-3. If parsing succeeds:
-   - Set `appliedYaml` to `yamlDraft`.
-   - Replace nodes, edges, and graph title with the newly parsed graph.
-   - Reset graph mode to `structure`.
-   - Clear the selected node.
-   - Clear the YAML error.
-   - Clear `lcaResult` and any calculation error.
-   - Set calculation status to `idle`.
-   - Switch to the Graph view.
-   - Fit the rebuilt graph in the viewport.
+- Replace `yamlDraft`.
+- Mark it as unapplied when it differs from `appliedYaml`.
+- Do not silently rebuild the graph.
+- Require Preview Graph before Calculate becomes available.
 
-These successful-preview updates should happen as one logical transition so the UI cannot briefly show a new graph with old results.
+If the product later prefers case-study selection to apply immediately, that should be a deliberate separate decision. It must not bypass validation accidentally.
 
-### 3. Run LCA
+### Previewing valid YAML
 
-The calculation must use `appliedYaml`, never `yamlDraft`.
+When Preview Graph succeeds:
 
-Before starting:
+1. Parse `yamlDraft` in structure mode.
+2. Commit `yamlDraft` to `appliedYaml`.
+3. Increment `appliedRevision`.
+4. Replace the graph nodes, edges, and title.
+5. Reset graph mode to `structure`.
+6. Clear node selection and YAML errors.
+7. Clear the previous LCA result and calculation error.
+8. Clear `calculatedRevision`.
+9. Abort or invalidate a calculation started for an older revision.
+10. Switch to Graph and fit the new graph.
 
-- Require a valid applied graph.
-- If `yamlDraft !== appliedYaml`, disable Calculate or clearly require the user to preview the draft first. Disabling Calculate is preferred because it eliminates ambiguity about which YAML will be calculated.
+These updates should be one logical transition so the UI cannot briefly show the new graph with an old result.
 
-On start:
+### Previewing invalid YAML
 
-- Set calculation status to `running`.
-- Clear the previous calculation error.
+When parsing fails:
 
-On success:
+- Set `yamlError`.
+- Keep `appliedYaml` and `appliedRevision` unchanged.
+- Keep the current graph unchanged.
+- Keep the current matching result unchanged.
+- Keep Calculate disabled because the draft is still dirty.
 
-- Store the returned `lcaResult`.
-- Set calculation status to `success`.
+### Calculating
 
-On failure:
+Calculate is disabled when:
 
-- Clear `lcaResult`.
-- Store the error message.
-- Set calculation status to `error`.
+- `yamlDraft !== appliedYaml`, or
+- a calculation is already running.
 
-### 4. Result-Dependent Views
+The disabled control should explain why through adjacent text or a tooltip.
 
-The following views require a successful result for the current applied YAML:
+When calculation starts:
+
+- Capture `appliedYaml` and `appliedRevision`.
+- Send the captured `appliedYaml` to `calculateLca`.
+- Clear the prior calculation error.
+- Set `isCalculating`.
+
+When calculation succeeds:
+
+- Accept the response only if its captured revision still equals the current `appliedRevision`.
+- Store the result and captured revision.
+- Ignore responses for older revisions.
+
+When calculation fails:
+
+- Store the error only if the request still belongs to the current applied revision.
+- Do not clear a newer result.
+
+## Applied-YAML Consumers
+
+The following operations must use `appliedYaml`, not `yamlDraft`:
+
+- Graph construction
+- Graph settings
+- Maximum process count
+- Structure/scaled graph switching
+- Edge-label refreshes caused by decimal-setting changes
+- Background graph projection
+- Sankey derivation
+- LCA calculation
+
+Only the YAML editor, file loader, case-study loader, and Preview Graph parser should read or update `yamlDraft`.
+
+## Result Availability
+
+The following views require `hasCurrentResults`:
 
 - Inventory
+- Impact Analysis
+- Process Results
 - Contribution
 - Sankey Graph
+- Scaled Graph mode
 
-Until `calculationStatus` is `success` and `lcaResult` exists, their tabs should be disabled or otherwise unavailable. The LCA Results tab remains available because it contains the Calculate action and can display idle, running, error, or success states.
+LCA Results remains accessible in every state because it contains the Calculate action and idle, running, error, and success presentation.
 
-After a successful Preview Graph transition, return these views to their unavailable state by clearing the result and resetting calculation status to `idle`.
+While the user edits an unapplied draft:
 
-## Async Calculation Safety
+- Existing result-dependent views may remain available because their result still matches `appliedYaml`.
+- Their content must continue to use `appliedYaml` and its matching result.
+- The YAML editor communicates that the draft has not been applied.
 
-Protect against stale requests even if Calculate is normally disabled while a draft is unapplied.
+After a successful Preview Graph:
 
-If an LCA request is active and a different YAML document is successfully previewed:
+- Clear the previous result.
+- Disable result-dependent views and Scaled Graph.
+- Re-enable them only after a successful calculation for the new revision.
 
-- Abort the active request with `AbortController`, or
-- Associate the request with the exact `appliedYaml` value/revision and ignore its response if the applied source has changed before it resolves.
+## Async Safety
 
-An old request must never repopulate results after a different graph has been applied.
+Preferred implementation:
 
-Passing an `AbortSignal` through `calculateLca` is the preferred approach, with a source/revision check retained as a defensive guard if practical.
+- Extend `calculateLca(productGraph, signal?)` to pass an `AbortSignal` to all fetch requests.
+- Keep the active `AbortController` in a ref.
+- Abort it when a different YAML revision is successfully previewed.
+- Retain the revision equality check even when aborting, because abort timing alone is not a sufficient correctness guarantee.
+
+If passing a signal through all discovery and calculation requests is deferred, the revision check is mandatory.
+
+Editing a draft without previewing does not invalidate an in-flight request because the request still represents the unchanged applied graph. Successfully applying another draft does invalidate it.
 
 ## Graph Interaction Boundary
 
-Allowed view-only interactions:
+The following remain view-only interactions:
 
-- Select a node
-- Open or close node detail presentation
-- Fold or restore connected nodes
-- Search and visually fade nonmatching nodes
-- Drag nodes for temporary positioning
-- Auto-layout
-- Fit graph
-- Pan and zoom
-- Switch between structure and scaled display modes
+- Selecting a node
+- Opening or closing node details
+- Folding or restoring connected nodes
+- Searching and fading nonmatching nodes
+- Dragging nodes for temporary placement
+- Applying layout and display settings
+- Fitting, panning, and zooming
+- Switching structure and scaled graph modes
 
-Disallowed product-model interactions:
+These interactions may change React Flow state but must not change `yamlDraft` or `appliedYaml`.
 
-- Add node
-- Delete node
-- Connect nodes
-- Disconnect nodes
-- Edit process or flow properties from the graph
+Product-model editing from the graph remains out of scope:
 
-Remove the Add Node and Connect Nodes controls and their handlers. Folding must continue to mean temporarily hiding connected nodes, not deleting product processes.
+- Add or delete process
+- Connect or disconnect processes
+- Edit process or flow properties
+
+The Add and Connect toolbar actions have already been removed.
 
 ## Implementation Sequence
 
-### Phase 1: Separate draft and applied YAML
+### Phase 1: Introduce the source boundary
 
-- Rename the current editable YAML state to `yamlDraft`.
+- Rename `yamlText` to `yamlDraft`.
 - Add `appliedYaml`, initialized from the bundled jacket YAML.
-- Ensure Preview Graph parses the draft and commits it only after successful parsing.
-- Ensure all graph construction and LCA calculation use `appliedYaml` after the commit.
+- Add `appliedRevision` and `calculatedRevision`, or equivalent exact-source tracking.
+- Derive `isDirty`, `canCalculate`, and `hasCurrentResults`.
+- Update the Calculate disabled state and its explanatory message.
+- Stop clearing matching results merely because the draft was edited.
 
-### Phase 2: Make result invalidation explicit
+### Phase 2: Commit only through Preview Graph
 
-- Introduce `calculationStatus`.
-- On successful preview, clear the result and reset status to `idle`.
-- Derive Markdown from `lcaResult` instead of storing `resultsMarkdown`.
-- Remove `calculatedYaml`; the preview transition now guarantees result validity.
-- Add stale-request protection.
+- Parse `yamlDraft`.
+- On success, atomically update the applied source and graph.
+- Clear results only after a successful apply.
+- On failure, preserve the current applied graph and result.
+- Apply the same draft-only behavior to case-study and file loading.
 
-### Phase 3: Gate dependent views
+### Phase 3: Move consumers to the applied source
 
-- Keep LCA Results accessible in every calculation state.
-- Disable Inventory, Contribution, and Sankey unless a current result exists and status is `success`.
-- Ensure these views read from the same `lcaResult` rather than maintaining their own copies.
+- Change graph settings, graph modes, process counts, edge-label refreshes, Sankey derivation, and calculation to use `appliedYaml`.
+- Audit every `buildGraphFromYaml` call.
+- Audit every component receiving YAML alongside `lcaResult`.
 
-### Phase 4: Enforce the read-only graph boundary
+### Phase 4: Add stale-request protection
 
-- Remove Add Node and Connect Nodes controls.
-- Remove the `addNode` callback and any unused editing code.
-- Keep view-only graph controls and interactions.
-- Change selected-node state to store only an ID.
+- Pass an AbortSignal through `calculateLca`, or implement a revision guard first.
+- Abort or invalidate older requests on successful preview.
+- Prevent an older success or error from overwriting current result state.
 
-### Phase 5: Split components only where useful
+### Phase 5: Add focused workflow tests
 
-After the behavior is correct, consider extracting:
-
-- `YamlEditor`
-- `GraphView`
-- `LcaResultsView`
-- `InventoryView`
-- `ContributionView`
-- `SankeyView`
-
-Keep state in their nearest common parent. Do not introduce a global store merely because components have been extracted; reassess only if state coordination becomes difficult.
-
-## Suggested Reducer Events
-
-If a reducer is used, keep its events aligned with user/domain transitions:
-
-```ts
-type EditorAction =
-  | { type: "yamlDraftChanged"; value: string }
-  | { type: "yamlPreviewSucceeded"; value: string; graph: ParsedGraph }
-  | { type: "yamlPreviewFailed"; error: string }
-  | { type: "calculationStarted"; revision: number }
-  | { type: "calculationSucceeded"; revision: number; result: LcaResult }
-  | { type: "calculationFailed"; revision: number; error: string }
-```
-
-The revision identifies the applied YAML version and prevents a late result from being accepted for the wrong graph.
+- Test the draft/applied boundary.
+- Test Calculate disabled and enabled states.
+- Test invalid preview preservation.
+- Test applied-YAML use in graph settings.
+- Test result availability across edit, preview, and calculation transitions.
+- Test stale-response rejection.
 
 ## Acceptance Criteria
 
-- Editing the YAML textarea does not change the displayed graph before Preview Graph is selected.
-- Previewing valid YAML updates the graph.
-- Previewing invalid YAML shows an error and leaves the current graph unchanged.
-- A successful preview clears all previous LCA data and returns calculation status to `idle`.
-- Calculate always analyzes the YAML represented by the visible graph.
-- Calculate cannot silently analyze an unpreviewed draft.
-- A late response from an older calculation cannot populate results for a newly previewed graph.
-- Inventory, Contribution, and Sankey are unavailable before a successful calculation.
-- Inventory, Contribution, and Sankey become available after a successful calculation.
-- Applying another valid YAML draft makes those views unavailable again.
-- Result Markdown is derived from the current `lcaResult`.
-- Graph actions cannot alter the YAML product definition.
-- Refresh persistence is unchanged; no browser storage is introduced.
-- No Zustand dependency is introduced.
-- TypeScript and the production build pass.
+- Editing YAML does not change the visible graph.
+- Editing YAML disables Calculate.
+- The disabled state explains that Preview Graph is required.
+- Existing graph and results remain associated with the last applied YAML while a draft is dirty.
+- Previewing valid YAML applies it and re-enables Calculate.
+- Previewing invalid YAML preserves the existing graph and matching result.
+- Successful Preview Graph clears results for the previous revision.
+- Calculate always sends the YAML represented by the visible graph.
+- Graph settings and graph modes cannot apply an unpreviewed draft.
+- A late response cannot populate results for an older applied revision.
+- Inventory, Impact Analysis, Process Results, Contribution, Sankey, and Scaled Graph use only the current applied result.
+- Graph interactions do not alter either YAML value.
+- No browser persistence or global store is introduced.
+- TypeScript, lint, and the production build pass.
 
 ## Testing Checklist
 
-### YAML workflow
+### Draft and preview
 
-- Edit YAML without previewing and confirm the graph is unchanged.
+- Edit valid YAML and confirm the graph is unchanged.
+- Confirm Calculate becomes disabled.
+- Confirm the editor shows an unapplied-changes message.
 - Preview valid YAML and confirm the graph and title update.
-- Preview invalid YAML and confirm the old graph remains visible.
-- Correct the YAML and confirm a later preview succeeds.
+- Confirm Calculate becomes enabled after a successful preview.
+- Preview invalid YAML and confirm the old graph and result remain visible.
+- Correct the draft and confirm a later preview succeeds.
 
-### LCA lifecycle
+### Applied-source consumers
 
-- Confirm the initial calculation state is `idle`.
-- Run a calculation and confirm `running` then `success`.
-- Preview different valid YAML and confirm results are cleared and status returns to `idle`.
-- Cause an API failure and confirm status becomes `error` without exposing dependent views.
-- Start a calculation, apply different YAML before it resolves, and confirm the old response is ignored.
+- Edit a process count without previewing and open Graph Settings.
+- Confirm maximum counts and layout still represent the applied graph.
+- Change decimal settings and confirm edge labels are refreshed from applied YAML.
+- Confirm Scaled Graph remains tied to the current applied result.
 
-### View gating
+### Calculation lifecycle
 
-- Confirm Inventory, Contribution, and Sankey are unavailable with no result.
-- Confirm all three become available after a successful result.
-- Confirm all three become unavailable after a new successful preview.
+- Start a calculation with a clean draft and confirm it uses `appliedYaml`.
+- Edit without previewing while the request is active and confirm the valid request may finish for the unchanged applied graph.
+- Successfully preview a different draft while a request is active and confirm the older response is ignored.
+- Cause an API failure and confirm it cannot erase a result for a newer revision.
 
-### Graph boundary
+### Result gating
 
-- Confirm there are no add/connect/delete editing controls.
-- Confirm selection, dragging, folding, search, layout, pan, and zoom still work.
-- Confirm none of those actions change YAML or invalidate LCA results.
+- Confirm all five analysis views and Scaled Graph are unavailable before calculation.
+- Confirm they become available after a successful current calculation.
+- Edit an unapplied draft and confirm existing applied results remain internally consistent.
+- Preview the draft and confirm old result-dependent views become unavailable.
+
+## Sequencing With the Shadcn Migration
+
+Shadcn configuration work that does not modify `src/App.tsx` may proceed first:
+
+- ESLint and visual-test guardrails
+- Import aliases
+- `components.json`
+- CLI initialization and generated-file reconciliation
+
+Complete this YAML consistency work before the shadcn migration begins rewriting navigation, form controls, and settings inside `src/App.tsx`.
+
+This avoids combining state-transition changes with component substitutions in the same review.
 
 ## Out of Scope
 
-- Browser persistence
-- Backend/database persistence
-- Authentication or user accounts
-- Multiple saved projects
+- Browser or backend persistence
+- Authentication and saved projects
 - Collaborative editing
 - Graph-based product-model editing
-- Implementing the actual Inventory, Contribution, or Sankey visualizations beyond wiring their availability and shared result input
+- Replacing React Flow
+- Redesigning the YAML editor
+- Refactoring all `GraphEditor` state into a reducer
+- Replacing result visualizations

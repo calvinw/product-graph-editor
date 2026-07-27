@@ -56,7 +56,11 @@ function ProcessNodeImpl({ id, data, selected, sourcePosition = Position.Right, 
               type="button"
               className="pg-node-toggle"
               aria-label={data.canRestore ? `Show connected steps for ${data.label}` : `Fold connected steps for ${data.label}`}
-              onClick={(event) => { event.stopPropagation(); data.canRestore ? data.onRestore?.(id) : data.onRemove?.(id) }}
+              onClick={(event) => {
+                event.stopPropagation()
+                if (data.canRestore) data.onRestore?.(id)
+                else data.onRemove?.(id)
+              }}
             >
               {data.canRestore ? <Plus size={11} /> : <Minus size={11} />}
             </button> : null}
@@ -101,7 +105,11 @@ function ProcessNodeImpl({ id, data, selected, sourcePosition = Position.Right, 
             type="button"
             className="pg-node-toggle"
             aria-label={data.canRestore ? `Show connected steps for ${data.label}` : `Fold connected steps for ${data.label}`}
-            onClick={(event) => { event.stopPropagation(); data.canRestore ? data.onRestore?.(id) : data.onRemove?.(id) }}
+            onClick={(event) => {
+              event.stopPropagation()
+              if (data.canRestore) data.onRestore?.(id)
+              else data.onRemove?.(id)
+            }}
           >
             {data.canRestore ? <Plus size={11} /> : <Minus size={11} />}
           </button> : null}

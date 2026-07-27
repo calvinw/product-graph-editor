@@ -686,7 +686,7 @@ function SankeyView({ result }: { result: LcaResult }) {
   const instanceRef = useRef<ReactFlowInstance<Node<SankeyProcessNodeData>, Edge> | null>(null)
   useEffect(() => setMaxProcesses(availableProcessCount), [availableProcessCount])
   const flowNames = Object.keys(result.lci)
-  const impactNames = [...Object.entries(result.lcia).filter(([, value]) => value.score !== 0).reduce((unique, [name, value]) => {
+  const impactNames = [...Object.entries(result.lcia).filter(([, value]) => value.score !== 0).reduce((unique, [name]) => {
     const key = name
     if (!unique.has(key)) unique.set(key, name)
     return unique
