@@ -5,6 +5,8 @@ node_modules/
 *.egg-info/
 dist/
 build/
+playwright-report/
+test-results/
 
 # Environment
 .env

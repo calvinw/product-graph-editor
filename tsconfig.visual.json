@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "types": ["@playwright/test"]
+  },
+  "include": [
+    "src/vite-env.d.ts",
+    "playwright.config.ts",
+    "tests"
+  ]
+}
