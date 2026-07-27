@@ -288,6 +288,22 @@ html[data-theme="light"] .pg-node-head, html[data-theme="light"] .pg-flow-sectio
 .pg-node-toggle:hover { color: #fff; border-color: var(--node-color); background: color-mix(in srgb, var(--node-color) 20%, transparent); }
 .graph-meta { position: absolute; z-index: 2; right: 20px; bottom: 18px; color: #5e646e; font-size: 10px; }
 .inspector { position: absolute; z-index: 4; top: 76px; right: 18px; bottom: 18px; width: 286px; min-width: 0; padding: 22px; overflow-y: auto; border: 1px solid #2b2f36; border-radius: 12px; background: rgba(16,18,22,.96); box-shadow: 0 18px 48px rgba(0,0,0,.38); backdrop-filter: blur(12px); }
+.background-view-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin: 16px 0 8px; }
+.background-view-actions button { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 6px 8px; border: 1px solid #334155; border-radius: 7px; color: #bae6fd; background: rgba(14,165,233,.08); font-size: 10px; cursor: pointer; }
+.background-view-actions button:hover { border-color: #38bdf8; color: #fff; background: rgba(14,165,233,.16); }
+.background-explorer { position: absolute; z-index: 12; inset: 70px 18px 18px; display: grid; grid-template-rows: auto minmax(0,1fr); overflow: hidden; border: 1px solid #334155; border-radius: 12px; background: #0b0d10; box-shadow: 0 24px 70px rgba(0,0,0,.6); }
+.background-explorer-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 64px; padding: 11px 15px; border-bottom: 1px solid #29313b; background: #11151b; }
+.background-explorer-head > div { display: grid; gap: 2px; min-width: 0; }
+.background-explorer-head small { color: #38bdf8; font-size: 8px; font-weight: 800; letter-spacing: .12em; }
+.background-explorer-head strong { overflow: hidden; color: #eef2f7; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.background-explorer-head span { color: #7f8997; font-size: 10px; }
+.background-explorer-head button { display: grid; place-items: center; flex: 0 0 auto; width: 30px; height: 30px; border: 0; border-radius: 6px; color: #8b95a3; background: transparent; cursor: pointer; }
+.background-explorer-head button:hover { color: #fff; background: #29313b; }
+.background-explorer-canvas { position: relative; min-height: 0; background: #0b0d10; }
+.background-explorer-canvas.is-sankey .pg-node { border-width: 2px; }
+.background-explorer-canvas.is-sankey .react-flow__edge-path { stroke-linecap: round; }
+.background-loading, .background-error { position: absolute; z-index: 5; right: 14px; bottom: 14px; padding: 8px 10px; border: 1px solid #334155; border-radius: 7px; color: #bae6fd; background: rgba(15,23,42,.94); font-size: 10px; }
+.background-error { border-color: rgba(251,113,133,.4); color: #fda4af; }
 .inspector-head { display: flex; align-items: center; justify-content: space-between; height: 30px; margin-bottom: 27px; color: #737985; font-size: 9px; font-weight: 750; letter-spacing: .14em; }
 .node-icon { display: grid; place-items: center; width: 44px; height: 44px; border: 5px solid #191c21; border-radius: 50%; color: #101216; box-shadow: 0 0 0 1px #30343c; }
 .inspector h2 { margin: 13px 0 5px; font-size: 19px; letter-spacing: -.025em; }.inspector > p { margin: 0 0 28px; color: #7f8590; font-size: 12px; }
@@ -329,6 +345,10 @@ html[data-theme="light"] .pg-node.is-expanded .pg-emissions-title { color: #dc26
 html[data-theme="light"] .react-flow__edge-text { fill: #000 !important; }
 html[data-theme="light"] .react-flow__edge-textbg { fill: #fff !important; fill-opacity: .96 !important; }
 html[data-theme="light"] .inspector { border-color: #cbd1da; color: #111827; background: rgba(255,255,255,.98); box-shadow: 0 18px 48px rgba(41,51,68,.18); }
+html[data-theme="light"] .background-explorer, html[data-theme="light"] .background-explorer-canvas { border-color: #cbd5e1; background: #eef1f5; }
+html[data-theme="light"] .background-explorer-head { border-color: #d5dae2; background: #fff; }
+html[data-theme="light"] .background-explorer-head strong { color: #172033; }
+html[data-theme="light"] .background-view-actions button { border-color: #bae6fd; color: #0369a1; background: #f0f9ff; }
 html[data-theme="light"] .inspector-head { color: #4b5563; }
 html[data-theme="light"] .inspector h2 { color: #000; }
 html[data-theme="light"] .inspector > p { color: #4b5563; }
