@@ -13,6 +13,9 @@ import {
 } from "lucide-react"
 import { parse } from "yaml"
 import { Button } from "@/components/ui/button"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
@@ -35,6 +38,10 @@ import woolYarnYaml from "../case_studies/wool_yarn.yaml?raw"
 import woolYarnBafuLinkedYaml from "../case_studies/wool_yarn_bafu_linked.yaml?raw"
 
 type NodeMeta = { label: string; kind: string; detail: string; color: string; scope?: "foreground" | "background" }
+type View = "graph" | "yaml" | "inventory" | "impact" | "process" | "contribution" | "sankey" | "results"
+type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribution" | "sankey">
+const analysisViews: AnalysisView[] = ["inventory", "impact", "process", "contribution", "sankey"]
+const isAnalysisView = (view: View): view is AnalysisView => analysisViews.includes(view as AnalysisView)
 
 const defaultGraph = buildGraphFromYaml(jacketYaml, "structure")
 const initialEdges: Edge[] = defaultGraph.edges
@@ -255,8 +262,10 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
     <div className="impact-title"><div><strong>{result.name}</strong><span>Impact analysis – {result.method}</span></div></div>
     <div className="impact-controls">
       <span>Sub-group by</span>
-      <label><input type="radio" checked={subgroup === "processes"} onChange={() => setSubgroup("processes")} /> Processes</label>
-      <label><input type="radio" checked={subgroup === "flows"} onChange={() => setSubgroup("flows")} /> Flows</label>
+      <RadioGroup className="impact-subgroup" value={subgroup} onValueChange={(value) => setSubgroup(value as "processes" | "flows")} aria-label="Sub-group impact results">
+        <label><RadioGroupItem className="app-radio" value="processes" /> Processes</label>
+        <label><RadioGroupItem className="app-radio" value="flows" /> Flows</label>
+      </RadioGroup>
       <i />
       <label className="impact-threshold">Don’t show &lt; <input type="number" min="0" max="100" step="0.1" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label>
     </div>
@@ -650,11 +659,13 @@ function ContributionView({ result, yaml, isCurrent, error }: {
       </aside> : null}
     </div>
     <div className="contribution-controls">
-      <label className={mode === "flow" ? "active" : ""}><input type="radio" checked={mode === "flow"} onChange={() => setMode("flow")} />Flow</label>
-      <div className="contribution-control-slot">{mode === null || mode === "flow" ? <div className="contribution-select is-flow"><span className="flow-dot output" /><select value={selectedFlow} onChange={(event) => { setFlow(event.target.value); setMode("flow") }} aria-label="Flow category">{flowNames.map((name) => <option key={name} value={name}>{contributionFlowLabel(name)}</option>)}</select></div> : null}</div>
-      <label className={mode === "impact" ? "active" : ""}><input type="radio" checked={mode === "impact"} onChange={() => setMode("impact")} />Impact category</label>
-      <div className="contribution-control-slot">{mode === null || mode === "impact" ? <div className="contribution-select is-impact"><BarChart3 size={16} /><select value={selectedImpact} onChange={(event) => { setImpact(event.target.value); setMode("impact") }} aria-label="Impact category">{impactNames.map((name) => <option key={name} value={name}>{impactCategoryDisplayName(name)}</option>)}</select></div> : null}</div>
-      {mode === "impact" && !selectedContributionGraph ? <p className="contribution-fallback-note">Recursive contributions were not requested for this category. Showing the available process-contribution results.</p> : null}
+      <RadioGroup className="contribution-mode-group" value={mode ?? undefined} onValueChange={(value) => setMode(value as "flow" | "impact")} aria-label="Contribution result type">
+        <label className={mode === "flow" ? "active" : ""}><RadioGroupItem className="app-radio" value="flow" />Flow</label>
+        <div className="contribution-control-slot">{mode === null || mode === "flow" ? <div className="contribution-select is-flow"><span className="flow-dot output" /><select value={selectedFlow} onChange={(event) => { setFlow(event.target.value); setMode("flow") }} aria-label="Flow category">{flowNames.map((name) => <option key={name} value={name}>{contributionFlowLabel(name)}</option>)}</select></div> : null}</div>
+        <label className={mode === "impact" ? "active" : ""}><RadioGroupItem className="app-radio" value="impact" />Impact category</label>
+        <div className="contribution-control-slot">{mode === null || mode === "impact" ? <div className="contribution-select is-impact"><BarChart3 size={16} /><select value={selectedImpact} onChange={(event) => { setImpact(event.target.value); setMode("impact") }} aria-label="Impact category">{impactNames.map((name) => <option key={name} value={name}>{impactCategoryDisplayName(name)}</option>)}</select></div> : null}</div>
+        {mode === "impact" && !selectedContributionGraph ? <p className="contribution-fallback-note">Recursive contributions were not requested for this category. Showing the available process-contribution results.</p> : null}
+      </RadioGroup>
     </div>
     {mode !== null ? <div className="contribution-table-wrap"><table className="contribution-table"><thead><tr><th>Contribution rate</th><th>Process</th><th>{selectedContributionGraph ? "Supply amount" : "Required amount"}</th><th>{selectedContributionGraph ? "Cumulative result" : "Total result"}</th><th>Direct contribution</th></tr></thead><tbody>
       {selectedContributionGraph ? <>
@@ -820,10 +831,12 @@ function SankeyView({ result }: { result: LcaResult }) {
 
   return <div className="sankey-view">
     {chartPickerOpen ? <div className="sankey-chart-picker">
-      <div className="sankey-picker-tabs">
-        <button className={mode === "flow" ? "is-active" : ""} onClick={() => setMode("flow")}><span className="flow-dot output" />Flow</button>
-        <button className={mode === "impact" ? "is-active" : ""} onClick={() => setMode("impact")}><BarChart3 size={14} />Impact</button>
-      </div>
+      <Tabs value={mode} onValueChange={(value) => setMode(value as "flow" | "impact")}>
+        <TabsList className="sankey-picker-tabs" aria-label="Sankey result type">
+          <TabsTrigger value="flow"><span className="flow-dot output" />Flow</TabsTrigger>
+          <TabsTrigger value="impact"><BarChart3 size={14} />Impact</TabsTrigger>
+        </TabsList>
+      </Tabs>
       <label>
         <span>{mode === "flow" ? "Flow category" : "Impact category"}</span>
         {mode === "flow"
@@ -901,7 +914,7 @@ function GraphEditor() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges)
   const [selected, setSelected] = useState<(NodeMeta & { id: string }) | null>(null)
   const [query, setQuery] = useState("")
-  const [view, setView] = useState<"graph" | "yaml" | "inventory" | "impact" | "process" | "contribution" | "sankey" | "results">("graph")
+  const [view, setView] = useState<View>("graph")
   const [yamlDraft, setYamlDraft] = useState(jacketYaml)
   const [appliedYaml, setAppliedYaml] = useState(jacketYaml)
   const [appliedRevision, setAppliedRevision] = useState(0)
@@ -1281,6 +1294,8 @@ function GraphEditor() {
   const isDirty = yamlDraft !== appliedYaml
   const hasCurrentResults = Boolean(lcaResult && calculatedRevision === appliedRevision)
   const canCalculate = !isDirty && !isCalculating
+  const primaryView = view === "graph" || view === "yaml" ? view : "results"
+  const analysisView = isAnalysisView(view) ? view : ""
   const selectedNode = selected ? nodes.find((node) => node.id === selected.id) : undefined
   const inputNodes = selectedNode ? edges
     .filter((edge) => edge.target === selectedNode.id)
@@ -1298,17 +1313,23 @@ function GraphEditor() {
           <h1>{graphTitle}</h1>
           <div className="canvas-actions">
             {view === "graph" ? <div className="search"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a node…" aria-label="Find a node" /><kbd>⌘ K</kbd></div> : null}
-            <div className="view-tabs" role="tablist" aria-label="Graph views">
-              <button className={view === "graph" ? "is-active" : ""} onClick={() => setView("graph")}>Graph</button>
-              <button className={view === "yaml" ? "is-active" : ""} onClick={() => setView("yaml")}>FILE</button>
-              <button className={view === "results" ? "is-active" : ""} onClick={() => setView("results")}>LCA Results</button>
-              {hasCurrentResults ? <>
-                <button className={view === "inventory" ? "is-active" : ""} onClick={() => setView("inventory")}>Inventory</button>
-                <button className={view === "impact" ? "is-active" : ""} onClick={() => setView("impact")}>Impact Analysis</button>
-                <button className={view === "process" ? "is-active" : ""} onClick={() => setView("process")}>Process Results</button>
-                <button className={view === "contribution" ? "is-active" : ""} onClick={() => setView("contribution")}>Contribution</button>
-                <button className={view === "sankey" ? "is-active" : ""} onClick={() => setView("sankey")}>Sankey Graph</button>
-              </> : null}
+            <div className="view-tabs">
+              <Tabs value={primaryView} onValueChange={(next) => setView(next as "graph" | "yaml" | "results")}>
+                <TabsList aria-label="Primary views">
+                  <TabsTrigger value="graph">Graph</TabsTrigger>
+                  <TabsTrigger value="yaml">FILE</TabsTrigger>
+                  <TabsTrigger value="results">LCA Results</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              {hasCurrentResults ? <Tabs value={analysisView} onValueChange={(next) => setView(next as AnalysisView)}>
+                <TabsList aria-label="Result analysis views">
+                  <TabsTrigger value="inventory">Inventory</TabsTrigger>
+                  <TabsTrigger value="impact">Impact Analysis</TabsTrigger>
+                  <TabsTrigger value="process">Process Results</TabsTrigger>
+                  <TabsTrigger value="contribution">Contribution</TabsTrigger>
+                  <TabsTrigger value="sankey">Sankey Graph</TabsTrigger>
+                </TabsList>
+              </Tabs> : null}
             </div>
           </div>
         </div>
@@ -1463,10 +1484,10 @@ function AppContent() {
               <div className="global-setting-field">
                 <span>Appearance</span>
                 <p>Choose the workspace color theme.</p>
-                <div className="theme-options">
-                  <button type="button" className={theme === "dark" ? "is-active" : ""} onClick={() => setTheme("dark")}><Moon size={14} />Dark</button>
-                  <button type="button" className={theme === "light" ? "is-active" : ""} onClick={() => setTheme("light")}><Sun size={14} />Light</button>
-                </div>
+                <ToggleGroup type="single" value={theme} onValueChange={(value) => value && setTheme(value as "dark" | "light")} className="theme-options" aria-label="Appearance">
+                  <ToggleGroupItem value="dark"><Moon size={14} />Dark</ToggleGroupItem>
+                  <ToggleGroupItem value="light"><Sun size={14} />Light</ToggleGroupItem>
+                </ToggleGroup>
               </div>
             </div>
           </> : null}
