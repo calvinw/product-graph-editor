@@ -15,6 +15,7 @@ import { parse } from "yaml"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -1378,20 +1379,36 @@ function GraphEditor() {
         >
           <Background variant={BackgroundVariant.Dots} gap={22} size={1} color={theme === "dark" ? "#242831" : "#cbd5e1"} />
         </ReactFlow>
-        {graphSettingsOpen ? <>
-          <div className="graph-settings-backdrop" onClick={() => setGraphSettingsOpen(false)} aria-hidden="true" />
-          <div className="graph-settings-picker">
-            <div className="graph-settings-title"><div><Settings2 size={15} /><span>Graph settings</span></div><button type="button" onClick={() => setGraphSettingsOpen(false)} aria-label="Close graph settings"><X size={15} /></button></div>
-            <div className="graph-settings-grid">
-              <label><span>Max. number of processes</span><NumberStepper value={graphMaxProcesses} min={1} max={availableGraphProcessCount} step={1} integer inputLabel="Graph maximum processes" decrementLabel="Decrease graph maximum processes" incrementLabel="Increase graph maximum processes" onValueChange={(value) => { setGraphMaxProcesses(value); applyGraphSettings({ maximum: value }) }} /></label>
-              <label><span>Orientation</span><AppSelect value={graphOrientation} onValueChange={(value) => { const orientation = value as "vertical" | "horizontal"; setGraphOrientation(orientation); applyGraphSettings({ orientation }) }} label="Graph orientation" options={[{ value: "vertical", label: "Vertical" }, { value: "horizontal", label: "Horizontal" }]} /></label>
-              <label><span>Connections</span><AppSelect value={graphConnectionStyle} onValueChange={(value) => { const connectionStyle = value as "curved" | "straight" | "step"; setGraphConnectionStyle(connectionStyle); applyGraphSettings({ connectionStyle }) }} label="Graph connections" options={[{ value: "curved", label: "Curved" }, { value: "straight", label: "Straight" }, { value: "step", label: "Step" }]} /></label>
-            </div>
-          </div>
-        </> : null}
         <div className="graph-toolbar" aria-label="Graph tools">
           <div className="toolbar-group">
-            <ToolButton label="Graph settings" onClick={() => setGraphSettingsOpen((open) => !open)}><Settings2 size={18} /></ToolButton>
+            <Popover modal open={graphSettingsOpen} onOpenChange={setGraphSettingsOpen}>
+              <Tooltip>
+                <PopoverTrigger asChild>
+                  <TooltipTrigger asChild>
+                    <Button aria-label="Graph settings" variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground"><Settings2 size={18} /></Button>
+                  </TooltipTrigger>
+                </PopoverTrigger>
+                <TooltipContent side="right" sideOffset={8} className="tooltip">Graph settings</TooltipContent>
+              </Tooltip>
+              <PopoverContent
+                className="graph-settings-picker"
+                side="right"
+                align="start"
+                sideOffset={11}
+                alignOffset={-7}
+                onInteractOutside={(event) => {
+                  const target = event.target
+                  if (target instanceof Element && target.closest('[data-slot="select-content"]')) event.preventDefault()
+                }}
+              >
+                <div className="graph-settings-title"><div><Settings2 size={15} /><span>Graph settings</span></div><button type="button" onClick={() => setGraphSettingsOpen(false)} aria-label="Close graph settings"><X size={15} /></button></div>
+                <div className="graph-settings-grid">
+                  <label><span>Max. number of processes</span><NumberStepper value={graphMaxProcesses} min={1} max={availableGraphProcessCount} step={1} integer inputLabel="Graph maximum processes" decrementLabel="Decrease graph maximum processes" incrementLabel="Increase graph maximum processes" onValueChange={(value) => { setGraphMaxProcesses(value); applyGraphSettings({ maximum: value }) }} /></label>
+                  <label><span>Orientation</span><AppSelect value={graphOrientation} onValueChange={(value) => { const orientation = value as "vertical" | "horizontal"; setGraphOrientation(orientation); applyGraphSettings({ orientation }) }} label="Graph orientation" options={[{ value: "vertical", label: "Vertical" }, { value: "horizontal", label: "Horizontal" }]} /></label>
+                  <label><span>Connections</span><AppSelect value={graphConnectionStyle} onValueChange={(value) => { const connectionStyle = value as "curved" | "straight" | "step"; setGraphConnectionStyle(connectionStyle); applyGraphSettings({ connectionStyle }) }} label="Graph connections" options={[{ value: "curved", label: "Curved" }, { value: "straight", label: "Straight" }, { value: "step", label: "Step" }]} /></label>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
           <div className="toolbar-group">
             <ToolButton label="Select"><MousePointer2 size={18} /></ToolButton>
@@ -1497,28 +1514,29 @@ function AppContent() {
         <header className="topbar">
           <div className="brand"><div className="brand-mark"><Share2 size={16} /></div><span>PRISM Life Cycle Assessment</span></div>
           <div className="top-actions">
-            <button className={`global-settings-trigger ${settingsOpen ? "is-active" : ""}`} type="button" onClick={() => setSettingsOpen((open) => !open)} aria-expanded={settingsOpen} aria-label="Global settings"><Settings2 size={16} /><span>Settings</span></button>
+            <Popover modal open={settingsOpen} onOpenChange={setSettingsOpen}>
+              <PopoverTrigger asChild>
+                <button className={`global-settings-trigger ${settingsOpen ? "is-active" : ""}`} type="button" aria-label="Global settings"><Settings2 size={16} /><span>Settings</span></button>
+              </PopoverTrigger>
+              <PopoverContent className="global-settings-panel" side="bottom" align="end" sideOffset={3}>
+                <div className="global-settings-title"><div><Settings2 size={15} /><span>Global settings</span></div><button type="button" onClick={() => setSettingsOpen(false)} aria-label="Close global settings"><X size={15} /></button></div>
+                <div className="global-setting-field">
+                  <span>Decimal places</span>
+                  <p>Applied to numerical results across the workspace.</p>
+                  <label className="all-decimals-toggle"><Checkbox checked={showAllDecimalPlaces} onCheckedChange={(checked) => setShowAllDecimalPlaces(checked === true)} aria-label="Show all decimal places" /><span>Show all decimal places</span></label>
+                  <NumberStepper value={decimalPlaces} min={0} max={8} step={1} integer disabled={showAllDecimalPlaces} inputLabel="Decimal places" decrementLabel="Decrease decimal places" incrementLabel="Increase decimal places" onValueChange={setDecimalPlaces} />
+                </div>
+                <div className="global-setting-field">
+                  <span>Appearance</span>
+                  <p>Choose the workspace color theme.</p>
+                  <ToggleGroup type="single" value={theme} onValueChange={(value) => value && setTheme(value as "dark" | "light")} className="theme-options" aria-label="Appearance">
+                    <ToggleGroupItem value="dark"><Moon size={14} />Dark</ToggleGroupItem>
+                    <ToggleGroupItem value="light"><Sun size={14} />Light</ToggleGroupItem>
+                  </ToggleGroup>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
-          {settingsOpen ? <>
-            <div className="global-settings-backdrop" onClick={() => setSettingsOpen(false)} aria-hidden="true" />
-            <div className="global-settings-panel">
-              <div className="global-settings-title"><div><Settings2 size={15} /><span>Global settings</span></div><button type="button" onClick={() => setSettingsOpen(false)} aria-label="Close global settings"><X size={15} /></button></div>
-              <div className="global-setting-field">
-                <span>Decimal places</span>
-                <p>Applied to numerical results across the workspace.</p>
-                <label className="all-decimals-toggle"><Checkbox checked={showAllDecimalPlaces} onCheckedChange={(checked) => setShowAllDecimalPlaces(checked === true)} aria-label="Show all decimal places" /><span>Show all decimal places</span></label>
-                <NumberStepper value={decimalPlaces} min={0} max={8} step={1} integer disabled={showAllDecimalPlaces} inputLabel="Decimal places" decrementLabel="Decrease decimal places" incrementLabel="Increase decimal places" onValueChange={setDecimalPlaces} />
-              </div>
-              <div className="global-setting-field">
-                <span>Appearance</span>
-                <p>Choose the workspace color theme.</p>
-                <ToggleGroup type="single" value={theme} onValueChange={(value) => value && setTheme(value as "dark" | "light")} className="theme-options" aria-label="Appearance">
-                  <ToggleGroupItem value="dark"><Moon size={14} />Dark</ToggleGroupItem>
-                  <ToggleGroupItem value="light"><Sun size={14} />Light</ToggleGroupItem>
-                </ToggleGroup>
-              </div>
-            </div>
-          </> : null}
         </header>
 
         <section className="workspace">
