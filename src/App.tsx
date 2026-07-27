@@ -13,10 +13,14 @@ import {
 } from "lucide-react"
 import { parse } from "yaml"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { NumberStepper } from "@/components/NumberStepper"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
 import { chemicalFlowLabel } from "./lib/flowLabels"
@@ -267,7 +271,7 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
         <label><RadioGroupItem className="app-radio" value="flows" /> Flows</label>
       </RadioGroup>
       <i />
-      <label className="impact-threshold">Don’t show &lt; <input type="number" min="0" max="100" step="0.1" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label>
+      <label className="impact-threshold">Don’t show &lt; <Input type="number" min="0" max="100" step="0.1" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label>
     </div>
     <div className="impact-table-wrap"><table className="impact-table">
       <thead><tr><th>Name</th><th>Category</th><th>Inventory result</th><th>Characterization factor</th><th>Impact assessment result</th></tr></thead>
@@ -437,11 +441,11 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
 
   return <div className="process-results-view">
     <details open><summary>Flow contributions to process results</summary>
-      <div className="process-results-controls"><label>Process <select value={selectedId} onChange={(event) => setProcessId(event.target.value)}>{processNodes.map((node) => <option key={node.id} value={node.id}>{cleanImpactProcessName(node.process_name ?? node.label)}</option>)}</select></label><label>Don’t show &lt; <input type="number" min="0" max="100" step="0.01" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label></div>
+      <div className="process-results-controls"><label>Process <AppSelect value={selectedId} onValueChange={setProcessId} label="Flow contribution process" options={processNodes.map((node) => ({ value: node.id, label: cleanImpactProcessName(node.process_name ?? node.label) }))} /></label><label>Don’t show &lt; <Input type="number" min="0" max="100" step="0.01" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label></div>
       <div className="process-flow-grids"><section><h3>Inputs</h3><FlowResultsTable input /></section><section><h3>Outputs</h3><FlowResultsTable input={false} /></section></div>
     </details>
     <details open><summary>Impact assessment results</summary>
-      <div className="process-results-controls"><label>Process <select value={selectedId} onChange={(event) => setProcessId(event.target.value)}>{processNodes.map((node) => <option key={node.id} value={node.id}>{cleanImpactProcessName(node.process_name ?? node.label)}</option>)}</select></label><label>Don’t show &lt; <input type="number" min="0" max="100" step="0.01" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label></div>
+      <div className="process-results-controls"><label>Process <AppSelect value={selectedId} onValueChange={setProcessId} label="Impact assessment process" options={processNodes.map((node) => ({ value: node.id, label: cleanImpactProcessName(node.process_name ?? node.label) }))} /></label><label>Don’t show &lt; <Input type="number" min="0" max="100" step="0.01" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label></div>
       <div className="process-impact-table-wrap"><table className="process-impact-table"><thead><tr><th>Contribution</th><th>Impact category</th><th>Upstream incl. direct</th><th>Direct</th><th>Unit</th></tr></thead><tbody>{impactRows.map((row) => <tr key={row.category.id || row.category.label}><td><span className="process-result-bar"><i style={{ width: `${Math.min(100, Math.abs(row.contribution))}%` }} /></span>{formatPercent(row.contribution)}</td><td>{impactCategoryDisplayName(row.category.label)}</td><td>{formatNumber(row.upstream)}</td><td>{formatNumber(row.direct)}</td><td>{row.category.unit}</td></tr>)}</tbody></table></div>
     </details>
   </div>
@@ -661,9 +665,9 @@ function ContributionView({ result, yaml, isCurrent, error }: {
     <div className="contribution-controls">
       <RadioGroup className="contribution-mode-group" value={mode ?? undefined} onValueChange={(value) => setMode(value as "flow" | "impact")} aria-label="Contribution result type">
         <label className={mode === "flow" ? "active" : ""}><RadioGroupItem className="app-radio" value="flow" />Flow</label>
-        <div className="contribution-control-slot">{mode === null || mode === "flow" ? <div className="contribution-select is-flow"><span className="flow-dot output" /><select value={selectedFlow} onChange={(event) => { setFlow(event.target.value); setMode("flow") }} aria-label="Flow category">{flowNames.map((name) => <option key={name} value={name}>{contributionFlowLabel(name)}</option>)}</select></div> : null}</div>
+        <div className="contribution-control-slot">{mode === null || mode === "flow" ? <div className="contribution-select is-flow"><span className="flow-dot output" /><AppSelect value={selectedFlow} onValueChange={(value) => { setFlow(value); setMode("flow") }} label="Flow category" options={flowNames.map((value) => ({ value, label: contributionFlowLabel(value) }))} /></div> : null}</div>
         <label className={mode === "impact" ? "active" : ""}><RadioGroupItem className="app-radio" value="impact" />Impact category</label>
-        <div className="contribution-control-slot">{mode === null || mode === "impact" ? <div className="contribution-select is-impact"><BarChart3 size={16} /><select value={selectedImpact} onChange={(event) => { setImpact(event.target.value); setMode("impact") }} aria-label="Impact category">{impactNames.map((name) => <option key={name} value={name}>{impactCategoryDisplayName(name)}</option>)}</select></div> : null}</div>
+        <div className="contribution-control-slot">{mode === null || mode === "impact" ? <div className="contribution-select is-impact"><BarChart3 size={16} /><AppSelect value={selectedImpact} onValueChange={(value) => { setImpact(value); setMode("impact") }} label="Impact category" options={impactNames.map((value) => ({ value, label: impactCategoryDisplayName(value) }))} /></div> : null}</div>
         {mode === "impact" && !selectedContributionGraph ? <p className="contribution-fallback-note">Recursive contributions were not requested for this category. Showing the available process-contribution results.</p> : null}
       </RadioGroup>
     </div>
@@ -840,14 +844,14 @@ function SankeyView({ result }: { result: LcaResult }) {
       <label>
         <span>{mode === "flow" ? "Flow category" : "Impact category"}</span>
         {mode === "flow"
-          ? <select value={selectedFlow} onChange={(event) => setFlow(event.target.value)} aria-label="Sankey flow category">{flowNames.map((name) => <option key={name} value={name}>{inventoryFlowName(name)}</option>)}</select>
-          : <select value={selectedImpact} onChange={(event) => setImpact(event.target.value)} aria-label="Sankey impact category">{impactNames.map((name) => <option key={name} value={name}>{impactCategoryDisplayName(name)}</option>)}</select>}
+          ? <AppSelect value={selectedFlow} onValueChange={setFlow} label="Sankey flow category" options={flowNames.map((value) => ({ value, label: inventoryFlowName(value) }))} />
+          : <AppSelect value={selectedImpact} onValueChange={setImpact} label="Sankey impact category" options={impactNames.map((value) => ({ value, label: impactCategoryDisplayName(value) }))} />}
       </label>
       <div className="sankey-settings-grid">
-        <label><span>Min. contribution share</span><div className="sankey-stepper"><button type="button" aria-label="Decrease minimum contribution" onClick={() => setMinContribution((value) => Math.max(0, Number((value - .1).toFixed(1))))}>−</button><div className="sankey-number"><input type="number" min="0" max="100" step="0.1" value={minContribution} onChange={(event) => setMinContribution(Math.min(100, Math.max(0, Number(event.target.value))))} /><span>%</span></div><button type="button" aria-label="Increase minimum contribution" onClick={() => setMinContribution((value) => Math.min(100, Number((value + .1).toFixed(1))))}>+</button></div></label>
-        <label><span>Max. number of processes</span><div className="sankey-stepper"><button type="button" aria-label="Decrease maximum processes" onClick={() => setMaxProcesses((value) => Math.max(1, value - 1))}>−</button><input type="number" min="1" max={availableProcessCount} step="1" value={maxProcesses} onChange={(event) => setMaxProcesses(Math.min(availableProcessCount, Math.max(1, Math.floor(Number(event.target.value) || 1))))} /><button type="button" aria-label="Increase maximum processes" onClick={() => setMaxProcesses((value) => Math.min(availableProcessCount, value + 1))}>+</button></div></label>
-        <label><span>Orientation</span><select value={orientation} onChange={(event) => setOrientation(event.target.value as "vertical" | "horizontal")}><option value="vertical">Vertical</option><option value="horizontal">Horizontal</option></select></label>
-        <label><span>Connections</span><select value={connectionStyle} onChange={(event) => setConnectionStyle(event.target.value as "curved" | "straight" | "step")}><option value="curved">Curved</option><option value="straight">Straight</option><option value="step">Step</option></select></label>
+        <label><span>Min. contribution share</span><NumberStepper value={minContribution} min={0} max={100} step={0.1} suffix="%" inputLabel="Minimum contribution share" decrementLabel="Decrease minimum contribution" incrementLabel="Increase minimum contribution" onValueChange={setMinContribution} /></label>
+        <label><span>Max. number of processes</span><NumberStepper value={maxProcesses} min={1} max={availableProcessCount} step={1} integer inputLabel="Maximum processes" decrementLabel="Decrease maximum processes" incrementLabel="Increase maximum processes" onValueChange={setMaxProcesses} /></label>
+        <label><span>Orientation</span><AppSelect value={orientation} onValueChange={(value) => setOrientation(value as "vertical" | "horizontal")} label="Sankey orientation" options={[{ value: "vertical", label: "Vertical" }, { value: "horizontal", label: "Horizontal" }]} /></label>
+        <label><span>Connections</span><AppSelect value={connectionStyle} onValueChange={(value) => setConnectionStyle(value as "curved" | "straight" | "step")} label="Sankey connections" options={[{ value: "curved", label: "Curved" }, { value: "straight", label: "Straight" }, { value: "step", label: "Step" }]} /></label>
       </div>
     </div> : null}
     <div className="sankey-canvas">
@@ -905,6 +909,25 @@ function ToolButton({ label, children, onClick }: { label: string; children: Rea
       <TooltipContent side="right" sideOffset={8} className="tooltip">{label}</TooltipContent>
     </Tooltip>
   )
+}
+
+function AppSelect({
+  value,
+  onValueChange,
+  options,
+  label,
+}: {
+  value: string
+  onValueChange: (value: string) => void
+  options: Array<{ value: string; label: string; disabled?: boolean }>
+  label: string
+}) {
+  return <Select value={value} onValueChange={onValueChange}>
+    <SelectTrigger aria-label={label}><SelectValue /></SelectTrigger>
+    <SelectContent position="popper">
+      {options.map((option) => <SelectItem key={option.value} value={option.value} disabled={option.disabled}>{option.label}</SelectItem>)}
+    </SelectContent>
+  </Select>
 }
 
 function GraphEditor() {
@@ -1312,7 +1335,7 @@ function GraphEditor() {
         <div className="canvas-head">
           <h1>{graphTitle}</h1>
           <div className="canvas-actions">
-            {view === "graph" ? <div className="search"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a node…" aria-label="Find a node" /><kbd>⌘ K</kbd></div> : null}
+            {view === "graph" ? <div className="search"><Search size={16} /><Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a node…" aria-label="Find a node" /><kbd>⌘ K</kbd></div> : null}
             <div className="view-tabs">
               <Tabs value={primaryView} onValueChange={(next) => setView(next as "graph" | "yaml" | "results")}>
                 <TabsList aria-label="Primary views">
@@ -1360,9 +1383,9 @@ function GraphEditor() {
           <div className="graph-settings-picker">
             <div className="graph-settings-title"><div><Settings2 size={15} /><span>Graph settings</span></div><button type="button" onClick={() => setGraphSettingsOpen(false)} aria-label="Close graph settings"><X size={15} /></button></div>
             <div className="graph-settings-grid">
-              <label><span>Max. number of processes</span><div className="sankey-stepper"><button type="button" aria-label="Decrease graph maximum processes" onClick={() => { const value = Math.max(1, graphMaxProcesses - 1); setGraphMaxProcesses(value); applyGraphSettings({ maximum: value }) }}>−</button><input type="number" min="1" max={availableGraphProcessCount} step="1" value={graphMaxProcesses} onChange={(event) => { const value = Math.min(availableGraphProcessCount, Math.max(1, Math.floor(Number(event.target.value)) || 1)); setGraphMaxProcesses(value); applyGraphSettings({ maximum: value }) }} /><button type="button" aria-label="Increase graph maximum processes" onClick={() => { const value = Math.min(availableGraphProcessCount, graphMaxProcesses + 1); setGraphMaxProcesses(value); applyGraphSettings({ maximum: value }) }}>+</button></div></label>
-              <label><span>Orientation</span><select value={graphOrientation} onChange={(event) => { const value = event.target.value as "vertical" | "horizontal"; setGraphOrientation(value); applyGraphSettings({ orientation: value }) }}><option value="vertical">Vertical</option><option value="horizontal">Horizontal</option></select></label>
-              <label><span>Connections</span><select value={graphConnectionStyle} onChange={(event) => { const value = event.target.value as "curved" | "straight" | "step"; setGraphConnectionStyle(value); applyGraphSettings({ connectionStyle: value }) }}><option value="curved">Curved</option><option value="straight">Straight</option><option value="step">Step</option></select></label>
+              <label><span>Max. number of processes</span><NumberStepper value={graphMaxProcesses} min={1} max={availableGraphProcessCount} step={1} integer inputLabel="Graph maximum processes" decrementLabel="Decrease graph maximum processes" incrementLabel="Increase graph maximum processes" onValueChange={(value) => { setGraphMaxProcesses(value); applyGraphSettings({ maximum: value }) }} /></label>
+              <label><span>Orientation</span><AppSelect value={graphOrientation} onValueChange={(value) => { const orientation = value as "vertical" | "horizontal"; setGraphOrientation(orientation); applyGraphSettings({ orientation }) }} label="Graph orientation" options={[{ value: "vertical", label: "Vertical" }, { value: "horizontal", label: "Horizontal" }]} /></label>
+              <label><span>Connections</span><AppSelect value={graphConnectionStyle} onValueChange={(value) => { const connectionStyle = value as "curved" | "straight" | "step"; setGraphConnectionStyle(connectionStyle); applyGraphSettings({ connectionStyle }) }} label="Graph connections" options={[{ value: "curved", label: "Curved" }, { value: "straight", label: "Straight" }, { value: "step", label: "Step" }]} /></label>
             </div>
           </div>
         </> : null}
@@ -1389,10 +1412,15 @@ function GraphEditor() {
           <div className="yaml-editor-head">
             <div><strong>Product graph YAML</strong><span>Paste YAML or choose a local .yaml/.yml file.</span></div>
             <div className="yaml-editor-actions">
-              <label className="case-study-select">Case study<select value={selectedCaseStudy} onChange={(event) => event.target.value !== "custom" && loadCaseStudy(event.target.value as CaseStudyId)} aria-label="Choose a case study">
-                {Object.entries(caseStudies).map(([id, study]) => <option key={id} value={id}>{study.label}</option>)}
-                {selectedCaseStudy === "custom" ? <option value="custom">Custom YAML</option> : null}
-              </select></label>
+              <label className="case-study-select">Case study<AppSelect
+                value={selectedCaseStudy}
+                onValueChange={(value) => value !== "custom" && loadCaseStudy(value as CaseStudyId)}
+                label="Choose a case study"
+                options={[
+                  ...Object.entries(caseStudies).map(([value, study]) => ({ value, label: study.label })),
+                  ...(selectedCaseStudy === "custom" ? [{ value: "custom", label: "Custom YAML", disabled: true }] : []),
+                ]}
+              /></label>
               <label className="yaml-upload"><FileUp size={15} /> Choose file<input type="file" accept=".yaml,.yml,text/yaml" onChange={(event) => loadYamlFile(event.target.files?.[0])} /></label>
             </div>
           </div>
@@ -1478,8 +1506,8 @@ function AppContent() {
               <div className="global-setting-field">
                 <span>Decimal places</span>
                 <p>Applied to numerical results across the workspace.</p>
-                <label className="all-decimals-toggle"><input type="checkbox" checked={showAllDecimalPlaces} onChange={(event) => setShowAllDecimalPlaces(event.target.checked)} /><span>Show all decimal places</span></label>
-                <div className="sankey-stepper"><button type="button" disabled={showAllDecimalPlaces} onClick={() => setDecimalPlaces(decimalPlaces - 1)} aria-label="Decrease decimal places">−</button><input type="number" min="0" max="8" step="1" disabled={showAllDecimalPlaces} value={decimalPlaces} onChange={(event) => setDecimalPlaces(Number(event.target.value) || 0)} /><button type="button" disabled={showAllDecimalPlaces} onClick={() => setDecimalPlaces(decimalPlaces + 1)} aria-label="Increase decimal places">+</button></div>
+                <label className="all-decimals-toggle"><Checkbox checked={showAllDecimalPlaces} onCheckedChange={(checked) => setShowAllDecimalPlaces(checked === true)} aria-label="Show all decimal places" /><span>Show all decimal places</span></label>
+                <NumberStepper value={decimalPlaces} min={0} max={8} step={1} integer disabled={showAllDecimalPlaces} inputLabel="Decimal places" decrementLabel="Decrease decimal places" incrementLabel="Increase decimal places" onValueChange={setDecimalPlaces} />
               </div>
               <div className="global-setting-field">
                 <span>Appearance</span>

@@ -201,6 +201,43 @@ test("theme, analysis, and Sankey selection groups support keyboard navigation",
   await expect(page.getByRole("tab", { name: "Impact", exact: true })).toHaveAttribute("aria-selected", "true")
 })
 
+test("form controls preserve selection, clamping, and disabled behavior", async ({ page }) => {
+  await mockLcaApi(page)
+  await page.goto("/")
+
+  await page.getByRole("button", { name: "Graph settings" }).click()
+  const orientation = page.getByRole("combobox", { name: "Graph orientation" })
+  await orientation.click()
+  await expect(page.getByRole("listbox")).toBeVisible()
+  await page.keyboard.press("End")
+  await page.keyboard.press("Enter")
+  await expect(orientation).toHaveText(/Horizontal/)
+  await expect(page.locator(".graph-settings-picker")).toBeVisible()
+
+  const graphMaximum = page.getByRole("spinbutton", { name: "Graph maximum processes" })
+  await graphMaximum.fill("999")
+  await expect(graphMaximum).toHaveValue("5")
+  await page.getByRole("button", { name: "Close graph settings" }).click()
+
+  await page.getByRole("button", { name: "Global settings" }).click()
+  const decimalPlaces = page.getByRole("spinbutton", { name: "Decimal places" })
+  await page.getByRole("button", { name: "Increase decimal places" }).click()
+  await expect(decimalPlaces).toHaveValue("3")
+  await page.getByRole("checkbox", { name: "Show all decimal places" }).click()
+  await expect(decimalPlaces).toBeDisabled()
+  await expect(page.getByRole("button", { name: "Decrease decimal places" })).toBeDisabled()
+  await page.getByRole("checkbox", { name: "Show all decimal places" }).click()
+  await expect(decimalPlaces).toBeEnabled()
+  await page.getByRole("button", { name: "Close global settings" }).click()
+
+  await page.getByRole("tab", { name: "FILE", exact: true }).click()
+  const caseStudy = page.getByRole("combobox", { name: "Choose a case study" })
+  await caseStudy.click()
+  await page.getByRole("option", { name: "Cotton Fiber", exact: true }).click()
+  await expect(caseStudy).toHaveText(/Cotton Fiber/)
+  await expect(page.getByText("Unapplied changes. Preview changes before calculating.")).toBeVisible()
+})
+
 for (const theme of ["dark", "light"] as const) {
   test(`${theme} application views`, async ({ page }) => {
     await mockLcaApi(page)
