@@ -265,6 +265,20 @@ export async function getBackgroundActivityDetails({
     }
     activity = exactMatches[0]
     resolvedCode = activity.key[1]
+  } else {
+    // activity-inputs identifies exchanges but may omit activity metadata such
+    // as the reference unit. Enrich code-based lookups from the stable search
+    // key so background graphs retain the database's exact labels and units.
+    const searchResult = await readJson(await fetch(`${apiBase}/api/database/search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: name, database, limit: 25 }),
+    }))
+    if (Array.isArray(searchResult)) {
+      activity = (searchResult as ActivitySearchResult[]).find((candidate) => (
+        candidate.key?.[0] === database && candidate.key?.[1] === resolvedCode
+      ))
+    }
   }
 
   const exchanges = await readJson(await fetch(`${apiBase}/api/database/activity-inputs`, {
