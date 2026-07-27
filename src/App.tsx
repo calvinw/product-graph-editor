@@ -1202,6 +1202,8 @@ function GraphEditor() {
           onPaneClick={() => setSelected(null)}
           minZoom={0.35}
           maxZoom={2.4}
+          zoomOnScroll={false}
+          panOnScroll
           onInit={(instance) => requestAnimationFrame(() => instance.fitView({ padding: 0.35, maxZoom: 0.75 }))}
           proOptions={{ hideAttribution: true }}
         >
