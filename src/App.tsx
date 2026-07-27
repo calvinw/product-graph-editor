@@ -18,7 +18,7 @@ import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
 import { chemicalFlowLabel } from "./lib/flowLabels"
 import { buildGraphFromYaml, buildInventoryRequirements, nodeScopeColors } from "./lib/yamlGraph"
-import { calculateLca, getBackgroundActivityDetails, impactCategoryAbbreviation, lcaResultToMarkdown, type LcaResult } from "./lib/lcaApi"
+import { calculateLca, getBackgroundActivityDetails, impactCategoryAbbreviation, impactCategoryDisplayName, lcaResultToMarkdown, type LcaResult } from "./lib/lcaApi"
 import { unitsAreCompatible } from "./lib/units"
 import { DisplaySettingsProvider, useDisplaySettings } from "./lib/displaySettings"
 import jacketYaml from "../case_studies/jacket.yaml?raw"
@@ -210,7 +210,7 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
   const categories = [...result.process_contributions.categories]
     .filter((category) => category.total_score !== 0)
     .reduce((unique, category) => {
-      const key = `${impactCategoryAbbreviation(category.label)}\u001f${category.total_score}\u001f${category.unit}`
+      const key = category.id || category.label
       if (!unique.has(key)) unique.set(key, category)
       return unique
     }, new Map<string, LcaResult["process_contributions"]["categories"][number]>())
@@ -267,7 +267,7 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
           .sort((left, right) => Math.abs(right.direct_score) - Math.abs(left.direct_score))
         return <Fragment key={categoryId}>
           <tr className="impact-category-row" onClick={() => toggleCategory(categoryId)}>
-            <td><div className="impact-category-name"><button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-label={`${isOpen ? "Collapse" : "Expand"} ${category.label}`}><ChevronDown size={14} /></button><BarChart3 className="impact-category-icon" size={17} /><strong>{impactCategoryAbbreviation(category.label)}</strong></div></td>
+            <td><div className="impact-category-name"><button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-label={`${isOpen ? "Collapse" : "Expand"} ${category.label}`}><ChevronDown size={14} /></button><BarChart3 className="impact-category-icon" size={17} /><strong>{impactCategoryDisplayName(category.label)}</strong></div></td>
             <td /><td /><td /><td><span className="impact-result">{formatNumber(category.total_score)} <small>{category.unit}</small></span></td>
           </tr>
           {isOpen && subgroup === "processes" ? processes.flatMap((process) => {
@@ -430,7 +430,7 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
     </details>
     <details open><summary>Impact assessment results</summary>
       <div className="process-results-controls"><label>Process <select value={selectedId} onChange={(event) => setProcessId(event.target.value)}>{processNodes.map((node) => <option key={node.id} value={node.id}>{cleanImpactProcessName(node.process_name ?? node.label)}</option>)}</select></label><label>Don’t show &lt; <input type="number" min="0" max="100" step="0.01" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label></div>
-      <div className="process-impact-table-wrap"><table className="process-impact-table"><thead><tr><th>Contribution</th><th>Impact category</th><th>Upstream incl. direct</th><th>Direct</th><th>Unit</th></tr></thead><tbody>{impactRows.map((row) => <tr key={row.category.id || row.category.label}><td><span className="process-result-bar"><i style={{ width: `${Math.min(100, Math.abs(row.contribution))}%` }} /></span>{formatPercent(row.contribution)}</td><td>{impactCategoryAbbreviation(row.category.label)}</td><td>{formatNumber(row.upstream)}</td><td>{formatNumber(row.direct)}</td><td>{row.category.unit}</td></tr>)}</tbody></table></div>
+      <div className="process-impact-table-wrap"><table className="process-impact-table"><thead><tr><th>Contribution</th><th>Impact category</th><th>Upstream incl. direct</th><th>Direct</th><th>Unit</th></tr></thead><tbody>{impactRows.map((row) => <tr key={row.category.id || row.category.label}><td><span className="process-result-bar"><i style={{ width: `${Math.min(100, Math.abs(row.contribution))}%` }} /></span>{formatPercent(row.contribution)}</td><td>{impactCategoryDisplayName(row.category.label)}</td><td>{formatNumber(row.upstream)}</td><td>{formatNumber(row.direct)}</td><td>{row.category.unit}</td></tr>)}</tbody></table></div>
     </details>
   </div>
 }
@@ -450,7 +450,7 @@ function ContributionView({ result, yaml, isCurrent, error }: {
 
   const flowNames = result ? Object.keys(result.lci) : []
   const impactNames = result ? [...Object.entries(result.lcia).filter(([, value]) => value.score !== 0).reduce((unique, [name, value]) => {
-    const key = `${impactCategoryAbbreviation(name)}\u001f${value.score}\u001f${value.unit}`
+    const key = name
     if (!unique.has(key)) unique.set(key, name)
     return unique
   }, new Map<string, string>()).values()] : []
@@ -558,7 +558,7 @@ function ContributionView({ result, yaml, isCurrent, error }: {
       <label className={mode === "flow" ? "active" : ""}><input type="radio" checked={mode === "flow"} onChange={() => setMode("flow")} />Flow</label>
       <div className="contribution-control-slot">{mode === null || mode === "flow" ? <div className="contribution-select is-flow"><span className="flow-dot output" /><select value={selectedFlow} onChange={(event) => { setFlow(event.target.value); setMode("flow") }} aria-label="Flow category">{flowNames.map((name) => <option key={name} value={name}>{contributionFlowLabel(name)}</option>)}</select></div> : null}</div>
       <label className={mode === "impact" ? "active" : ""}><input type="radio" checked={mode === "impact"} onChange={() => setMode("impact")} />Impact category</label>
-      <div className="contribution-control-slot">{mode === null || mode === "impact" ? <div className="contribution-select is-impact"><BarChart3 size={16} /><select value={selectedImpact} onChange={(event) => { setImpact(event.target.value); setMode("impact") }} aria-label="Impact category">{impactNames.map((name) => <option key={name} value={name}>{impactCategoryAbbreviation(name)}</option>)}</select></div> : null}</div>
+      <div className="contribution-control-slot">{mode === null || mode === "impact" ? <div className="contribution-select is-impact"><BarChart3 size={16} /><select value={selectedImpact} onChange={(event) => { setImpact(event.target.value); setMode("impact") }} aria-label="Impact category">{impactNames.map((name) => <option key={name} value={name}>{impactCategoryDisplayName(name)}</option>)}</select></div> : null}</div>
     </div>
     {mode !== null ? <div className="contribution-table-wrap"><table className="contribution-table"><thead><tr><th>Contribution rate</th><th>Process</th><th>Required amount</th><th>Total result</th><th>Direct contribution</th></tr></thead><tbody>
       <tr className="contribution-root"><td>{formatPercent(100)}</td><td><button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} downstream processes`}><ChevronDown size={14} /></button><span className="process-mark">⌘</span>{result.name}</td><td>{mode === "flow" ? formatNumber(1) : "—"}</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(total)} <small>{unit}</small></td><td>—</td></tr>
@@ -584,7 +584,7 @@ function SankeyView({ result }: { result: LcaResult }) {
   useEffect(() => setMaxProcesses(availableProcessCount), [availableProcessCount])
   const flowNames = Object.keys(result.lci)
   const impactNames = [...Object.entries(result.lcia).filter(([, value]) => value.score !== 0).reduce((unique, [name, value]) => {
-    const key = `${impactCategoryAbbreviation(name)}\u001f${value.score}\u001f${value.unit}`
+    const key = name
     if (!unique.has(key)) unique.set(key, name)
     return unique
   }, new Map<string, string>()).values()]
@@ -725,7 +725,7 @@ function SankeyView({ result }: { result: LcaResult }) {
         <span>{mode === "flow" ? "Flow category" : "Impact category"}</span>
         {mode === "flow"
           ? <select value={selectedFlow} onChange={(event) => setFlow(event.target.value)} aria-label="Sankey flow category">{flowNames.map((name) => <option key={name} value={name}>{inventoryFlowName(name)}</option>)}</select>
-          : <select value={selectedImpact} onChange={(event) => setImpact(event.target.value)} aria-label="Sankey impact category">{impactNames.map((name) => <option key={name} value={name}>{impactCategoryAbbreviation(name)}</option>)}</select>}
+          : <select value={selectedImpact} onChange={(event) => setImpact(event.target.value)} aria-label="Sankey impact category">{impactNames.map((name) => <option key={name} value={name}>{impactCategoryDisplayName(name)}</option>)}</select>}
       </label>
       <div className="sankey-settings-grid">
         <label><span>Min. contribution share</span><div className="sankey-stepper"><button type="button" aria-label="Decrease minimum contribution" onClick={() => setMinContribution((value) => Math.max(0, Number((value - .1).toFixed(1))))}>−</button><div className="sankey-number"><input type="number" min="0" max="100" step="0.1" value={minContribution} onChange={(event) => setMinContribution(Math.min(100, Math.max(0, Number(event.target.value))))} /><span>%</span></div><button type="button" aria-label="Increase minimum contribution" onClick={() => setMinContribution((value) => Math.min(100, Number((value + .1).toFixed(1))))}>+</button></div></label>
@@ -766,7 +766,7 @@ function SankeyView({ result }: { result: LcaResult }) {
         {mode === "impact" ? <BarChart3 size={14} /> : <span className="flow-dot output" />}
         <span>{mode === "impact" ? "Impact category" : "Flow"}</span>
       </div>
-      <strong>{mode === "impact" ? impactCategoryAbbreviation(selectedImpact) : inventoryFlowName(selectedFlow)}</strong>
+      <strong>{mode === "impact" ? impactCategoryDisplayName(selectedImpact) : inventoryFlowName(selectedFlow)}</strong>
       <span className="sankey-selection-result">{format(selectedTotal)} {unit}</span>
       <dl>
         <div><dt>Min. contribution</dt><dd>{minContribution}%</dd></div>
