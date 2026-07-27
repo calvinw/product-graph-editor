@@ -71,6 +71,7 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
 .yaml-upload:hover { border-color: #4b5260; color: #fff; }.yaml-upload input { display: none; }
 .yaml-editor textarea { width: 100%; height: 100%; resize: none; padding: 18px; border: 0; outline: 0; color: #cbd5e1; background: #0d1015; font: 12px/1.6 "SFMono-Regular", Consolas, "Liberation Mono", monospace; tab-size: 2; }
 .yaml-editor-foot .yaml-error { color: #fb7185; }
+.yaml-editor-foot .yaml-dirty { color: #fbbf24; }
 .results-empty { position: absolute; z-index: 1; inset: 92px 28px 28px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px; border: 1px solid #292e37; border-radius: 12px; text-align: center; background: rgba(14,17,22,.97); box-shadow: 0 18px 55px rgba(0,0,0,.3); }
 .results-empty-icon { display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 16px; border: 1px solid rgba(139,92,246,.3); border-radius: 12px; color: #a78bfa; background: rgba(139,92,246,.09); }
 .results-empty strong { font-size: 14px; }.results-empty p { max-width: 390px; margin: 8px 0 0; color: #747b86; font-size: 12px; line-height: 1.6; }

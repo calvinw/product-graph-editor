@@ -902,7 +902,9 @@ function GraphEditor() {
   const [selected, setSelected] = useState<(NodeMeta & { id: string }) | null>(null)
   const [query, setQuery] = useState("")
   const [view, setView] = useState<"graph" | "yaml" | "inventory" | "impact" | "process" | "contribution" | "sankey" | "results">("graph")
-  const [yamlText, setYamlText] = useState(jacketYaml)
+  const [yamlDraft, setYamlDraft] = useState(jacketYaml)
+  const [appliedYaml, setAppliedYaml] = useState(jacketYaml)
+  const [appliedRevision, setAppliedRevision] = useState(0)
   const [selectedCaseStudy, setSelectedCaseStudy] = useState<CaseStudyId | "custom">("jacket")
   const [yamlError, setYamlError] = useState("")
   const [graphTitle, setGraphTitle] = useState(defaultGraph.name)
@@ -910,7 +912,7 @@ function GraphEditor() {
   const [resultsError, setResultsError] = useState("")
   const [isCalculating, setIsCalculating] = useState(false)
   const [lcaResult, setLcaResult] = useState<LcaResult | null>(null)
-  const [calculatedYaml, setCalculatedYaml] = useState("")
+  const [calculatedRevision, setCalculatedRevision] = useState<number | null>(null)
   const [graphMode, setGraphMode] = useState<"scaled" | "structure">("structure")
   const [graphSettingsOpen, setGraphSettingsOpen] = useState(false)
   const [graphMaxProcesses, setGraphMaxProcesses] = useState(initialNodes.filter((node) => node.data.scope !== "background").length)
@@ -919,12 +921,15 @@ function GraphEditor() {
   const foldDirectionRef = useRef<"upstream" | "downstream">("upstream")
   const nodesRef = useRef(nodes)
   const edgesRef = useRef(edges)
+  const appliedRevisionRef = useRef(appliedRevision)
+  const activeCalculationRef = useRef<AbortController | null>(null)
   nodesRef.current = nodes
   edgesRef.current = edges
+  appliedRevisionRef.current = appliedRevision
   const { fitView, zoomIn, zoomOut } = useReactFlow()
   const availableGraphProcessCount = (() => {
     try {
-      return buildGraphFromYaml(yamlText, "structure").nodes.filter((node) => node.data.scope !== "background").length
+      return buildGraphFromYaml(appliedYaml, "structure").nodes.filter((node) => node.data.scope !== "background").length
     } catch {
       return Math.max(1, graphMaxProcesses)
     }
@@ -936,15 +941,15 @@ function GraphEditor() {
   }, [decimalPlaces, showAllDecimalPlaces, lcaResult])
   useEffect(() => {
     try {
-      const currentResult = calculatedYaml === yamlText ? lcaResult : null
+      const currentResult = calculatedRevision === appliedRevision ? lcaResult : null
       const mode = graphMode === "scaled" && currentResult ? "scaled" : "structure"
-      const refreshedEdges = buildGraphFromYaml(yamlText, mode, currentResult?.scaling_vector, graphDecimalPlaces).edges
+      const refreshedEdges = buildGraphFromYaml(appliedYaml, mode, currentResult?.scaling_vector, graphDecimalPlaces).edges
       const labelsById = new Map(refreshedEdges.map((edge) => [edge.id, edge.label]))
       setEdges((current) => current.map((edge) => labelsById.has(edge.id) ? { ...edge, label: labelsById.get(edge.id) } : edge))
     } catch {
-      // Keep the currently displayed graph intact while the YAML editor contains invalid input.
+      // Keep the currently displayed graph intact if the applied source cannot be rebuilt.
     }
-  }, [graphDecimalPlaces])
+  }, [appliedRevision, appliedYaml, calculatedRevision, graphDecimalPlaces, graphMode, lcaResult, setEdges])
 
   const removeNode = useCallback((id: string) => {
     const folded = new Set<string>()
@@ -1138,9 +1143,9 @@ function GraphEditor() {
     connectionStyle?: "curved" | "straight" | "step"
   }) => {
     try {
-      const currentResult = calculatedYaml === yamlText ? lcaResult : null
+      const currentResult = calculatedRevision === appliedRevision ? lcaResult : null
       const mode = graphMode === "scaled" && currentResult ? "scaled" : "structure"
-      const parsed = buildGraphFromYaml(yamlText, mode, currentResult?.scaling_vector, graphDecimalPlaces)
+      const parsed = buildGraphFromYaml(appliedYaml, mode, currentResult?.scaling_vector, graphDecimalPlaces)
       const foreground = parsed.nodes.filter((node) => node.data.scope !== "background")
       const cappedMaximum = Math.min(foreground.length, Math.max(1, maximum))
       const visibleForeground = new Set(foreground.slice(Math.max(0, foreground.length - cappedMaximum)).map((node) => node.id))
@@ -1162,9 +1167,9 @@ function GraphEditor() {
 
   const showGraphMode = (mode: "scaled" | "structure") => {
     try {
-      const currentResult = calculatedYaml === yamlText ? lcaResult : null
+      const currentResult = calculatedRevision === appliedRevision ? lcaResult : null
       if (mode === "scaled" && !currentResult) return
-      const parsed = buildGraphFromYaml(yamlText, mode, currentResult?.scaling_vector, graphDecimalPlaces)
+      const parsed = buildGraphFromYaml(appliedYaml, mode, currentResult?.scaling_vector, graphDecimalPlaces)
       const previousById = new Map(nodesRef.current.map((node) => [node.id, node]))
       const laidOutNodes = layoutNodes(parsed.nodes, parsed.edges, { orientation: graphOrientation })
       let nextNodes: Node<ProcessNodeData>[] = laidOutNodes.map((node) => {
@@ -1203,9 +1208,14 @@ function GraphEditor() {
 
   const previewYaml = () => {
     try {
-      const currentResult = calculatedYaml === yamlText ? lcaResult : null
-      const nextMode = graphMode === "scaled" && currentResult ? "scaled" : "structure"
-      const parsed = buildGraphFromYaml(yamlText, nextMode, currentResult?.scaling_vector, graphDecimalPlaces)
+      const parsed = buildGraphFromYaml(yamlDraft, "structure", undefined, graphDecimalPlaces)
+      activeCalculationRef.current?.abort()
+      activeCalculationRef.current = null
+      setIsCalculating(false)
+      const nextRevision = appliedRevisionRef.current + 1
+      appliedRevisionRef.current = nextRevision
+      setAppliedYaml(yamlDraft)
+      setAppliedRevision(nextRevision)
       foldDirectionRef.current = "upstream"
       setEdges(parsed.edges)
       setNodes(layoutNodes(parsed.nodes.map((node) => ({
@@ -1213,9 +1223,13 @@ function GraphEditor() {
         data: { ...node.data, canFold: parsed.edges.some((edge) => edge.target === node.id) },
       })), parsed.edges, { orientation: graphOrientation }))
       setGraphTitle(parsed.name)
-      setGraphMode(nextMode)
+      setGraphMode("structure")
       setSelected(null)
       setYamlError("")
+      setResultsMarkdown("")
+      setResultsError("")
+      setLcaResult(null)
+      setCalculatedRevision(null)
       setView("graph")
       requestAnimationFrame(() => fitView({ padding: 0.35, maxZoom: 0.75, duration: 350 }))
     } catch (error) {
@@ -1224,17 +1238,27 @@ function GraphEditor() {
   }
 
   const runCalculation = async () => {
+    if (yamlDraft !== appliedYaml || isCalculating) return
+    const source = appliedYaml
+    const revision = appliedRevision
+    const controller = new AbortController()
+    activeCalculationRef.current = controller
     setIsCalculating(true)
     setResultsError("")
     try {
-      const result = await calculateLca(yamlText)
+      const result = await calculateLca(source, controller.signal)
+      if (controller.signal.aborted || appliedRevisionRef.current !== revision) return
       setLcaResult(result)
-      setCalculatedYaml(yamlText)
+      setCalculatedRevision(revision)
       setResultsMarkdown(lcaResultToMarkdown(result, decimalPlaces, showAllDecimalPlaces))
     } catch (error) {
+      if (controller.signal.aborted || appliedRevisionRef.current !== revision) return
       setResultsError(error instanceof Error ? error.message : "Could not calculate the current product graph.")
     } finally {
-      setIsCalculating(false)
+      if (activeCalculationRef.current === controller) {
+        activeCalculationRef.current = null
+        setIsCalculating(false)
+      }
     }
   }
 
@@ -1242,24 +1266,21 @@ function GraphEditor() {
     if (!file) return
     if (!/\.ya?ml$/i.test(file.name)) { setYamlError("Choose a .yaml or .yml file."); return }
     const reader = new FileReader()
-    reader.onload = () => { setYamlText(String(reader.result ?? "")); setSelectedCaseStudy("custom"); setYamlError(""); setResultsMarkdown(""); setLcaResult(null); setCalculatedYaml(""); setGraphMode("structure") }
+    reader.onload = () => { setYamlDraft(String(reader.result ?? "")); setSelectedCaseStudy("custom"); setYamlError("") }
     reader.onerror = () => setYamlError("Could not read the selected file.")
     reader.readAsText(file)
   }
 
   const loadCaseStudy = (id: CaseStudyId) => {
     setSelectedCaseStudy(id)
-    setYamlText(caseStudies[id].yaml)
+    setYamlDraft(caseStudies[id].yaml)
     setYamlError("")
-    setResultsMarkdown("")
-    setResultsError("")
-    setLcaResult(null)
-    setCalculatedYaml("")
-    setGraphMode("structure")
   }
 
   const connectionCount = edges.length
-  const hasCurrentResults = Boolean(lcaResult && calculatedYaml === yamlText)
+  const isDirty = yamlDraft !== appliedYaml
+  const hasCurrentResults = Boolean(lcaResult && calculatedRevision === appliedRevision)
+  const canCalculate = !isDirty && !isCalculating
   const selectedNode = selected ? nodes.find((node) => node.id === selected.id) : undefined
   const inputNodes = selectedNode ? edges
     .filter((edge) => edge.target === selectedNode.id)
@@ -1341,7 +1362,7 @@ function GraphEditor() {
           </div>
         </div>
         <div className="graph-mode-toolbar" aria-label="Graph display mode">
-          <Button disabled={!lcaResult || calculatedYaml !== yamlText} title={!lcaResult || calculatedYaml !== yamlText ? "Calculate LCA results to enable the scaled graph" : undefined} variant="ghost" className={`graph-action ${graphMode === "scaled" ? "is-active" : ""}`} aria-pressed={graphMode === "scaled"} onClick={() => showGraphMode("scaled")}><Scan size={16} />Scaled Graph</Button>
+          <Button disabled={!hasCurrentResults} title={!hasCurrentResults ? "Calculate LCA results to enable the scaled graph" : undefined} variant="ghost" className={`graph-action ${graphMode === "scaled" ? "is-active" : ""}`} aria-pressed={graphMode === "scaled"} onClick={() => showGraphMode("scaled")}><Scan size={16} />Scaled Graph</Button>
           <Button variant="ghost" className={`graph-action ${graphMode === "structure" ? "is-active" : ""}`} aria-pressed={graphMode === "structure"} onClick={() => showGraphMode("structure")}><LayoutGrid size={16} />Structure Graph</Button>
         </div></> : view === "yaml" ? <div className="yaml-editor">
           <div className="yaml-editor-head">
@@ -1354,15 +1375,15 @@ function GraphEditor() {
               <label className="yaml-upload"><FileUp size={15} /> Choose file<input type="file" accept=".yaml,.yml,text/yaml" onChange={(event) => loadYamlFile(event.target.files?.[0])} /></label>
             </div>
           </div>
-          <textarea value={yamlText} onChange={(event) => { setYamlText(event.target.value); setSelectedCaseStudy("custom"); setResultsMarkdown(""); setLcaResult(null); setCalculatedYaml(""); setGraphMode("structure") }} spellCheck={false} aria-label="Product graph YAML" />
+          <textarea value={yamlDraft} onChange={(event) => { setYamlDraft(event.target.value); setSelectedCaseStudy("custom"); setYamlError("") }} spellCheck={false} aria-label="Product graph YAML" />
           <div className="yaml-editor-foot">
-            <span className={yamlError ? "yaml-error" : ""}>{yamlError || "Files are parsed locally in your browser."}</span>
+            <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (isDirty ? "Unapplied changes. Preview changes before calculating." : "Files are parsed locally in your browser.")}</span>
             <Button onClick={previewYaml}>Preview graph</Button>
           </div>
-        </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "process" && lcaResult ? <ProcessResultsView result={lcaResult} yaml={yamlText} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "sankey" && lcaResult ? <SankeyView result={lcaResult} /> : <div className="results-panel">
+        </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} /> : <div className="results-panel">
           <div className="results-panel-head">
-            <div><strong>LCA Results</strong><span>Calculated from the current YAML product graph.</span></div>
-            <Button onClick={runCalculation} disabled={isCalculating}>{isCalculating ? "Calculating…" : "Calculate LCA"}</Button>
+            <div><strong>LCA Results</strong><span>{isDirty ? "Preview changes before calculating. Existing results still match the visible graph." : "Calculated from the currently previewed product graph."}</span></div>
+            <Button onClick={runCalculation} disabled={!canCalculate} title={isDirty ? "Preview changes before calculating." : undefined}>{isCalculating ? "Calculating…" : "Calculate LCA"}</Button>
           </div>
           <div className="results-panel-body">
             {resultsError ? <div className="results-error"><strong>Calculation failed</strong><p>{resultsError}</p></div>

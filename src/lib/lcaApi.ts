@@ -215,11 +215,11 @@ function readLcaResult(value: unknown): LcaResult {
   } as LcaResult
 }
 
-export async function calculateLca(productGraph: string): Promise<LcaResult> {
-  const health = await readJson(await fetch(`${apiBase}/api/health`)) as { running?: boolean }
+export async function calculateLca(productGraph: string, signal?: AbortSignal): Promise<LcaResult> {
+  const health = await readJson(await fetch(`${apiBase}/api/health`, { signal })) as { running?: boolean }
   if (!health.running) throw new Error("The LCA calculation engine is not ready.")
 
-  const tools = await readJson(await fetch(`${apiBase}/api/tools`)) as ToolDefinition[]
+  const tools = await readJson(await fetch(`${apiBase}/api/tools`, { signal })) as ToolDefinition[]
   const operation = tools.find((tool) => tool.name === "run_lca")
   if (!operation?.rest || operation.rest.method !== "POST") throw new Error("The LCA calculation operation is unavailable.")
 
@@ -227,6 +227,7 @@ export async function calculateLca(productGraph: string): Promise<LcaResult> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ product_graph: productGraph }),
+    signal,
   }))
   return readLcaResult(result)
 }

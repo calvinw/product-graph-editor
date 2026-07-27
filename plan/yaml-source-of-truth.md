@@ -2,7 +2,9 @@
 
 ## Status
 
-Revised on July 27, 2026. Implementation pending.
+Implemented on `shadcn-conversion` on July 27, 2026.
+
+The implementation includes the draft/applied source boundary, result revisions, request cancellation and stale-response guards, dirty-state guidance, and focused Playwright workflow coverage.
 
 ## Purpose
 
