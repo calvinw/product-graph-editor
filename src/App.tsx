@@ -63,6 +63,22 @@ function SankeyProcessNode({ data }: NodeProps<Node<SankeyProcessNodeData>>) {
   </div>
 }
 const sankeyNodeTypes = { sankeyProcess: SankeyProcessNode }
+type ImpactGraphNodeData = {
+  label: string
+  scope: "foreground" | "background"
+  supply: string
+  direct: string
+  cumulative: string
+}
+function ImpactGraphNode({ data }: NodeProps<Node<ImpactGraphNodeData>>) {
+  return <div className="pg-node is-expanded impact-graph-node" style={{ "--node-color": nodeScopeColors[data.scope] } as React.CSSProperties}>
+    <Handle type="target" position={Position.Left} />
+    <div className="pg-node-head"><Component size={14} /><span className="pg-node-label">{data.label}</span><small className={`pg-node-scope is-${data.scope}`}>{data.scope}</small></div>
+    <div className="impact-graph-metrics"><div><span>Supply</span><strong>{data.supply}</strong></div><div><span>Direct</span><strong>{data.direct}</strong></div><div><span>Upstream incl. direct</span><strong>{data.cumulative}</strong></div></div>
+    <Handle type="source" position={Position.Right} />
+  </div>
+}
+const impactGraphNodeTypes = { impactGraph: ImpactGraphNode }
 const inputHandleIdFor = (edgeId: string) => `input-${edgeId}`
 const incomingEdgesFor = (nodeId: string, edges: Edge[], nodesById: Map<string, Node<ProcessNodeData>>) => (
   edges.filter((edge) => edge.target === nodeId).sort((left, right) => (
@@ -250,6 +266,9 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
 }) {
   const { formatNumber } = useDisplaySettings()
   const [subgroup, setSubgroup] = useState<"processes" | "flows">("processes")
+  const [displayMode, setDisplayMode] = useState<"table" | "graph">("graph")
+  const [graphCategory, setGraphCategory] = useState("")
+  const [impactGraphLayout, setImpactGraphLayout] = useState(0)
   const [threshold, setThreshold] = useState(1)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => new Set())
   const [expandedProcesses, setExpandedProcesses] = useState<Set<string>>(() => new Set())
@@ -290,9 +309,7 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
     if (next.has(id)) next.delete(id); else next.add(id)
     return next
   })
-  const openCategory = async (id: string, label: string) => {
-    if (expandedCategories.has(id)) { toggleCategory(id); return }
-    toggleCategory(id)
+  const loadCategory = async (id: string, label: string) => {
     if (contributionGraphFor(label) || loadingCategories.has(id)) return
     setLoadingCategories((current) => new Set(current).add(id))
     setCategoryErrors((current) => { const next = new Map(current); next.delete(id); return next })
@@ -318,6 +335,11 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
     } finally {
       setLoadingCategories((current) => { const next = new Set(current); next.delete(id); return next })
     }
+  }
+  const openCategory = async (id: string, label: string) => {
+    if (expandedCategories.has(id)) { toggleCategory(id); return }
+    toggleCategory(id)
+    await loadCategory(id, label)
   }
   const toggleProcess = (id: string) => setExpandedProcesses((current) => {
     const next = new Set(current)
@@ -377,16 +399,52 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
     }))
   }
 
+  const categoryList = [...categories.values()]
+  const selectedGraphCategory = categoryList.some((category) => category.label === graphCategory)
+    ? graphCategory
+    : categoryList.find((category) => /climate change(?!:)/i.test(category.label))?.label ?? categoryList[0]?.label ?? ""
+  const selectedGraphCategoryId = categoryList.find((category) => category.label === selectedGraphCategory)?.id ?? selectedGraphCategory
+  const selectedContributionGraph = contributionGraphFor(selectedGraphCategory)
+  const impactGraphEdges: Edge[] = (selectedContributionGraph?.edges ?? []).map((edge) => ({
+    id: edge.id, source: edge.source, target: edge.target,
+    label: `${formatNumber(edge.amount)} ${edge.unit}`,
+    style: { stroke: "#8b5cf6", strokeWidth: 1.5 },
+    labelStyle: { fill: "#c4b5fd", fontSize: 10, fontWeight: 650 },
+    labelBgStyle: { fill: "#171a20", fillOpacity: .94 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
+  }))
+  const impactGraphNodes: Node<ImpactGraphNodeData>[] = layoutNodes((selectedContributionGraph?.nodes ?? []).map((node) => ({
+    id: node.id,
+    type: "impactGraph",
+    position: { x: 0, y: 0 },
+    data: {
+      label: node.process_name,
+      scope: node.scope === "background" ? "background" : "foreground",
+      supply: `${formatNumber(node.supply_amount)} ${node.unit}`,
+      direct: `${formatNumber(node.direct_score)} ${selectedContributionGraph?.unit ?? ""}`,
+      cumulative: `${formatNumber(node.cumulative_score)} ${selectedContributionGraph?.unit ?? ""}`,
+    },
+  })), impactGraphEdges, { orientation: "horizontal" })
+
   return <div className="impact-view">
     <div className="impact-title"><div><strong>{result.name}</strong><span>Impact analysis – {result.method}</span></div></div>
     <div className="impact-controls">
+      <div className="impact-display-tabs"><button className={displayMode === "graph" ? "is-active" : ""} onClick={() => { setDisplayMode("graph"); void loadCategory(selectedGraphCategoryId, selectedGraphCategory) }}><Share2 size={14} />Graph</button><button className={displayMode === "table" ? "is-active" : ""} onClick={() => setDisplayMode("table")}><BarChart3 size={14} />Table</button></div>
+      {displayMode === "graph" ? <label className="impact-graph-category">Impact category <select value={selectedGraphCategory} onChange={(event) => { const label = event.target.value; const category = categoryList.find((item) => item.label === label); setGraphCategory(label); if (category) void loadCategory(category.id || category.label, label) }}>{categoryList.map((category) => <option key={category.id || category.label} value={category.label}>{impactCategoryDisplayName(category.label)}</option>)}</select></label> : null}
+      {displayMode === "table" ? <>
       <span>Sub-group by</span>
       <label><input type="radio" checked={subgroup === "processes"} onChange={() => setSubgroup("processes")} /> Processes</label>
       <label><input type="radio" checked={subgroup === "flows"} onChange={() => setSubgroup("flows")} /> Flows</label>
       <i />
       <label className="impact-threshold">Don’t show &lt; <input type="number" min="0" max="100" step="0.1" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label>
+      </> : null}
     </div>
-    <div className="impact-table-wrap"><table className="impact-table">
+    {displayMode === "graph" ? <div className="impact-graph-canvas">
+      {loadingCategories.has(selectedGraphCategoryId) ? <div className="impact-graph-placeholder"><strong>Calculating contribution graph…</strong><span>Loading process children for {impactCategoryDisplayName(selectedGraphCategory)}.</span></div>
+        : categoryErrors.has(selectedGraphCategoryId) ? <div className="impact-graph-placeholder is-error"><strong>Could not load this contribution graph</strong><span>{categoryErrors.get(selectedGraphCategoryId)}</span></div>
+        : impactGraphNodes.length ? <ReactFlow key={`${selectedGraphCategory}-${impactGraphLayout}`} nodes={impactGraphNodes} edges={impactGraphEdges} nodeTypes={impactGraphNodeTypes} fitView fitViewOptions={{ padding: .3, maxZoom: .72 }} minZoom={.2} maxZoom={2} proOptions={{ hideAttribution: true }}><Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#34313f" /></ReactFlow>
+          : <div className="impact-graph-placeholder"><strong>No graph loaded</strong><button onClick={() => void loadCategory(selectedGraphCategoryId, selectedGraphCategory)}>Load process children</button></div>}
+      {impactGraphNodes.length ? <button className="impact-graph-layout" onClick={() => setImpactGraphLayout((value) => value + 1)}><LayoutGrid size={14} />Arrange</button> : null}
+    </div> : <div className="impact-table-wrap"><table className="impact-table">
       <thead><tr><th>Name</th><th>Category</th><th>Inventory result</th><th>Characterization factor</th><th>Impact assessment result</th></tr></thead>
       <tbody>{[...categories.values()].map((category) => {
         const categoryId = category.id || category.label
@@ -476,7 +534,7 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
             }) : null}
         </Fragment>
       })}</tbody>
-    </table></div>
+    </table></div>}
   </div>
 }
 
