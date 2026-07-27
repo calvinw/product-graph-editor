@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react"
 import {
   ReactFlow, ReactFlowProvider, Background, BackgroundVariant,
-  Handle, MarkerType, Position, useNodesState, useEdgesState, useReactFlow,
+  Handle, Position, useNodesState, useEdgesState, useReactFlow,
   type Node, type Edge, type NodeProps, type ReactFlowInstance,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
@@ -35,7 +35,6 @@ import woolYarnYaml from "../case_studies/wool_yarn.yaml?raw"
 import woolYarnBafuLinkedYaml from "../case_studies/wool_yarn_bafu_linked.yaml?raw"
 
 type NodeMeta = { label: string; kind: string; detail: string; color: string; scope?: "foreground" | "background" }
-type BackgroundRoot = { database: string; code?: string; name: string; location?: string }
 
 const defaultGraph = buildGraphFromYaml(jacketYaml, "structure")
 const initialEdges: Edge[] = defaultGraph.edges
@@ -64,111 +63,6 @@ function SankeyProcessNode({ data }: NodeProps<Node<SankeyProcessNodeData>>) {
   </div>
 }
 const sankeyNodeTypes = { sankeyProcess: SankeyProcessNode }
-
-function BackgroundGraphView({ root, mode, onClose }: {
-  root: BackgroundRoot
-  mode: "visual" | "sankey"
-  onClose: () => void
-}) {
-  const { formatNumber, theme } = useDisplaySettings()
-  const [activities, setActivities] = useState<Map<string, Awaited<ReturnType<typeof getBackgroundActivityDetails>>>>(() => new Map())
-  const [loading, setLoading] = useState<Set<string>>(() => new Set())
-  const [error, setError] = useState("")
-  const keyFor = (database: string, code: string) => `${database}\u001f${code}`
-  const rootKey = root.code ? keyFor(root.database, root.code) : `root\u001f${root.database}\u001f${root.name}\u001f${root.location ?? ""}`
-
-  const loadActivity = useCallback(async (activity: BackgroundRoot, requestKey = activity.code ? keyFor(activity.database, activity.code) : rootKey) => {
-    if (activities.has(requestKey) || loading.has(requestKey)) return
-    setLoading((current) => new Set(current).add(requestKey))
-    setError("")
-    try {
-      const details = await getBackgroundActivityDetails(activity)
-      setActivities((current) => {
-        const next = new Map(current)
-        next.set(requestKey, details)
-        next.set(keyFor(details.database, details.code), details)
-        return next
-      })
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not load the background supply chain.")
-    } finally {
-      setLoading((current) => { const next = new Set(current); next.delete(requestKey); return next })
-    }
-  }, [activities, loading, rootKey])
-
-  useEffect(() => { void loadActivity(root, rootKey) }, []) // Root changes remount this explorer.
-
-  const rootDetails = activities.get(rootKey)
-  const included = new Map<string, Awaited<ReturnType<typeof getBackgroundActivityDetails>>>()
-  if (rootDetails) included.set(keyFor(rootDetails.database, rootDetails.code), rootDetails)
-  activities.forEach((details) => included.set(keyFor(details.database, details.code), details))
-
-  const graphNodes = [...included.values()].flatMap<Node<ProcessNodeData>>((details) => {
-    const activityKey = keyFor(details.database, details.code)
-    const processNode: Node<ProcessNodeData> = {
-      id: activityKey, type: "process", position: { x: 0, y: 0 },
-      data: {
-        label: details.name, kind: "process", detail: `Background activity · ${details.database}${details.location ? ` · ${details.location}` : ""}`,
-        color: nodeScopeColors.background, scope: "background", database: details.database, code: details.code,
-        location: details.location ?? undefined, expanded: true,
-      },
-    }
-    const children: Node<ProcessNodeData>[] = details.exchanges.filter((exchange) => exchange.exchange_type === "technosphere").flatMap((exchange) => {
-      const childKey = keyFor(exchange.input_database, exchange.input_code)
-      if (included.has(childKey)) return []
-      const child: Node<ProcessNodeData> = {
-        id: childKey, type: "process", position: { x: 0, y: 0 },
-        data: {
-          label: exchange.input_name, kind: "process", detail: `Background activity · ${exchange.input_database}${exchange.input_location ? ` · ${exchange.input_location}` : ""}`,
-          color: nodeScopeColors.background, scope: "background" as const, database: exchange.input_database, code: exchange.input_code,
-          location: exchange.input_location ?? undefined,
-        },
-      }
-      return [child]
-    })
-    return [processNode, ...children]
-  }).filter((node, index, all) => all.findIndex((candidate) => candidate.id === node.id) === index)
-
-  const graphEdges: Edge[] = [...included.values()].flatMap((details) => {
-    const target = keyFor(details.database, details.code)
-    return details.exchanges.filter((exchange) => exchange.exchange_type === "technosphere").map((exchange, index) => ({
-      id: `${keyFor(exchange.input_database, exchange.input_code)}-${target}-${index}`,
-      source: keyFor(exchange.input_database, exchange.input_code), target,
-      label: `${exchange.input_product ?? exchange.input_name} · ${formatNumber(exchange.amount)}${exchange.unit ? ` ${exchange.unit}` : ""}`,
-      style: { stroke: "#2563eb", strokeWidth: mode === "sankey" ? Math.max(2, Math.min(18, 2 + Math.log10(1 + Math.abs(exchange.amount)) * 4)) : 1.5 },
-      labelStyle: { fill: "#fff", fontSize: 11, fontWeight: 650 },
-      labelBgStyle: { fill: "#1d4ed8", fillOpacity: .92 }, labelBgPadding: [5, 3], labelBgBorderRadius: 4,
-      markerEnd: { type: MarkerType.ArrowClosed, color: "#2563eb", width: 16, height: 16 },
-    }))
-  })
-  const laidOut = layoutNodes(graphNodes, graphEdges, { orientation: "horizontal" })
-
-  return <div className="background-explorer" role="dialog" aria-modal="true" aria-label={`${mode === "visual" ? "Visual" : "Sankey"} background graph`}>
-    <div className="background-explorer-head">
-      <div><small>BACKGROUND DATA</small><strong>{rootDetails?.name ?? root.name}</strong><span>{mode === "visual" ? "Visual graph" : "Sankey graph"} · click any upstream process to reveal its direct inputs</span></div>
-      <button type="button" onClick={onClose} aria-label="Close background graph"><X size={18} /></button>
-    </div>
-    <div className={`background-explorer-canvas ${mode === "sankey" ? "is-sankey" : ""}`}>
-      {laidOut.length ? <ReactFlow
-        nodes={laidOut}
-        edges={graphEdges}
-        nodeTypes={nodeTypes}
-        onNodeClick={(_, node) => {
-          if (!node.data.database || !node.data.code) return
-          void loadActivity({ database: node.data.database, code: node.data.code, name: node.data.label, location: node.data.location }, node.id)
-        }}
-        minZoom={0.25}
-        maxZoom={2}
-        fitView
-        fitViewOptions={{ padding: .3, maxZoom: .8 }}
-        proOptions={{ hideAttribution: true }}
-      ><Background variant={BackgroundVariant.Dots} gap={22} size={1} color={theme === "dark" ? "#242831" : "#cbd5e1"} /></ReactFlow>
-        : <div className="sankey-empty"><strong>{loading.size ? "Loading background data…" : "No background data"}</strong>{error ? <p>{error}</p> : null}</div>}
-      {loading.size && laidOut.length ? <div className="background-loading">Loading upstream process…</div> : null}
-      {error && laidOut.length ? <div className="background-error">{error}</div> : null}
-    </div>
-  </div>
-}
 const inputHandleIdFor = (edgeId: string) => `input-${edgeId}`
 const incomingEdgesFor = (nodeId: string, edges: Edge[], nodesById: Map<string, Node<ProcessNodeData>>) => (
   edges.filter((edge) => edge.target === nodeId).sort((left, right) => (
@@ -1022,7 +916,6 @@ function GraphEditor() {
   const [graphMaxProcesses, setGraphMaxProcesses] = useState(initialNodes.filter((node) => node.data.scope !== "background").length)
   const [graphOrientation, setGraphOrientation] = useState<"vertical" | "horizontal">("horizontal")
   const [graphConnectionStyle, setGraphConnectionStyle] = useState<"curved" | "straight" | "step">("curved")
-  const [backgroundGraph, setBackgroundGraph] = useState<{ mode: "visual" | "sankey"; root: BackgroundRoot } | null>(null)
   const foldDirectionRef = useRef<"upstream" | "downstream">("upstream")
   const nodesRef = useRef(nodes)
   const edgesRef = useRef(edges)
@@ -1202,6 +1095,131 @@ function GraphEditor() {
     }
   }, [setNodes])
 
+  const toggleBackgroundBranch = useCallback(async (nodeId: string) => {
+    const node = nodesRef.current.find((candidate) => candidate.id === nodeId)
+    if (!node || node.data.scope !== "background" || !node.data.database || node.data.backgroundLoading) return
+
+    if (node.data.backgroundExplored) {
+      const descendants = new Set<string>()
+      let changed = true
+      while (changed) {
+        changed = false
+        nodesRef.current.forEach((candidate) => {
+          if (candidate.data.backgroundParentId === nodeId || (candidate.data.backgroundParentId && descendants.has(candidate.data.backgroundParentId))) {
+            if (!descendants.has(candidate.id)) { descendants.add(candidate.id); changed = true }
+          }
+        })
+      }
+      const nextNodes = nodesRef.current
+        .filter((candidate) => !descendants.has(candidate.id))
+        .map((candidate) => candidate.id === nodeId ? { ...candidate, data: { ...candidate.data, backgroundExplored: false } } : candidate)
+      const nextEdges = edgesRef.current.filter((edge) => !descendants.has(edge.source) && !descendants.has(edge.target))
+      setNodes(layoutNodes(nextNodes, nextEdges, { orientation: graphOrientation }))
+      setEdges(nextEdges)
+      requestAnimationFrame(() => fitView({ padding: .35, maxZoom: .75, duration: 350 }))
+      return
+    }
+
+    setNodes((current) => current.map((candidate) => candidate.id === nodeId
+      ? { ...candidate, data: { ...candidate.data, backgroundLoading: true, backgroundError: undefined } }
+      : candidate))
+    try {
+      const details = await getBackgroundActivityDetails({
+        database: node.data.database,
+        code: node.data.code,
+        name: node.data.label,
+        location: node.data.location,
+      })
+      const production = details.exchanges.find((exchange) => exchange.exchange_type === "production")
+      const productionAmount = production?.amount ?? 1
+      if (productionAmount === 0) throw new Error("The background activity has a zero production amount and cannot be scaled.")
+      const activityScale = (node.data.backgroundDemand ?? 1) / productionAmount
+      const scaled = (amount: number) => Number((amount * activityScale).toPrecision(8))
+      const technosphere = details.exchanges.filter((exchange) => exchange.exchange_type === "technosphere")
+      const childNodes: Node<ProcessNodeData>[] = technosphere.map((exchange) => ({
+        id: `${nodeId}::background::${exchange.input_database}::${exchange.input_code}`,
+        type: "process",
+        position: { x: node.position.x - 360, y: node.position.y },
+        data: {
+          label: exchange.input_name,
+          kind: "process",
+          detail: `Background activity · ${exchange.input_database}${exchange.input_location ? ` · ${exchange.input_location}` : ""}`,
+          color: nodeScopeColors.background,
+          scope: "background",
+          database: exchange.input_database,
+          code: exchange.input_code,
+          location: exchange.input_location ?? undefined,
+          backgroundDemand: scaled(exchange.amount),
+          backgroundDemandUnit: exchange.unit ?? undefined,
+          backgroundParentId: nodeId,
+        },
+      }))
+      const childEdges: Edge[] = technosphere.map((exchange, index) => {
+        const amount = scaled(exchange.amount)
+        return {
+          id: `${nodeId}::background-edge::${index}::${exchange.input_code}`,
+          source: `${nodeId}::background::${exchange.input_database}::${exchange.input_code}`,
+          target: nodeId,
+          label: `${exchange.input_product ?? exchange.input_name} · ${formatNumber(amount)}${exchange.unit ? ` ${exchange.unit}` : ""}`,
+          type: graphConnectionStyle === "curved" ? "default" : graphConnectionStyle === "straight" ? "straight" : "smoothstep",
+          style: { stroke: "#2563eb", strokeWidth: 1.5 },
+          labelStyle: { fill: "#9aa2ae", fontSize: 12, fontWeight: 650 },
+          labelBgStyle: { fill: "#111318", fillOpacity: .92 },
+          labelBgPadding: [5, 3],
+          labelBgBorderRadius: 4,
+        }
+      })
+      const inputs = technosphere.map((exchange) => ({
+        label: exchange.input_name, kind: "background input", color: nodeScopeColors.background,
+        amount: scaled(exchange.amount), unit: exchange.unit ?? undefined,
+      }))
+      const outputs = details.exchanges.filter((exchange) => exchange.exchange_type === "production").map((exchange) => ({
+        label: exchange.input_product ?? exchange.input_name, kind: "reference output", color: nodeScopeColors.background,
+        amount: scaled(exchange.amount), unit: exchange.unit ?? details.unit ?? node.data.backgroundDemandUnit,
+      }))
+      const biosphere = details.exchanges.filter((exchange) => exchange.exchange_type === "biosphere").map((exchange) => ({
+        label: chemicalFlowLabel(exchange.input_name), amount: scaled(exchange.amount), unit: exchange.unit ?? "",
+      }))
+      const currentNodes = nodesRef.current.filter((candidate) => candidate.id !== nodeId && candidate.data.backgroundParentId !== nodeId)
+      const updatedParent: Node<ProcessNodeData> = {
+        ...node,
+        data: {
+          ...node.data,
+          label: details.name,
+          detail: `Background activity · ${details.database}${details.location ? ` · ${details.location}` : ""}`,
+          code: details.code,
+          location: details.location ?? undefined,
+          expanded: true,
+          inputs,
+          outputs,
+          biosphere,
+          backgroundLoading: false,
+          backgroundLoaded: true,
+          backgroundExplored: true,
+        },
+      }
+      const nextNodes = [...currentNodes, updatedParent, ...childNodes]
+      const nextEdges = [...edgesRef.current.filter((edge) => !edge.id.startsWith(`${nodeId}::background-edge::`)), ...childEdges]
+      setNodes(layoutNodes(nextNodes, nextEdges, { orientation: graphOrientation }))
+      setEdges(nextEdges)
+      requestAnimationFrame(() => fitView({ padding: .35, maxZoom: .75, duration: 350 }))
+    } catch (error) {
+      setNodes((current) => current.map((candidate) => candidate.id === nodeId
+        ? { ...candidate, data: {
+            ...candidate.data,
+            backgroundLoading: false,
+            backgroundError: error instanceof Error ? error.message : "Could not load this background activity.",
+          } }
+        : candidate))
+    }
+  }, [fitView, formatNumber, graphConnectionStyle, graphOrientation, setEdges, setNodes])
+
+  useEffect(() => {
+    setNodes((current) => current.map((node) => node.data.scope === "background" && node.data.onToggleBackground !== toggleBackgroundBranch
+      ? { ...node, data: { ...node.data, onToggleBackground: toggleBackgroundBranch } }
+      : node))
+  }, [setNodes, toggleBackgroundBranch])
+
   const toggleExpanded = useCallback((nodeId: string) => {
     const target = nodesRef.current.find((node) => node.id === nodeId)
     const expanding = !target?.data.expanded
@@ -1368,18 +1386,6 @@ function GraphEditor() {
   const connectionCount = edges.length
   const hasCurrentResults = Boolean(lcaResult && calculatedYaml === yamlText)
   const selectedNode = selected ? nodes.find((node) => node.id === selected.id) : undefined
-  const openBackgroundGraph = (mode: "visual" | "sankey") => {
-    if (!selectedNode?.data.database) return
-    setBackgroundGraph({
-      mode,
-      root: {
-        database: selectedNode.data.database,
-        code: selectedNode.data.code,
-        name: selectedNode.data.label,
-        location: selectedNode.data.location,
-      },
-    })
-  }
   const inputNodes = selectedNode ? edges
     .filter((edge) => edge.target === selectedNode.id)
     .map((edge) => nodes.find((node) => node.id === edge.source))
@@ -1492,23 +1498,12 @@ function GraphEditor() {
         {view === "graph" ? <div className="graph-meta">{nodes.length} nodes&nbsp;&nbsp;·&nbsp;&nbsp;{connectionCount} connections</div> : null}
       </div>
 
-      {backgroundGraph ? <BackgroundGraphView
-        key={`${backgroundGraph.root.database}:${backgroundGraph.root.code ?? backgroundGraph.root.name}:${backgroundGraph.mode}`}
-        root={backgroundGraph.root}
-        mode={backgroundGraph.mode}
-        onClose={() => setBackgroundGraph(null)}
-      /> : null}
-
       {view === "graph" && selected ? <aside className="inspector">
         <>
           <div className="inspector-head"><span>NODE DETAILS</span><Button variant="ghost" size="icon" onClick={() => setSelected(null)} aria-label="Close property editor" title="Close property editor"><X size={16} /></Button></div>
           <div className="node-icon" style={{ background: selectedNode?.data.color ?? selected.color }}><Box size={22} /></div>
           <h2>{selectedNode?.data.label ?? selected.label}</h2><p>{selectedNode?.data.detail ?? selected.detail}</p>
           {selectedNode?.data.scope === "background" ? <>
-            <div className="background-view-actions">
-              <button type="button" onClick={() => openBackgroundGraph("visual")}><LayoutGrid size={15} /><span>Visual graph</span></button>
-              <button type="button" onClick={() => openBackgroundGraph("sankey")}><Share2 size={15} /><span>Sankey graph</span></button>
-            </div>
             {selectedNode.data.backgroundLoading ? <div className="property-section"><p>Loading unit process…</p></div> : null}
             {selectedNode.data.backgroundError ? <div className="property-section"><p className="property-error">{selectedNode.data.backgroundError}</p></div> : null}
             <div className="property-section">

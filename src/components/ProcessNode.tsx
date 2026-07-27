@@ -27,6 +27,9 @@ export type ProcessNodeData = {
   backgroundLoading?: boolean
   backgroundLoaded?: boolean
   backgroundError?: string
+  backgroundParentId?: string
+  backgroundExplored?: boolean
+  onToggleBackground?: (id: string) => void
   showAmounts?: boolean
   onRemove?: (id: string) => void
   onRestore?: (id: string) => void
@@ -38,6 +41,16 @@ function ProcessNodeImpl({ id, data, selected, sourcePosition = Position.Right, 
   const updateNodeInternals = useUpdateNodeInternals()
   const { formatNumber: displayNumber } = useDisplaySettings()
   const inputHandleSignature = data.inputs?.map((item) => item.handleId ?? "").join("|") ?? ""
+  const showToggle = data.scope === "background" || data.canFold || data.canRestore
+  const toggleLabel = data.scope === "background"
+    ? `${data.backgroundExplored ? "Hide" : "Show"} upstream background steps for ${data.label}`
+    : data.canRestore ? `Show connected steps for ${data.label}` : `Fold connected steps for ${data.label}`
+  const toggle = (event: React.MouseEvent) => {
+    event.stopPropagation()
+    if (data.scope === "background") data.onToggleBackground?.(id)
+    else if (data.canRestore) data.onRestore?.(id)
+    else data.onRemove?.(id)
+  }
 
   useEffect(() => {
     updateNodeInternals(id)
@@ -52,13 +65,13 @@ function ProcessNodeImpl({ id, data, selected, sourcePosition = Position.Right, 
       {data.expanded ? (
         <>
           <div className="pg-node-head">
-            {data.canFold || data.canRestore ? <button
+            {showToggle ? <button
               type="button"
               className="pg-node-toggle"
-              aria-label={data.canRestore ? `Show connected steps for ${data.label}` : `Fold connected steps for ${data.label}`}
-              onClick={(event) => { event.stopPropagation(); data.canRestore ? data.onRestore?.(id) : data.onRemove?.(id) }}
+              aria-label={toggleLabel}
+              onClick={toggle}
             >
-              {data.canRestore ? <Plus size={11} /> : <Minus size={11} />}
+              {data.scope === "background" ? (data.backgroundExplored ? <Minus size={11} /> : <Plus size={11} />) : data.canRestore ? <Plus size={11} /> : <Minus size={11} />}
             </button> : null}
             <Component size={14} />
             <span className="pg-node-label">{data.label}</span>
@@ -97,13 +110,13 @@ function ProcessNodeImpl({ id, data, selected, sourcePosition = Position.Right, 
         </>
       ) : (
         <>
-          {data.canFold || data.canRestore ? <button
+          {showToggle ? <button
             type="button"
             className="pg-node-toggle"
-            aria-label={data.canRestore ? `Show connected steps for ${data.label}` : `Fold connected steps for ${data.label}`}
-            onClick={(event) => { event.stopPropagation(); data.canRestore ? data.onRestore?.(id) : data.onRemove?.(id) }}
+            aria-label={toggleLabel}
+            onClick={toggle}
           >
-            {data.canRestore ? <Plus size={11} /> : <Minus size={11} />}
+            {data.scope === "background" ? (data.backgroundExplored ? <Minus size={11} /> : <Plus size={11} />) : data.canRestore ? <Plus size={11} /> : <Minus size={11} />}
           </button> : null}
           <span className="pg-node-icon"><Component size={12} /></span>
           <span className="pg-node-label">{data.label}</span>
