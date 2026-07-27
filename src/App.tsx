@@ -23,9 +23,13 @@ import { unitsAreCompatible } from "./lib/units"
 import { DisplaySettingsProvider, useDisplaySettings } from "./lib/displaySettings"
 import jacketYaml from "../case_studies/jacket.yaml?raw"
 import cottonFiberYaml from "../case_studies/cotton_fiber.yaml?raw"
+import cottonFiberBafuLinkedYaml from "../case_studies/cotton_fiber_bafu_linked.yaml?raw"
 import mockPlasticBroomYaml from "../case_studies/mock_plastic_broom.yaml?raw"
+import plasticBroomYaml from "../case_studies/plastic_broom.yaml?raw"
 import polyesterTshirtYaml from "../case_studies/polyester_tshirt.yaml?raw"
+import polyesterTshirtBafuLinkedYaml from "../case_studies/polyester_tshirt_bafu_linked.yaml?raw"
 import woolYarnYaml from "../case_studies/wool_yarn.yaml?raw"
+import woolYarnBafuLinkedYaml from "../case_studies/wool_yarn_bafu_linked.yaml?raw"
 
 type NodeMeta = { label: string; kind: string; detail: string; color: string; scope?: "foreground" | "background" }
 
@@ -90,9 +94,13 @@ const targetExpandedInputRows = (nodes: Node<ProcessNodeData>[], edges: Edge[]) 
 const caseStudies = {
   jacket: { label: "Jacket", yaml: jacketYaml },
   cottonFiber: { label: "Cotton Fiber", yaml: cottonFiberYaml },
+  cottonFiberBafuLinked: { label: "Cotton Fiber(bafu-linked)", yaml: cottonFiberBafuLinkedYaml },
   mockPlasticBroom: { label: "Mock Plastic Broom", yaml: mockPlasticBroomYaml },
+  plasticBroom: { label: "Plastic Broom(bafu-linked)", yaml: plasticBroomYaml },
   polyesterTshirt: { label: "Polyester T-shirt", yaml: polyesterTshirtYaml },
+  polyesterTshirtBafuLinked: { label: "Polyester T-shirt(bafu-linked)", yaml: polyesterTshirtBafuLinkedYaml },
   woolYarn: { label: "Wool Yarn", yaml: woolYarnYaml },
+  woolYarnBafuLinked: { label: "Wool Yarn(bafu-linked)", yaml: woolYarnBafuLinkedYaml },
 } as const
 type CaseStudyId = keyof typeof caseStudies
 
@@ -1248,7 +1256,7 @@ function GraphEditor() {
         </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "process" && lcaResult ? <ProcessResultsView result={lcaResult} yaml={yamlText} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={yamlText} isCurrent={calculatedYaml === yamlText} error={resultsError} /> : view === "sankey" && lcaResult ? <SankeyView result={lcaResult} /> : <div className="results-panel">
           <div className="results-panel-head">
             <div><strong>LCA Results</strong><span>Calculated from the current YAML product graph.</span></div>
-            <Button onClick={runCalculation} disabled={isCalculating}>{isCalculating ? "Calculating…" : "Calculate"}</Button>
+            <Button onClick={runCalculation} disabled={isCalculating}>{isCalculating ? "Calculating…" : "Calculate LCA"}</Button>
           </div>
           <div className="results-panel-body">
             {resultsError ? <div className="results-error"><strong>Calculation failed</strong><p>{resultsError}</p></div>
