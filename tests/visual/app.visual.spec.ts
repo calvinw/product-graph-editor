@@ -182,6 +182,7 @@ test("theme, analysis, and Sankey selection groups support keyboard navigation",
 
   await calculate(page)
   await page.getByRole("radio", { name: "Impact Analysis", exact: true }).click()
+  await page.getByRole("radio", { name: "Table", exact: true }).click()
   const processes = page.getByRole("radio", { name: "Processes", exact: true })
   await processes.focus()
   await page.keyboard.press("ArrowRight")

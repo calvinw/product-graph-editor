@@ -26,8 +26,8 @@ lcia:
   method_name: "EF v3.1"
   contribution_graph:
     categories:
-      - climate change
-      - acidification
+      - "climate change"
+      - "acidification"
     cutoff: 0.001
     biosphere_cutoff: 0.001
     max_depth: 6

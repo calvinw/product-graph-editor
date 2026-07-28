@@ -11,7 +11,7 @@ import {
   BarChart3, Box, Component, Scan, LayoutGrid, ChevronDown, Factory, Leaf,
   FileUp, Minus, Moon, MousePointer2, Plus, Search, Settings2, Share2, Sun, X,
 } from "lucide-react"
-import { parse } from "yaml"
+import { parse, stringify } from "yaml"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -74,6 +74,22 @@ function SankeyProcessNode({ data }: NodeProps<Node<SankeyProcessNodeData>>) {
   </div>
 }
 const sankeyNodeTypes = { sankeyProcess: SankeyProcessNode }
+type ImpactGraphNodeData = {
+  label: string
+  scope: "foreground" | "background"
+  supply: string
+  direct: string
+  cumulative: string
+}
+function ImpactGraphNode({ data }: NodeProps<Node<ImpactGraphNodeData>>) {
+  return <div className="pg-node is-expanded impact-graph-node" style={{ "--node-color": nodeScopeColors[data.scope] } as React.CSSProperties}>
+    <Handle type="target" position={Position.Left} />
+    <div className="pg-node-head"><Component size={14} /><span className="pg-node-label">{data.label}</span><small className={`pg-node-scope is-${data.scope}`}>{data.scope}</small></div>
+    <div className="impact-graph-metrics"><div><span>Supply</span><strong>{data.supply}</strong></div><div><span>Direct</span><strong>{data.direct}</strong></div><div><span>Upstream incl. direct</span><strong>{data.cumulative}</strong></div></div>
+    <Handle type="source" position={Position.Right} />
+  </div>
+}
+const impactGraphNodeTypes = { impactGraph: ImpactGraphNode }
 const inputHandleIdFor = (edgeId: string) => `input-${edgeId}`
 const incomingEdgesFor = (nodeId: string, edges: Edge[], nodesById: Map<string, Node<ProcessNodeData>>) => (
   edges.filter((edge) => edge.target === nodeId).sort((left, right) => (
@@ -261,10 +277,23 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
 }) {
   const { formatNumber } = useDisplaySettings()
   const [subgroup, setSubgroup] = useState<"processes" | "flows">("processes")
+  const [displayMode, setDisplayMode] = useState<"table" | "graph">("graph")
+  const [graphCategory, setGraphCategory] = useState("")
+  const [impactGraphLayout, setImpactGraphLayout] = useState(0)
   const [threshold, setThreshold] = useState(1)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => new Set())
   const [expandedProcesses, setExpandedProcesses] = useState<Set<string>>(() => new Set())
   const [collapsedFlows, setCollapsedFlows] = useState<Set<string>>(() => new Set())
+  const [loadedGraphs, setLoadedGraphs] = useState<Map<string, LcaResult["contribution_graphs"][number]>>(() => new Map())
+  const [loadingCategories, setLoadingCategories] = useState<Set<string>>(() => new Set())
+  const [categoryErrors, setCategoryErrors] = useState<Map<string, string>>(() => new Map())
+  useEffect(() => {
+    setLoadedGraphs(new Map())
+    setLoadingCategories(new Set())
+    setCategoryErrors(new Map())
+    setExpandedCategories(new Set())
+    setExpandedProcesses(new Set())
+  }, [result])
 
   if (!result || !isCurrent) return <div className="results-panel impact-panel">
     <div className="results-panel-head"><div><strong>Impact analysis</strong><span>Inspect characterized impacts by category, process, and elementary flow.</span></div></div>
@@ -285,11 +314,44 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
       if (!unique.has(key)) unique.set(key, category)
       return unique
     }, new Map<string, LcaResult["process_contributions"]["categories"][number]>())
+  const contributionGraphFor = (label: string) => result.contribution_graphs.find((graph) => graph.label === label) ?? loadedGraphs.get(label)
   const toggleCategory = (id: string) => setExpandedCategories((current) => {
     const next = new Set(current)
     if (next.has(id)) next.delete(id); else next.add(id)
     return next
   })
+  const loadCategory = async (id: string, label: string) => {
+    if (contributionGraphFor(label) || loadingCategories.has(id)) return
+    setLoadingCategories((current) => new Set(current).add(id))
+    setCategoryErrors((current) => { const next = new Map(current); next.delete(id); return next })
+    try {
+      const source = parse(yaml) as Record<string, unknown>
+      const lcia = typeof source.lcia === "object" && source.lcia !== null ? source.lcia as Record<string, unknown> : {}
+      const existing = typeof lcia.contribution_graph === "object" && lcia.contribution_graph !== null
+        ? lcia.contribution_graph as Record<string, unknown>
+        : {}
+      source.lcia = {
+        ...lcia,
+        contribution_graph: {
+          ...existing,
+          categories: [label.split("|")[0].trim()],
+        },
+      }
+      const categoryResult = await calculateLca(stringify(source))
+      const graph = categoryResult.contribution_graphs.find((candidate) => candidate.label === label)
+      if (!graph) throw new Error("The calculation engine returned no child contribution graph for this category.")
+      setLoadedGraphs((current) => new Map(current).set(label, graph))
+    } catch (caught) {
+      setCategoryErrors((current) => new Map(current).set(id, caught instanceof Error ? caught.message : "Could not calculate this category breakdown."))
+    } finally {
+      setLoadingCategories((current) => { const next = new Set(current); next.delete(id); return next })
+    }
+  }
+  const openCategory = async (id: string, label: string) => {
+    if (expandedCategories.has(id)) { toggleCategory(id); return }
+    toggleCategory(id)
+    await loadCategory(id, label)
+  }
   const toggleProcess = (id: string) => setExpandedProcesses((current) => {
     const next = new Set(current)
     if (next.has(id)) next.delete(id); else next.add(id)
@@ -301,7 +363,7 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
     return next
   })
   const processFlows = (processName: string, processId: string, categoryLabel: string) => {
-    const contributionGraph = result.contribution_graphs.find((graph) => graph.label === categoryLabel)
+    const contributionGraph = contributionGraphFor(categoryLabel)
     if (contributionGraph) {
       const occurrenceIds = new Set(contributionGraph.nodes
         .filter((node) => node.kind === "process" && (
@@ -348,18 +410,61 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
     }))
   }
 
+  const categoryList = [...categories.values()]
+  const selectedGraphCategory = categoryList.some((category) => category.label === graphCategory)
+    ? graphCategory
+    : categoryList.find((category) => /climate change(?!:)/i.test(category.label))?.label ?? categoryList[0]?.label ?? ""
+  const selectedGraphCategoryId = categoryList.find((category) => category.label === selectedGraphCategory)?.id ?? selectedGraphCategory
+  const selectedContributionGraph = contributionGraphFor(selectedGraphCategory)
+  const impactGraphEdges: Edge[] = (selectedContributionGraph?.edges ?? []).map((edge) => ({
+    id: edge.id, source: edge.source, target: edge.target,
+    label: `${formatNumber(edge.amount)} ${edge.unit}`,
+    style: { stroke: "#8b5cf6", strokeWidth: 1.5 },
+    labelStyle: { fill: "#c4b5fd", fontSize: 10, fontWeight: 650 },
+    labelBgStyle: { fill: "#171a20", fillOpacity: .94 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
+  }))
+  const impactGraphNodes: Node<ImpactGraphNodeData>[] = layoutNodes((selectedContributionGraph?.nodes ?? []).map((node) => ({
+    id: node.id,
+    type: "impactGraph",
+    position: { x: 0, y: 0 },
+    data: {
+      label: node.process_name,
+      scope: node.scope === "background" ? "background" : "foreground",
+      supply: `${formatNumber(node.supply_amount)} ${node.unit}`,
+      direct: `${formatNumber(node.direct_score)} ${selectedContributionGraph?.unit ?? ""}`,
+      cumulative: `${formatNumber(node.cumulative_score)} ${selectedContributionGraph?.unit ?? ""}`,
+    },
+  })), impactGraphEdges, { orientation: "horizontal" })
+
   return <div className="impact-view">
     <div className="impact-title"><div><strong>{result.name}</strong><span>Impact analysis – {result.method}</span></div></div>
     <div className="impact-controls">
-      <span>Sub-group by</span>
-      <RadioGroup className="impact-subgroup" value={subgroup} onValueChange={(value) => setSubgroup(value as "processes" | "flows")} aria-label="Sub-group impact results">
-        <label><RadioGroupItem className="app-radio" value="processes" /> Processes</label>
-        <label><RadioGroupItem className="app-radio" value="flows" /> Flows</label>
-      </RadioGroup>
-      <i />
-      <label className="impact-threshold">Don’t show &lt; <Input type="number" min="0" max="100" step="0.1" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label>
+      <ToggleGroup type="single" value={displayMode} onValueChange={(value) => {
+        if (!value) return
+        setDisplayMode(value as "graph" | "table")
+        if (value === "graph") void loadCategory(selectedGraphCategoryId, selectedGraphCategory)
+      }} className="impact-display-tabs" aria-label="Impact display">
+        <ToggleGroupItem value="graph"><Share2 size={14} />Graph</ToggleGroupItem>
+        <ToggleGroupItem value="table"><BarChart3 size={14} />Table</ToggleGroupItem>
+      </ToggleGroup>
+      {displayMode === "graph" ? <label className="impact-graph-category">Impact category <AppSelect value={selectedGraphCategory} onValueChange={(label) => { const category = categoryList.find((item) => item.label === label); setGraphCategory(label); if (category) void loadCategory(category.id || category.label, label) }} label="Impact graph category" options={categoryList.map((category) => ({ value: category.label, label: impactCategoryDisplayName(category.label) }))} /></label> : null}
+      {displayMode === "table" ? <>
+        <span>Sub-group by</span>
+        <RadioGroup className="impact-subgroup" value={subgroup} onValueChange={(value) => setSubgroup(value as "processes" | "flows")} aria-label="Sub-group impact results">
+          <label><RadioGroupItem className="app-radio" value="processes" /> Processes</label>
+          <label><RadioGroupItem className="app-radio" value="flows" /> Flows</label>
+        </RadioGroup>
+        <i />
+        <label className="impact-threshold">Don’t show &lt; <Input type="number" min="0" max="100" step="0.1" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label>
+      </> : null}
     </div>
-    <div className="impact-table-wrap"><table className="impact-table">
+    {displayMode === "graph" ? <div className="impact-graph-canvas">
+      {loadingCategories.has(selectedGraphCategoryId) ? <div className="impact-graph-placeholder"><strong>Calculating contribution graph…</strong><span>Loading process children for {impactCategoryDisplayName(selectedGraphCategory)}.</span></div>
+        : categoryErrors.has(selectedGraphCategoryId) ? <div className="impact-graph-placeholder is-error"><strong>Could not load this contribution graph</strong><span>{categoryErrors.get(selectedGraphCategoryId)}</span></div>
+        : impactGraphNodes.length ? <ReactFlow key={`${selectedGraphCategory}-${impactGraphLayout}`} nodes={impactGraphNodes} edges={impactGraphEdges} nodeTypes={impactGraphNodeTypes} fitView fitViewOptions={{ padding: .3, maxZoom: .72 }} minZoom={.2} maxZoom={2} proOptions={{ hideAttribution: true }}><Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#34313f" /></ReactFlow>
+          : <div className="impact-graph-placeholder"><strong>No graph loaded</strong><Button variant="outline" onClick={() => void loadCategory(selectedGraphCategoryId, selectedGraphCategory)}>Load process children</Button></div>}
+      {impactGraphNodes.length ? <Button variant="outline" className="impact-graph-layout" onClick={() => setImpactGraphLayout((value) => value + 1)}><LayoutGrid size={14} />Arrange</Button> : null}
+    </div> : <div className="impact-table-wrap"><table className="impact-table">
       <thead><tr><th>Name</th><th>Category</th><th>Inventory result</th><th>Characterization factor</th><th>Impact assessment result</th></tr></thead>
       <tbody>{[...categories.values()].map((category) => {
         const categoryId = category.id || category.label
@@ -368,10 +473,12 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
           .filter((process) => Math.abs(process.percentage ?? (category.total_score ? process.direct_score / category.total_score * 100 : 0)) >= threshold)
           .sort((left, right) => Math.abs(right.direct_score) - Math.abs(left.direct_score))
         return <Fragment key={categoryId}>
-          <tr className="impact-category-row" onClick={() => toggleCategory(categoryId)}>
-            <td><div className="impact-category-name"><button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} onClick={(event) => { event.stopPropagation(); toggleCategory(categoryId) }} aria-expanded={isOpen} aria-label={`${isOpen ? "Collapse" : "Expand"} ${category.label}`}><ChevronDown size={14} /></button><BarChart3 className="impact-category-icon" size={17} /><strong>{impactCategoryDisplayName(category.label)}</strong></div></td>
+          <tr className="impact-category-row" onClick={() => void openCategory(categoryId, category.label)}>
+            <td><div className="impact-category-name"><button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} onClick={(event) => { event.stopPropagation(); void openCategory(categoryId, category.label) }} aria-expanded={isOpen} aria-label={`${isOpen ? "Collapse" : "Expand"} ${category.label}`}><ChevronDown size={14} /></button><BarChart3 className="impact-category-icon" size={17} /><strong>{impactCategoryDisplayName(category.label)}</strong></div></td>
             <td /><td /><td /><td><span className="impact-result">{formatNumber(category.total_score)} <small>{category.unit}</small></span></td>
           </tr>
+          {isOpen && loadingCategories.has(categoryId) ? <tr className="impact-breakdown-status"><td colSpan={5}>Calculating process and elementary-flow children…</td></tr> : null}
+          {isOpen && categoryErrors.has(categoryId) ? <tr className="impact-breakdown-status is-error"><td colSpan={5}>{categoryErrors.get(categoryId)}</td></tr> : null}
           {isOpen && subgroup === "processes" ? processes.flatMap((process) => {
             const processKey = `${categoryId}:${process.process_id}`
             const flows = processFlows(process.process_name, process.process_id, category.label)
@@ -447,7 +554,7 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
             }) : null}
         </Fragment>
       })}</tbody>
-    </table></div>
+    </table></div>}
   </div>
 }
 
