@@ -3,7 +3,13 @@ import { lcaResultFixture } from "../fixtures/lca-result"
 
 type Theme = "dark" | "light"
 
-async function mockLcaApi(page: Page, result = lcaResultFixture) {
+async function mockLcaApi(
+  page: Page,
+  result = lcaResultFixture,
+  onContributionRequest?: (categories: string[]) => void,
+  contributionDelayMs = 0,
+  baseDelayMs = 0,
+) {
   await page.route("**/lca-api/api/**", async (route) => {
     const { pathname } = new URL(route.request().url())
     if (pathname.endsWith("/api/health")) {
@@ -12,15 +18,38 @@ async function mockLcaApi(page: Page, result = lcaResultFixture) {
     }
     if (pathname.endsWith("/api/tools")) {
       await route.fulfill({
-        json: [{
-          name: "run_lca",
-          rest: { method: "POST", path: "/api/lca/run" },
-        }],
+        json: [
+          {
+            name: "run_lca_base",
+            rest: { method: "POST", path: "/api/lca/base" },
+          },
+          {
+            name: "get_lca_contribution_graphs",
+            rest: { method: "POST", path: "/api/lca/contribution" },
+          },
+        ],
       })
       return
     }
-    if (pathname.endsWith("/api/lca/run")) {
-      await route.fulfill({ json: result })
+    if (pathname.endsWith("/api/lca/base")) {
+      if (baseDelayMs) await new Promise((resolve) => setTimeout(resolve, baseDelayMs))
+      await route.fulfill({ json: { ...result, contribution_graphs: [] } })
+      return
+    }
+    if (pathname.endsWith("/api/lca/contribution")) {
+      const body = route.request().postDataJSON() as { categories?: string[] }
+      const categories = body.categories ?? []
+      onContributionRequest?.(categories)
+      if (contributionDelayMs) await new Promise((resolve) => setTimeout(resolve, contributionDelayMs))
+      await route.fulfill({
+        json: {
+          result_id: result.result_id,
+          method: result.method,
+          contribution_graphs: result.contribution_graphs.filter((graph) => (
+            categories.some((category) => graph.label.includes(category))
+          )),
+        },
+      })
       return
     }
     await route.abort("blockedbyclient")
@@ -45,25 +74,25 @@ async function selectTheme(page: Page, theme: Theme) {
 }
 
 async function calculate(page: Page) {
-  await page.getByRole("radio", { name: "LCA Results", exact: true }).click()
-  await page.getByRole("button", { name: "Calculate LCA" }).click()
+  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toBeChecked()
   await expect(page.locator(".markdown-report")).toBeVisible()
 }
 
-test("YAML drafts apply only through Preview Graph", async ({ page }) => {
+test("Calculate LCA applies YAML and opens the active results view", async ({ page }) => {
   await mockLcaApi(page)
   await page.goto("/")
-  await expect(page.locator(".react-flow__node")).toHaveCount(5)
   await calculate(page)
+  await page.getByRole("radio", { name: "Graph", exact: true }).click()
+  await expect(page.locator(".react-flow__node")).toHaveCount(5)
 
   await page.getByRole("radio", { name: "FILE", exact: true }).click()
   const editor = page.getByRole("textbox", { name: "Product graph YAML" })
   const appliedSource = await editor.inputValue()
   await editor.fill(appliedSource.replace("Jacket", "Draft jacket"))
-  await expect(page.getByText("Unapplied changes. Preview changes before calculating.")).toBeVisible()
+  await expect(page.getByText("Unapplied changes. Calculate LCA to apply this YAML.")).toBeVisible()
 
   await page.getByRole("radio", { name: "LCA Results", exact: true }).click()
-  await expect(page.getByRole("button", { name: "Calculate LCA" })).toBeDisabled()
+  await expect(page.getByRole("button", { name: "Calculate LCA" })).toHaveCount(0)
   await expect(page.locator(".markdown-report")).toBeVisible()
   await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeVisible()
 
@@ -71,24 +100,28 @@ test("YAML drafts apply only through Preview Graph", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Jacket" })).toBeVisible()
   await page.getByRole("radio", { name: "FILE", exact: true }).click()
   await editor.fill("not: [valid")
-  await page.getByRole("button", { name: "Preview graph" }).click()
+  await page.getByRole("button", { name: "Calculate LCA" }).click()
   await expect(page.locator(".yaml-error")).toBeVisible()
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   await expect(page.getByRole("heading", { name: "Jacket" })).toBeVisible()
   await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeVisible()
 
   await page.getByRole("radio", { name: "FILE", exact: true }).click()
-  await editor.fill(appliedSource.replace("Jacket", "Previewed jacket"))
-  await page.getByRole("button", { name: "Preview graph" }).click()
-  await expect(page.getByRole("heading", { name: "Previewed jacket" })).toBeVisible()
-  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toHaveCount(0)
-  await page.getByRole("radio", { name: "LCA Results", exact: true }).click()
-  await expect(page.getByRole("button", { name: "Calculate LCA" })).toBeEnabled()
-  await expect(page.locator(".results-placeholder")).toBeVisible()
+  await editor.fill(appliedSource.replace("Jacket", "Calculated jacket"))
+  await page.getByRole("button", { name: "Calculate LCA" }).click()
+  await expect(page.getByRole("heading", { name: "Calculated jacket" })).toBeVisible()
+  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toBeChecked()
+  await expect(page.locator(".markdown-report")).toBeVisible()
+  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeVisible()
+
+  await page.getByRole("radio", { name: "Inventory", exact: true }).click()
+  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).not.toBeChecked()
 })
 
 test("a calculation for an older applied revision cannot populate results", async ({ page }) => {
   let releaseCalculation: (() => void) | undefined
+  let calculationCount = 0
   const calculationRequested = new Promise<void>((resolve) => {
     releaseCalculation = resolve
   })
@@ -99,12 +132,13 @@ test("a calculation for an older applied revision cannot populate results", asyn
       return
     }
     if (pathname.endsWith("/api/tools")) {
-      await route.fulfill({ json: [{ name: "run_lca", rest: { method: "POST", path: "/api/lca/run" } }] })
+      await route.fulfill({ json: [{ name: "run_lca_base", rest: { method: "POST", path: "/api/lca/base" } }] })
       return
     }
-    if (pathname.endsWith("/api/lca/run")) {
-      releaseCalculation?.()
-      await new Promise((resolve) => setTimeout(resolve, 500))
+    if (pathname.endsWith("/api/lca/base")) {
+      calculationCount += 1
+      if (calculationCount === 1) releaseCalculation?.()
+      await new Promise((resolve) => setTimeout(resolve, calculationCount === 1 ? 500 : 2_000))
       await route.fulfill({ json: lcaResultFixture }).catch(() => undefined)
       return
     }
@@ -112,26 +146,26 @@ test("a calculation for an older applied revision cannot populate results", asyn
   })
 
   await page.goto("/")
-  await page.getByRole("radio", { name: "LCA Results", exact: true }).click()
-  await page.getByRole("button", { name: "Calculate LCA" }).click()
   await calculationRequested
 
   await page.getByRole("radio", { name: "FILE", exact: true }).click()
   const editor = page.getByRole("textbox", { name: "Product graph YAML" })
   await editor.fill((await editor.inputValue()).replace("Jacket", "New revision"))
-  await page.getByRole("button", { name: "Preview graph" }).click()
+  await page.getByRole("button", { name: "Calculate LCA" }).click()
   await expect(page.getByRole("heading", { name: "New revision" })).toBeVisible()
   await page.waitForTimeout(650)
 
   await page.getByRole("radio", { name: "LCA Results", exact: true }).click()
   await expect(page.locator(".markdown-report")).toHaveCount(0)
   await expect(page.locator(".results-placeholder")).toBeVisible()
-  await expect(page.getByRole("button", { name: "Calculate LCA" })).toBeEnabled()
+  await expect(page.getByText("Calculating the currently applied product graph…")).toBeVisible()
 })
 
 test("toolbar tooltips open from keyboard focus and pointer input", async ({ page }) => {
   await mockLcaApi(page)
   await page.goto("/")
+  await calculate(page)
+  await page.getByRole("radio", { name: "Graph", exact: true }).click()
   const graphSettings = page.getByRole("button", { name: "Graph settings" })
 
   await graphSettings.focus()
@@ -139,6 +173,8 @@ test("toolbar tooltips open from keyboard focus and pointer input", async ({ pag
   await expect(page.getByRole("tooltip", { name: "Graph settings" })).toBeVisible()
 
   await page.reload()
+  await calculate(page)
+  await page.getByRole("radio", { name: "Graph", exact: true }).click()
   await graphSettings.hover()
   await expect(page.getByRole("tooltip", { name: "Graph settings" })).toBeVisible()
 })
@@ -146,6 +182,8 @@ test("toolbar tooltips open from keyboard focus and pointer input", async ({ pag
 test("primary and result view switchers support arrow-key navigation", async ({ page }) => {
   await mockLcaApi(page)
   await page.goto("/")
+  await calculate(page)
+  await page.getByRole("radio", { name: "Graph", exact: true }).click()
 
   await page.getByRole("radio", { name: "Graph", exact: true }).focus()
   await page.keyboard.press("ArrowRight")
@@ -155,14 +193,13 @@ test("primary and result view switchers support arrow-key navigation", async ({ 
   await expect(fileView).toBeChecked()
   await expect(page.locator(".yaml-editor")).toBeVisible()
 
-  await calculate(page)
   await page.getByRole("radio", { name: "Inventory", exact: true }).focus()
   await page.keyboard.press("ArrowRight")
   const impactView = page.getByRole("radio", { name: "Impact Analysis", exact: true })
   await expect(impactView).toBeFocused()
   await page.keyboard.press("Space")
   await expect(impactView).toBeChecked()
-  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).not.toBeChecked()
   await expect(page.locator(".impact-view")).toBeVisible()
 })
 
@@ -182,7 +219,6 @@ test("theme, analysis, and Sankey selection groups support keyboard navigation",
 
   await calculate(page)
   await page.getByRole("radio", { name: "Impact Analysis", exact: true }).click()
-  await page.getByRole("radio", { name: "Table", exact: true }).click()
   const processes = page.getByRole("radio", { name: "Processes", exact: true })
   await processes.focus()
   await page.keyboard.press("ArrowRight")
@@ -211,6 +247,8 @@ test("theme, analysis, and Sankey selection groups support keyboard navigation",
 test("form controls preserve selection, clamping, and disabled behavior", async ({ page }) => {
   await mockLcaApi(page)
   await page.goto("/")
+  await calculate(page)
+  await page.getByRole("radio", { name: "Graph", exact: true }).click()
 
   await page.getByRole("button", { name: "Graph settings" }).click()
   const orientation = page.getByRole("combobox", { name: "Graph orientation" })
@@ -241,13 +279,16 @@ test("form controls preserve selection, clamping, and disabled behavior", async 
   const caseStudy = page.getByRole("combobox", { name: "Choose a case study" })
   await caseStudy.click()
   await page.getByRole("option", { name: "Cotton Fiber", exact: true }).click()
-  await expect(caseStudy).toHaveText(/Cotton Fiber/)
-  await expect(page.getByText("Unapplied changes. Preview changes before calculating.")).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Cotton Fiber" })).toBeVisible()
+  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toBeChecked()
+  await expect(page.locator(".markdown-report")).toBeVisible()
 })
 
 test("settings popovers dismiss predictably and restore trigger focus", async ({ page }) => {
   await mockLcaApi(page)
   await page.goto("/")
+  await calculate(page)
+  await page.getByRole("radio", { name: "Graph", exact: true }).click()
 
   const graphSettings = page.getByRole("button", { name: "Graph settings" })
   await graphSettings.click()
@@ -303,10 +344,53 @@ test("process results show calculated upstream outputs", async ({ page }) => {
   await expect(methane.getByRole("cell").nth(4)).toHaveText("0.02")
 })
 
+test("cumulative contribution graphs load only when an analysis pane opens", async ({ page }) => {
+  const contributionRequests: string[][] = []
+  await mockLcaApi(page, lcaResultFixture, (categories) => contributionRequests.push(categories))
+  await page.goto("/")
+  await calculate(page)
+
+  expect(contributionRequests).toHaveLength(0)
+
+  await page.getByRole("radio", { name: "Sankey Graph", exact: true }).click()
+  await expect.poll(() => contributionRequests.length).toBe(1)
+  expect(contributionRequests[0]).toEqual(
+    Object.entries(lcaResultFixture.lcia)
+      .filter(([, value]) => value.score !== 0)
+      .map(([label]) => label),
+  )
+})
+
+test("LCA Results shows progress during lazy contribution calculations", async ({ page }) => {
+  await mockLcaApi(page, lcaResultFixture, undefined, 600)
+  await page.goto("/")
+  await calculate(page)
+
+  await page.getByRole("radio", { name: "Impact Analysis", exact: true }).click()
+  await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toBeVisible()
+  await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toHaveCount(0)
+})
+
+test("Scaled Graph can be selected before the initial LCA finishes", async ({ page }) => {
+  await mockLcaApi(page, lcaResultFixture, undefined, 0, 600)
+  await page.goto("/")
+  await page.getByRole("radio", { name: "Graph", exact: true }).click()
+
+  const scaledGraph = page.getByRole("button", { name: "Scaled Graph" })
+  await expect(scaledGraph).toBeEnabled()
+  await scaledGraph.click()
+  await expect(scaledGraph).toHaveAttribute("aria-pressed", "true")
+
+  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeVisible()
+  await expect(scaledGraph).toHaveAttribute("aria-pressed", "true")
+})
+
 for (const theme of ["dark", "light"] as const) {
   test(`${theme} application views`, async ({ page }) => {
     await mockLcaApi(page)
     await page.goto("/")
+    await calculate(page)
+    await page.getByRole("radio", { name: "Graph", exact: true }).click()
     await expect(page.locator(".react-flow__node")).toHaveCount(5)
 
     await selectTheme(page, theme)
@@ -330,10 +414,7 @@ for (const theme of ["dark", "light"] as const) {
     await screenshot(page, `${theme}-yaml-editor.png`)
 
     await page.getByRole("radio", { name: "LCA Results", exact: true }).click()
-    await expect(page.locator(".results-placeholder")).toBeVisible()
-    await screenshot(page, `${theme}-lca-results-empty.png`)
-
-    await calculate(page)
+    await expect(page.locator(".markdown-report")).toBeVisible()
     await screenshot(page, `${theme}-lca-results.png`)
 
     await page.getByRole("radio", { name: "Graph", exact: true }).click()
