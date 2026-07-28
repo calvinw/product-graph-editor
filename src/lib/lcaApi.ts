@@ -123,6 +123,7 @@ export type SankeyLink = {
 }
 
 export type LcaResult = {
+  result_id: string
   name: string
   method: string
   functional_unit: string
@@ -139,8 +140,12 @@ export type LcaResult = {
     links: SankeyLink[]
     available_units: string[]
   }
-  svg_scaled: string
-  svg_structure: string
+}
+
+export type ContributionBatchResult = {
+  result_id: string
+  method: string
+  contribution_graphs: ContributionGraph[]
 }
 
 export type ActivityExchange = {
@@ -197,14 +202,14 @@ function readLcaResult(value: unknown): LcaResult {
   if (!isObject(value) || value.result_schema_version !== 3) {
     throw new Error("The LCA calculation engine returned an unsupported result version.")
   }
+  if (typeof value.result_id !== "string" || !value.result_id) {
+    throw new Error("The LCA calculation response is missing its result identifier.")
+  }
   if (!isObject(value.process_contributions) || !Array.isArray(value.process_contributions.categories)) {
     throw new Error("The LCA calculation response is missing process contributions.")
   }
   if (!isObject(value.sankey) || !Array.isArray(value.sankey.nodes) || !Array.isArray(value.sankey.links) || !Array.isArray(value.sankey.available_units)) {
     throw new Error("The LCA calculation response is missing Sankey data.")
-  }
-  if (typeof value.svg_scaled !== "string" || typeof value.svg_structure !== "string") {
-    throw new Error("The LCA calculation response is missing graph SVGs.")
   }
   if (value.contribution_graphs !== undefined && !Array.isArray(value.contribution_graphs)) {
     throw new Error("The LCA calculation response contains invalid contribution graphs.")
@@ -220,7 +225,7 @@ export async function calculateLca(productGraph: string, signal?: AbortSignal): 
   if (!health.running) throw new Error("The LCA calculation engine is not ready.")
 
   const tools = await readJson(await fetch(`${apiBase}/api/tools`, { signal })) as ToolDefinition[]
-  const operation = tools.find((tool) => tool.name === "run_lca")
+  const operation = tools.find((tool) => tool.name === "run_lca_base")
   if (!operation?.rest || operation.rest.method !== "POST") throw new Error("The LCA calculation operation is unavailable.")
 
   const result = await readJson(await fetch(`${apiBase}${operation.rest.path}`, {
@@ -230,6 +235,39 @@ export async function calculateLca(productGraph: string, signal?: AbortSignal): 
     signal,
   }))
   return readLcaResult(result)
+}
+
+export async function calculateContributionGraphs(
+  productGraph: string,
+  categories: string[],
+  resultId: string,
+  signal?: AbortSignal,
+): Promise<ContributionBatchResult> {
+  if (!categories.length) throw new Error("Choose at least one impact category.")
+  const tools = await readJson(await fetch(`${apiBase}/api/tools`, { signal })) as ToolDefinition[]
+  const operation = tools.find((tool) => tool.name === "get_lca_contribution_graphs")
+  if (!operation?.rest || operation.rest.method !== "POST") {
+    throw new Error("The cumulative contribution operation is unavailable.")
+  }
+  const value = await readJson(await fetch(`${apiBase}${operation.rest.path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      product_graph: productGraph,
+      categories,
+      result_id: resultId,
+    }),
+    signal,
+  }))
+  if (
+    !isObject(value)
+    || value.result_id !== resultId
+    || typeof value.method !== "string"
+    || !Array.isArray(value.contribution_graphs)
+  ) {
+    throw new Error("The calculation engine returned invalid contribution graphs.")
+  }
+  return value as ContributionBatchResult
 }
 
 export async function getBackgroundActivityDetails({

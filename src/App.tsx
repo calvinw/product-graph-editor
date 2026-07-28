@@ -11,7 +11,7 @@ import {
   BarChart3, Box, Component, Scan, LayoutGrid, ChevronDown, Factory, Leaf,
   FileUp, Minus, Moon, MousePointer2, Plus, Search, Settings2, Share2, Sun, X,
 } from "lucide-react"
-import { parse, stringify } from "yaml"
+import { parse } from "yaml"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -26,8 +26,8 @@ import { layoutNodes } from "./lib/layout"
 import { chemicalFlowLabel } from "./lib/flowLabels"
 import { buildGraphFromYaml, buildInventoryRequirements, nodeScopeColors } from "./lib/yamlGraph"
 import {
-  calculateLca, getBackgroundActivityDetails, impactCategoryAbbreviation, impactCategoryDisplayName, lcaResultToMarkdown,
-  type ContributionGraphEdge, type ContributionGraphFlow, type ContributionGraphNode, type LcaResult,
+  calculateContributionGraphs, calculateLca, getBackgroundActivityDetails, impactCategoryAbbreviation, impactCategoryDisplayName, lcaResultToMarkdown,
+  type ContributionGraph, type ContributionGraphEdge, type ContributionGraphFlow, type ContributionGraphNode, type LcaResult,
 } from "./lib/lcaApi"
 import { unitsAreCompatible } from "./lib/units"
 import { DisplaySettingsProvider, useDisplaySettings } from "./lib/displaySettings"
@@ -74,22 +74,6 @@ function SankeyProcessNode({ data }: NodeProps<Node<SankeyProcessNodeData>>) {
   </div>
 }
 const sankeyNodeTypes = { sankeyProcess: SankeyProcessNode }
-type ImpactGraphNodeData = {
-  label: string
-  scope: "foreground" | "background"
-  supply: string
-  direct: string
-  cumulative: string
-}
-function ImpactGraphNode({ data }: NodeProps<Node<ImpactGraphNodeData>>) {
-  return <div className="pg-node is-expanded impact-graph-node" style={{ "--node-color": nodeScopeColors[data.scope] } as React.CSSProperties}>
-    <Handle type="target" position={Position.Left} />
-    <div className="pg-node-head"><Component size={14} /><span className="pg-node-label">{data.label}</span><small className={`pg-node-scope is-${data.scope}`}>{data.scope}</small></div>
-    <div className="impact-graph-metrics"><div><span>Supply</span><strong>{data.supply}</strong></div><div><span>Direct</span><strong>{data.direct}</strong></div><div><span>Upstream incl. direct</span><strong>{data.cumulative}</strong></div></div>
-    <Handle type="source" position={Position.Right} />
-  </div>
-}
-const impactGraphNodeTypes = { impactGraph: ImpactGraphNode }
 const inputHandleIdFor = (edgeId: string) => `input-${edgeId}`
 const incomingEdgesFor = (nodeId: string, edges: Edge[], nodesById: Map<string, Node<ProcessNodeData>>) => (
   edges.filter((edge) => edge.target === nodeId).sort((left, right) => (
@@ -269,31 +253,27 @@ const impactFactor = (category: string, flow: string) => {
   return null
 }
 
-function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
+function ImpactAnalysisView({ result, yaml, isCurrent, error, loadContributionGraphs }: {
   result: LcaResult | null
   yaml: string
   isCurrent: boolean
   error: string
+  loadContributionGraphs: (categories: string[]) => Promise<ContributionGraph[]>
 }) {
   const { formatNumber } = useDisplaySettings()
   const [subgroup, setSubgroup] = useState<"processes" | "flows">("processes")
-  const [displayMode, setDisplayMode] = useState<"table" | "graph">("graph")
-  const [graphCategory, setGraphCategory] = useState("")
-  const [impactGraphLayout, setImpactGraphLayout] = useState(0)
   const [threshold, setThreshold] = useState(1)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => new Set())
   const [expandedProcesses, setExpandedProcesses] = useState<Set<string>>(() => new Set())
   const [collapsedFlows, setCollapsedFlows] = useState<Set<string>>(() => new Set())
-  const [loadedGraphs, setLoadedGraphs] = useState<Map<string, LcaResult["contribution_graphs"][number]>>(() => new Map())
   const [loadingCategories, setLoadingCategories] = useState<Set<string>>(() => new Set())
   const [categoryErrors, setCategoryErrors] = useState<Map<string, string>>(() => new Map())
   useEffect(() => {
-    setLoadedGraphs(new Map())
     setLoadingCategories(new Set())
     setCategoryErrors(new Map())
     setExpandedCategories(new Set())
     setExpandedProcesses(new Set())
-  }, [result])
+  }, [result?.result_id])
 
   if (!result || !isCurrent) return <div className="results-panel impact-panel">
     <div className="results-panel-head"><div><strong>Impact analysis</strong><span>Inspect characterized impacts by category, process, and elementary flow.</span></div></div>
@@ -314,7 +294,7 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
       if (!unique.has(key)) unique.set(key, category)
       return unique
     }, new Map<string, LcaResult["process_contributions"]["categories"][number]>())
-  const contributionGraphFor = (label: string) => result.contribution_graphs.find((graph) => graph.label === label) ?? loadedGraphs.get(label)
+  const contributionGraphFor = (label: string) => result.contribution_graphs.find((graph) => graph.label === label)
   const toggleCategory = (id: string) => setExpandedCategories((current) => {
     const next = new Set(current)
     if (next.has(id)) next.delete(id); else next.add(id)
@@ -325,22 +305,9 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
     setLoadingCategories((current) => new Set(current).add(id))
     setCategoryErrors((current) => { const next = new Map(current); next.delete(id); return next })
     try {
-      const source = parse(yaml) as Record<string, unknown>
-      const lcia = typeof source.lcia === "object" && source.lcia !== null ? source.lcia as Record<string, unknown> : {}
-      const existing = typeof lcia.contribution_graph === "object" && lcia.contribution_graph !== null
-        ? lcia.contribution_graph as Record<string, unknown>
-        : {}
-      source.lcia = {
-        ...lcia,
-        contribution_graph: {
-          ...existing,
-          categories: [label.split("|")[0].trim()],
-        },
-      }
-      const categoryResult = await calculateLca(stringify(source))
-      const graph = categoryResult.contribution_graphs.find((candidate) => candidate.label === label)
+      const graphs = await loadContributionGraphs([label])
+      const graph = graphs.find((candidate) => candidate.label === label)
       if (!graph) throw new Error("The calculation engine returned no child contribution graph for this category.")
-      setLoadedGraphs((current) => new Map(current).set(label, graph))
     } catch (caught) {
       setCategoryErrors((current) => new Map(current).set(id, caught instanceof Error ? caught.message : "Could not calculate this category breakdown."))
     } finally {
@@ -410,61 +377,18 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
     }))
   }
 
-  const categoryList = [...categories.values()]
-  const selectedGraphCategory = categoryList.some((category) => category.label === graphCategory)
-    ? graphCategory
-    : categoryList.find((category) => /climate change(?!:)/i.test(category.label))?.label ?? categoryList[0]?.label ?? ""
-  const selectedGraphCategoryId = categoryList.find((category) => category.label === selectedGraphCategory)?.id ?? selectedGraphCategory
-  const selectedContributionGraph = contributionGraphFor(selectedGraphCategory)
-  const impactGraphEdges: Edge[] = (selectedContributionGraph?.edges ?? []).map((edge) => ({
-    id: edge.id, source: edge.source, target: edge.target,
-    label: `${formatNumber(edge.amount)} ${edge.unit}`,
-    style: { stroke: "#8b5cf6", strokeWidth: 1.5 },
-    labelStyle: { fill: "#c4b5fd", fontSize: 10, fontWeight: 650 },
-    labelBgStyle: { fill: "#171a20", fillOpacity: .94 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
-  }))
-  const impactGraphNodes: Node<ImpactGraphNodeData>[] = layoutNodes((selectedContributionGraph?.nodes ?? []).map((node) => ({
-    id: node.id,
-    type: "impactGraph",
-    position: { x: 0, y: 0 },
-    data: {
-      label: node.process_name,
-      scope: node.scope === "background" ? "background" : "foreground",
-      supply: `${formatNumber(node.supply_amount)} ${node.unit}`,
-      direct: `${formatNumber(node.direct_score)} ${selectedContributionGraph?.unit ?? ""}`,
-      cumulative: `${formatNumber(node.cumulative_score)} ${selectedContributionGraph?.unit ?? ""}`,
-    },
-  })), impactGraphEdges, { orientation: "horizontal" })
-
   return <div className="impact-view">
     <div className="impact-title"><div><strong>{result.name}</strong><span>Impact analysis – {result.method}</span></div></div>
     <div className="impact-controls">
-      <ToggleGroup type="single" value={displayMode} onValueChange={(value) => {
-        if (!value) return
-        setDisplayMode(value as "graph" | "table")
-        if (value === "graph") void loadCategory(selectedGraphCategoryId, selectedGraphCategory)
-      }} className="impact-display-tabs" aria-label="Impact display">
-        <ToggleGroupItem value="graph"><Share2 size={14} />Graph</ToggleGroupItem>
-        <ToggleGroupItem value="table"><BarChart3 size={14} />Table</ToggleGroupItem>
-      </ToggleGroup>
-      {displayMode === "graph" ? <label className="impact-graph-category">Impact category <AppSelect value={selectedGraphCategory} onValueChange={(label) => { const category = categoryList.find((item) => item.label === label); setGraphCategory(label); if (category) void loadCategory(category.id || category.label, label) }} label="Impact graph category" options={categoryList.map((category) => ({ value: category.label, label: impactCategoryDisplayName(category.label) }))} /></label> : null}
-      {displayMode === "table" ? <>
-        <span>Sub-group by</span>
-        <RadioGroup className="impact-subgroup" value={subgroup} onValueChange={(value) => setSubgroup(value as "processes" | "flows")} aria-label="Sub-group impact results">
-          <label><RadioGroupItem className="app-radio" value="processes" /> Processes</label>
-          <label><RadioGroupItem className="app-radio" value="flows" /> Flows</label>
-        </RadioGroup>
-        <i />
-        <label className="impact-threshold">Don’t show &lt; <Input type="number" min="0" max="100" step="0.1" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label>
-      </> : null}
+      <span>Sub-group by</span>
+      <RadioGroup className="impact-subgroup" value={subgroup} onValueChange={(value) => setSubgroup(value as "processes" | "flows")} aria-label="Sub-group impact results">
+        <label><RadioGroupItem className="app-radio" value="processes" /> Processes</label>
+        <label><RadioGroupItem className="app-radio" value="flows" /> Flows</label>
+      </RadioGroup>
+      <i />
+      <label className="impact-threshold">Don’t show &lt; <Input type="number" min="0" max="100" step="0.1" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label>
     </div>
-    {displayMode === "graph" ? <div className="impact-graph-canvas">
-      {loadingCategories.has(selectedGraphCategoryId) ? <div className="impact-graph-placeholder"><strong>Calculating contribution graph…</strong><span>Loading process children for {impactCategoryDisplayName(selectedGraphCategory)}.</span></div>
-        : categoryErrors.has(selectedGraphCategoryId) ? <div className="impact-graph-placeholder is-error"><strong>Could not load this contribution graph</strong><span>{categoryErrors.get(selectedGraphCategoryId)}</span></div>
-        : impactGraphNodes.length ? <ReactFlow key={`${selectedGraphCategory}-${impactGraphLayout}`} nodes={impactGraphNodes} edges={impactGraphEdges} nodeTypes={impactGraphNodeTypes} fitView fitViewOptions={{ padding: .3, maxZoom: .72 }} minZoom={.2} maxZoom={2} proOptions={{ hideAttribution: true }}><Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#34313f" /></ReactFlow>
-          : <div className="impact-graph-placeholder"><strong>No graph loaded</strong><Button variant="outline" onClick={() => void loadCategory(selectedGraphCategoryId, selectedGraphCategory)}>Load process children</Button></div>}
-      {impactGraphNodes.length ? <Button variant="outline" className="impact-graph-layout" onClick={() => setImpactGraphLayout((value) => value + 1)}><LayoutGrid size={14} />Arrange</Button> : null}
-    </div> : <div className="impact-table-wrap"><table className="impact-table">
+    <div className="impact-table-wrap"><table className="impact-table">
       <thead><tr><th>Name</th><th>Category</th><th>Inventory result</th><th>Characterization factor</th><th>Impact assessment result</th></tr></thead>
       <tbody>{[...categories.values()].map((category) => {
         const categoryId = category.id || category.label
@@ -554,7 +478,7 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
             }) : null}
         </Fragment>
       })}</tbody>
-    </table></div>}
+    </table></div>
   </div>
 }
 
@@ -619,7 +543,7 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
     if (!selectedOccurrences.size) return
 
     const children = new Map<string, string[]>()
-    graph.edges.forEach((edge) => children.set(edge.source, [...(children.get(edge.source) ?? []), edge.target]))
+    graph.edges.forEach((edge) => children.set(edge.consumer_id, [...(children.get(edge.consumer_id) ?? []), edge.producer_id]))
     const upstreamOccurrences = new Set<string>()
     const includeUpstream = (id: string) => {
       if (upstreamOccurrences.has(id)) return
@@ -709,7 +633,13 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
       [cleanImpactProcessName(process.process_name).toLowerCase(), process] as const,
     ]))
     const scoreFor = (node: (typeof processNodes)[number]) => byId.get(node.id) ?? byId.get(cleanImpactProcessName(node.process_name ?? node.label).toLowerCase())
-    const upstream = processNodes.filter((node) => includedIds.has(node.id)).reduce((sum, node) => sum + (scoreFor(node)?.direct_score ?? 0), 0)
+    const graph = result.contribution_graphs.find((candidate) => candidate.label === category.label)
+    const exactOccurrences = graph?.nodes.filter((node) => (
+      node.kind === "process" && node.activity_id === selectedId
+    )) ?? []
+    const upstream = exactOccurrences.length
+      ? exactOccurrences.reduce((sum, node) => sum + node.cumulative_score, 0)
+      : processNodes.filter((node) => includedIds.has(node.id)).reduce((sum, node) => sum + (scoreFor(node)?.direct_score ?? 0), 0)
     const direct = selectedNode ? scoreFor(selectedNode)?.direct_score ?? 0 : 0
     return { category, upstream, direct, contribution: category.total_score ? upstream / category.total_score * 100 : 0 }
   }).filter((row) => Math.abs(row.contribution) >= threshold && row.upstream !== 0)
@@ -726,11 +656,12 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
   </div>
 }
 
-function ContributionView({ result, yaml, isCurrent, error }: {
+function ContributionView({ result, yaml, isCurrent, error, loadContributionGraphs }: {
   result: LcaResult | null
   yaml: string
   isCurrent: boolean
   error: string
+  loadContributionGraphs: (categories: string[]) => Promise<ContributionGraph[]>
 }) {
   const { formatNumber, formatPercent } = useDisplaySettings()
   const [mode, setMode] = useState<"flow" | "impact" | null>("impact")
@@ -938,11 +869,15 @@ function ContributionView({ result, yaml, isCurrent, error }: {
       </aside> : null}
     </div>
     <div className="contribution-controls">
-      <RadioGroup className="contribution-mode-group" value={mode ?? undefined} onValueChange={(value) => setMode(value as "flow" | "impact")} aria-label="Contribution result type">
+      <RadioGroup className="contribution-mode-group" value={mode ?? undefined} onValueChange={(value) => {
+        const nextMode = value as "flow" | "impact"
+        setMode(nextMode)
+        if (nextMode === "impact") void loadContributionGraphs([selectedImpact])
+      }} aria-label="Contribution result type">
         <label className={mode === "flow" ? "active" : ""}><RadioGroupItem className="app-radio" value="flow" />Flow</label>
         <div className="contribution-control-slot">{mode === null || mode === "flow" ? <div className="contribution-select is-flow"><span className="flow-dot output" /><AppSelect value={selectedFlow} onValueChange={(value) => { setFlow(value); setMode("flow") }} label="Flow category" options={flowNames.map((value) => ({ value, label: contributionFlowLabel(value) }))} /></div> : null}</div>
         <label className={mode === "impact" ? "active" : ""}><RadioGroupItem className="app-radio" value="impact" />Impact category</label>
-        <div className="contribution-control-slot">{mode === null || mode === "impact" ? <div className="contribution-select is-impact"><BarChart3 size={16} /><AppSelect value={selectedImpact} onValueChange={(value) => { setImpact(value); setMode("impact") }} label="Impact category" options={impactNames.map((value) => ({ value, label: impactCategoryDisplayName(value) }))} /></div> : null}</div>
+        <div className="contribution-control-slot">{mode === null || mode === "impact" ? <div className="contribution-select is-impact"><BarChart3 size={16} /><AppSelect value={selectedImpact} onValueChange={(value) => { setImpact(value); setMode("impact"); void loadContributionGraphs([value]) }} label="Impact category" options={impactNames.map((value) => ({ value, label: impactCategoryDisplayName(value) }))} /></div> : null}</div>
         {mode === "impact" && !selectedContributionGraph ? <p className="contribution-fallback-note">Recursive contributions were not requested for this category. Showing the available process-contribution results.</p> : null}
       </RadioGroup>
     </div>
@@ -961,7 +896,10 @@ function ContributionView({ result, yaml, isCurrent, error }: {
   </div>
 }
 
-function SankeyView({ result }: { result: LcaResult }) {
+function SankeyView({ result, loadContributionGraphs }: {
+  result: LcaResult
+  loadContributionGraphs: (categories: string[]) => Promise<ContributionGraph[]>
+}) {
   const { decimalPlaces, formatNumber, formatPercent } = useDisplaySettings()
   const availableProcessCount = result.sankey.nodes.filter((node) => node.kind === "process").length
   const [mode, setMode] = useState<"flow" | "impact">("impact")
@@ -984,9 +922,24 @@ function SankeyView({ result }: { result: LcaResult }) {
   const selectedFlow = flowNames.includes(flow) ? flow : (flowNames[0] ?? "")
   const selectedImpact = impactNames.includes(impact) ? impact : (impactNames[0] ?? "")
   const category = result.process_contributions.categories.find((item) => item.label === selectedImpact || item.id === selectedImpact)
-  const processNodes = result.sankey.nodes.filter((node) => node.kind === "process")
+  const selectedContributionGraph = result.contribution_graphs.find((graph) => graph.label === selectedImpact)
+  const processNodes = mode === "impact" && selectedContributionGraph
+    ? selectedContributionGraph.nodes.map((node) => ({
+        id: node.id,
+        label: node.process_name,
+        process_name: node.process_name,
+        scope: node.scope ?? "foreground" as const,
+      }))
+    : result.sankey.nodes.filter((node) => node.kind === "process")
+  useEffect(() => setMaxProcesses(processNodes.length), [processNodes.length])
   const processIds = new Set(processNodes.map((node) => node.id))
-  const links = result.sankey.links.filter((link) => processIds.has(link.source) && processIds.has(link.target))
+  const links = mode === "impact" && selectedContributionGraph
+    ? selectedContributionGraph.edges.map((edge) => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+      }))
+    : result.sankey.links.filter((link) => processIds.has(link.source) && processIds.has(link.target))
   const incoming = new Map<string, typeof links>()
   const outgoing = new Map<string, typeof links>()
   links.forEach((link) => {
@@ -996,7 +949,14 @@ function SankeyView({ result }: { result: LcaResult }) {
   const normalize = (value: string) => value.replace(/^(?:p?\d+)\s*[:.\-–—]\s*/i, "").trim().toLowerCase()
   const direct = new Map<string, number>()
   const directPercentage = new Map<string, number | null>()
-  if (mode === "impact") {
+  if (mode === "impact" && selectedContributionGraph) {
+    selectedContributionGraph.nodes.forEach((node) => {
+      direct.set(node.id, node.direct_score)
+      directPercentage.set(node.id, selectedContributionGraph.total_score
+        ? node.direct_score / selectedContributionGraph.total_score * 100
+        : null)
+    })
+  } else if (mode === "impact") {
     const contributions = new Map((category?.processes ?? []).flatMap((item) => [
       [item.process_id, item] as const,
       [normalize(item.process_name), item] as const,
@@ -1032,6 +992,8 @@ function SankeyView({ result }: { result: LcaResult }) {
   }
   const upstreamMemo = new Map<string, number>()
   const upstreamTotal = (nodeId: string): number => {
+    const exact = selectedContributionGraph?.nodes.find((node) => node.id === nodeId)
+    if (mode === "impact" && exact) return exact.cumulative_score
     if (upstreamMemo.has(nodeId)) return upstreamMemo.get(nodeId)!
     const total = (direct.get(nodeId) ?? 0) + [...upstreamProcesses(nodeId)].reduce((sum, id) => sum + (direct.get(id) ?? 0), 0)
     upstreamMemo.set(nodeId, total)
@@ -1107,13 +1069,18 @@ function SankeyView({ result }: { result: LcaResult }) {
     // The Sankey arrays are rebuilt on every render, so this effect tracks the
     // settings they derive from instead of the arrays themselves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, selectedFlow, selectedImpact, minContribution, maxProcesses, orientation, connectionStyle, decimalPlaces])
+  }, [mode, selectedFlow, selectedImpact, selectedContributionGraph?.id, minContribution, maxProcesses, orientation, connectionStyle, decimalPlaces])
 
   const fitSankey = () => instanceRef.current?.fitView({ padding: .4, maxZoom: .68, duration: 350 })
 
   return <div className="sankey-view">
     {chartPickerOpen ? <div className="sankey-chart-picker">
-      <ToggleGroup type="single" value={mode} onValueChange={(value) => value && setMode(value as "flow" | "impact")} className="sankey-picker-tabs" aria-label="Sankey result type">
+      <ToggleGroup type="single" value={mode} onValueChange={(value) => {
+        if (!value) return
+        const nextMode = value as "flow" | "impact"
+        setMode(nextMode)
+        if (nextMode === "impact") void loadContributionGraphs([selectedImpact])
+      }} className="sankey-picker-tabs" aria-label="Sankey result type">
         <ToggleGroupItem value="flow"><span className="flow-dot output" />Flow</ToggleGroupItem>
         <ToggleGroupItem value="impact"><BarChart3 size={14} />Impact</ToggleGroupItem>
       </ToggleGroup>
@@ -1121,11 +1088,11 @@ function SankeyView({ result }: { result: LcaResult }) {
         <span>{mode === "flow" ? "Flow category" : "Impact category"}</span>
         {mode === "flow"
           ? <AppSelect value={selectedFlow} onValueChange={setFlow} label="Sankey flow category" options={flowNames.map((value) => ({ value, label: inventoryFlowName(value) }))} />
-          : <AppSelect value={selectedImpact} onValueChange={setImpact} label="Sankey impact category" options={impactNames.map((value) => ({ value, label: impactCategoryDisplayName(value) }))} />}
+          : <AppSelect value={selectedImpact} onValueChange={(value) => { setImpact(value); void loadContributionGraphs([value]) }} label="Sankey impact category" options={impactNames.map((value) => ({ value, label: impactCategoryDisplayName(value) }))} />}
       </label>
       <div className="sankey-settings-grid">
         <label><span>Min. contribution share</span><NumberStepper value={minContribution} min={0} max={100} step={0.1} suffix="%" inputLabel="Minimum contribution share" decrementLabel="Decrease minimum contribution" incrementLabel="Increase minimum contribution" onValueChange={setMinContribution} /></label>
-        <label><span>Max. number of processes</span><NumberStepper value={maxProcesses} min={1} max={availableProcessCount} step={1} integer inputLabel="Maximum processes" decrementLabel="Decrease maximum processes" incrementLabel="Increase maximum processes" onValueChange={setMaxProcesses} /></label>
+        <label><span>Max. number of processes</span><NumberStepper value={maxProcesses} min={1} max={processNodes.length} step={1} integer inputLabel="Maximum processes" decrementLabel="Decrease maximum processes" incrementLabel="Increase maximum processes" onValueChange={setMaxProcesses} /></label>
         <label><span>Orientation</span><AppSelect value={orientation} onValueChange={(value) => setOrientation(value as "vertical" | "horizontal")} label="Sankey orientation" options={[{ value: "vertical", label: "Vertical" }, { value: "horizontal", label: "Horizontal" }]} /></label>
         <label><span>Connections</span><AppSelect value={connectionStyle} onValueChange={(value) => setConnectionStyle(value as "curved" | "straight" | "step")} label="Sankey connections" options={[{ value: "curved", label: "Curved" }, { value: "straight", label: "Straight" }, { value: "step", label: "Step" }]} /></label>
       </div>
@@ -1213,7 +1180,7 @@ function GraphEditor() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges)
   const [selected, setSelected] = useState<(NodeMeta & { id: string }) | null>(null)
   const [query, setQuery] = useState("")
-  const [view, setView] = useState<View>("graph")
+  const [view, setView] = useState<View>("results")
   const [yamlDraft, setYamlDraft] = useState(jacketYaml)
   const [appliedYaml, setAppliedYaml] = useState(jacketYaml)
   const [appliedRevision, setAppliedRevision] = useState(0)
@@ -1222,7 +1189,9 @@ function GraphEditor() {
   const [graphTitle, setGraphTitle] = useState(defaultGraph.name)
   const [resultsMarkdown, setResultsMarkdown] = useState("")
   const [resultsError, setResultsError] = useState("")
+  const [contributionError, setContributionError] = useState("")
   const [isCalculating, setIsCalculating] = useState(false)
+  const [loadingContributionKeys, setLoadingContributionKeys] = useState<Set<string>>(() => new Set())
   const [lcaResult, setLcaResult] = useState<LcaResult | null>(null)
   const [calculatedRevision, setCalculatedRevision] = useState<number | null>(null)
   const [graphMode, setGraphMode] = useState<"scaled" | "structure">("structure")
@@ -1235,6 +1204,8 @@ function GraphEditor() {
   const edgesRef = useRef(edges)
   const appliedRevisionRef = useRef(appliedRevision)
   const activeCalculationRef = useRef<AbortController | null>(null)
+  const initialCalculationStartedRef = useRef(false)
+  const contributionRequestsRef = useRef<Map<string, Promise<ContributionGraph[]>>>(new Map())
   nodesRef.current = nodes
   edgesRef.current = edges
   appliedRevisionRef.current = appliedRevision
@@ -1607,7 +1578,11 @@ function GraphEditor() {
   const showGraphMode = (mode: "scaled" | "structure") => {
     try {
       const currentResult = calculatedRevision === appliedRevision ? lcaResult : null
-      if (mode === "scaled" && !currentResult) return
+      if (mode === "scaled" && !currentResult) {
+        setGraphMode("scaled")
+        setYamlError("")
+        return
+      }
       const parsed = buildGraphFromYaml(appliedYaml, mode, currentResult?.scaling_vector, graphDecimalPlaces)
       const previousById = new Map(nodesRef.current.map((node) => [node.id, node]))
       const laidOutNodes = layoutNodes(parsed.nodes, parsed.edges, { orientation: graphOrientation })
@@ -1645,15 +1620,22 @@ function GraphEditor() {
     }
   }
 
-  const previewYaml = () => {
+  useEffect(() => {
+    if (graphMode !== "scaled" || !lcaResult || calculatedRevision !== appliedRevision) return
+    showGraphMode("scaled")
+    // Apply an early Scaled Graph selection as soon as its scaling vector arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedRevision, calculatedRevision, graphMode, lcaResult])
+
+  const applyYaml = (source: string) => {
     try {
-      const parsed = buildGraphFromYaml(yamlDraft, "structure", undefined, graphDecimalPlaces)
+      const parsed = buildGraphFromYaml(source, "structure", undefined, graphDecimalPlaces)
       activeCalculationRef.current?.abort()
       activeCalculationRef.current = null
       setIsCalculating(false)
       const nextRevision = appliedRevisionRef.current + 1
       appliedRevisionRef.current = nextRevision
-      setAppliedYaml(yamlDraft)
+      setAppliedYaml(source)
       setAppliedRevision(nextRevision)
       foldDirectionRef.current = "upstream"
       setEdges(parsed.edges)
@@ -1667,23 +1649,28 @@ function GraphEditor() {
       setYamlError("")
       setResultsMarkdown("")
       setResultsError("")
+      setContributionError("")
+      contributionRequestsRef.current.clear()
+      setLoadingContributionKeys(new Set())
       setLcaResult(null)
       setCalculatedRevision(null)
-      setView("graph")
       requestAnimationFrame(() => fitView({ padding: 0.35, maxZoom: 0.75, duration: 350 }))
+      return nextRevision
     } catch (error) {
       setYamlError(error instanceof Error ? error.message : "Could not parse this YAML file.")
+      return null
     }
   }
 
-  const runCalculation = async () => {
-    if (yamlDraft !== appliedYaml || isCalculating) return
-    const source = appliedYaml
-    const revision = appliedRevision
+  const calculateSource = async (source: string, revision: number) => {
+    activeCalculationRef.current?.abort()
     const controller = new AbortController()
     activeCalculationRef.current = controller
     setIsCalculating(true)
     setResultsError("")
+    setContributionError("")
+    contributionRequestsRef.current.clear()
+    setLoadingContributionKeys(new Set())
     try {
       const result = await calculateLca(source, controller.signal)
       if (controller.signal.aborted || appliedRevisionRef.current !== revision) return
@@ -1701,6 +1688,21 @@ function GraphEditor() {
     }
   }
 
+  useEffect(() => {
+    if (initialCalculationStartedRef.current) return
+    initialCalculationStartedRef.current = true
+    void calculateSource(jacketYaml, appliedRevisionRef.current)
+    // The initial Jacket calculation must run exactly once per app mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const applyAndCalculateYaml = (source: string) => {
+    const revision = applyYaml(source)
+    if (revision === null) return
+    setView("results")
+    void calculateSource(source, revision)
+  }
+
   const loadYamlFile = (file?: File) => {
     if (!file) return
     if (!/\.ya?ml$/i.test(file.name)) { setYamlError("Choose a .yaml or .yml file."); return }
@@ -1711,16 +1713,17 @@ function GraphEditor() {
   }
 
   const loadCaseStudy = (id: CaseStudyId) => {
+    const source = caseStudies[id].yaml
     setSelectedCaseStudy(id)
-    setYamlDraft(caseStudies[id].yaml)
+    setYamlDraft(source)
     setYamlError("")
+    applyAndCalculateYaml(source)
   }
 
   const connectionCount = edges.length
   const isDirty = yamlDraft !== appliedYaml
   const hasCurrentResults = Boolean(lcaResult && calculatedRevision === appliedRevision)
-  const canCalculate = !isDirty && !isCalculating
-  const primaryView = view === "graph" || view === "yaml" ? view : "results"
+  const primaryView = view === "graph" || view === "yaml" || view === "results" ? view : ""
   const analysisView = isAnalysisView(view) ? view : ""
   const selectedNode = selected ? nodes.find((node) => node.id === selected.id) : undefined
   const inputNodes = selectedNode ? edges
@@ -1731,6 +1734,83 @@ function GraphEditor() {
     .filter((edge) => edge.source === selectedNode.id)
     .map((edge) => nodes.find((node) => node.id === edge.target))
     .filter((node): node is Node<ProcessNodeData> => Boolean(node)) : []
+
+  const loadContributionGraphs = async (requestedCategories: string[]): Promise<ContributionGraph[]> => {
+    const current = lcaResult
+    if (!current || calculatedRevision !== appliedRevision) {
+      throw new Error("Calculate the current product graph before loading cumulative contributions.")
+    }
+    const availableLabels = Object.keys(current.lcia)
+    const resolveLabel = (query: string) => {
+      const normalized = query.trim().toLowerCase()
+      const exact = availableLabels.filter((label) => label.toLowerCase() === normalized)
+      const component = availableLabels.filter((label) => label.split("|")[0].trim().toLowerCase() === normalized)
+      const substring = availableLabels.filter((label) => label.toLowerCase().includes(normalized))
+      const matches = exact.length ? exact : component.length ? component : substring
+      return matches.length === 1 ? matches[0] : query
+    }
+    const labels = [...new Set(requestedCategories.filter(Boolean).map(resolveLabel))]
+    const existing = new Map(current.contribution_graphs.map((graph) => [graph.label, graph]))
+    const missing = labels.filter((label) => !existing.has(label))
+    if (!missing.length) return labels.flatMap((label) => existing.get(label) ?? [])
+
+    const requestKey = `${current.result_id}:${[...missing].sort().join("\u001f")}`
+    let request = contributionRequestsRef.current.get(requestKey)
+    if (!request) {
+      setLoadingContributionKeys((keys) => new Set(keys).add(requestKey))
+      request = calculateContributionGraphs(appliedYaml, missing, current.result_id)
+        .then((batch) => {
+          setLcaResult((latest) => {
+            if (!latest || latest.result_id !== batch.result_id) return latest
+            const merged = new Map(latest.contribution_graphs.map((graph) => [graph.label, graph]))
+            batch.contribution_graphs.forEach((graph) => merged.set(graph.label, graph))
+            return { ...latest, contribution_graphs: [...merged.values()] }
+          })
+          setContributionError("")
+          return batch.contribution_graphs
+        })
+        .finally(() => {
+          if (contributionRequestsRef.current.get(requestKey) !== request) return
+          contributionRequestsRef.current.delete(requestKey)
+          setLoadingContributionKeys((keys) => {
+            const next = new Set(keys)
+            next.delete(requestKey)
+            return next
+          })
+        })
+      contributionRequestsRef.current.set(requestKey, request)
+    }
+    const loaded = await request
+    const combined = new Map([...existing, ...loaded.map((graph) => [graph.label, graph] as const)])
+    return labels.flatMap((label) => combined.get(label) ?? [])
+  }
+
+  const cumulativeCategories = (() => {
+    try {
+      const source = parse(appliedYaml) as {
+        lcia?: { contribution_graph?: { categories?: unknown } }
+      }
+      const configured = source.lcia?.contribution_graph?.categories
+      if (Array.isArray(configured) && configured.every((item) => typeof item === "string")) {
+        return configured
+      }
+    } catch {
+      // Applied YAML was already validated; use the returned category labels.
+    }
+    return lcaResult
+      ? Object.entries(lcaResult.lcia).filter(([, value]) => value.score !== 0).map(([label]) => label)
+      : []
+  })()
+  const calculationInProgress = isCalculating || loadingContributionKeys.size > 0
+
+  const openAnalysisView = (next: AnalysisView) => {
+    setView(next)
+    if (["impact", "process", "contribution", "sankey"].includes(next) && cumulativeCategories.length) {
+      void loadContributionGraphs(cumulativeCategories).catch((caught) => {
+        setContributionError(caught instanceof Error ? caught.message : "Could not calculate cumulative contributions.")
+      })
+    }
+  }
 
   return (
     <>
@@ -1743,9 +1823,9 @@ function GraphEditor() {
               <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && setView(next as "graph" | "yaml" | "results")} className="inline-flex items-center" aria-label="Primary views">
                 <ToggleGroupItem value="graph">Graph</ToggleGroupItem>
                 <ToggleGroupItem value="yaml">FILE</ToggleGroupItem>
-                <ToggleGroupItem value="results">LCA Results</ToggleGroupItem>
+                <ToggleGroupItem value="results" aria-label="LCA Results"><span className="results-tab-label">LCA Results{calculationInProgress ? <span className="results-tab-progress" role="status" aria-label="LCA calculation in progress" /> : null}</span></ToggleGroupItem>
               </ToggleGroup>
-              {hasCurrentResults ? <ToggleGroup type="single" value={analysisView} onValueChange={(next) => next && setView(next as AnalysisView)} className="inline-flex items-center" aria-label="Result analysis views">
+              {hasCurrentResults ? <ToggleGroup type="single" value={analysisView} onValueChange={(next) => next && openAnalysisView(next as AnalysisView)} className="inline-flex items-center" aria-label="Result analysis views">
                 <ToggleGroupItem value="inventory">Inventory</ToggleGroupItem>
                 <ToggleGroupItem value="impact">Impact Analysis</ToggleGroupItem>
                 <ToggleGroupItem value="process">Process Results</ToggleGroupItem>
@@ -1821,7 +1901,7 @@ function GraphEditor() {
           </div>
         </div>
         <div className="graph-mode-toolbar" aria-label="Graph display mode">
-          <Button disabled={!hasCurrentResults} title={!hasCurrentResults ? "Calculate LCA results to enable the scaled graph" : undefined} variant="ghost" className={`graph-action ${graphMode === "scaled" ? "is-active" : ""}`} aria-pressed={graphMode === "scaled"} onClick={() => showGraphMode("scaled")}><Scan size={16} />Scaled Graph</Button>
+          <Button title={!hasCurrentResults ? "Scaled amounts will appear when the LCA calculation finishes" : undefined} variant="ghost" className={`graph-action ${graphMode === "scaled" ? "is-active" : ""}`} aria-pressed={graphMode === "scaled"} onClick={() => showGraphMode("scaled")}><Scan size={16} />Scaled Graph</Button>
           <Button variant="ghost" className={`graph-action ${graphMode === "structure" ? "is-active" : ""}`} aria-pressed={graphMode === "structure"} onClick={() => showGraphMode("structure")}><LayoutGrid size={16} />Structure Graph</Button>
         </div></> : view === "yaml" ? <div className="yaml-editor">
           <div className="yaml-editor-head">
@@ -1841,13 +1921,12 @@ function GraphEditor() {
           </div>
           <textarea value={yamlDraft} onChange={(event) => { setYamlDraft(event.target.value); setSelectedCaseStudy("custom"); setYamlError("") }} spellCheck={false} aria-label="Product graph YAML" />
           <div className="yaml-editor-foot">
-            <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (isDirty ? "Unapplied changes. Preview changes before calculating." : "Files are parsed locally in your browser.")}</span>
-            <Button onClick={previewYaml}>Preview graph</Button>
+            <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (isDirty ? "Unapplied changes. Calculate LCA to apply this YAML." : "Files are parsed locally in your browser.")}</span>
+            <Button onClick={() => applyAndCalculateYaml(yamlDraft)}>Calculate LCA</Button>
           </div>
-        </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} /> : <div className="results-panel">
+        </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} loadContributionGraphs={loadContributionGraphs} /> : <div className="results-panel">
           <div className="results-panel-head">
-            <div><strong>LCA Results</strong><span>{isDirty ? "Preview changes before calculating. Existing results still match the visible graph." : "Calculated from the currently previewed product graph."}</span></div>
-            <Button onClick={runCalculation} disabled={!canCalculate} title={isDirty ? "Preview changes before calculating." : undefined}>{isCalculating ? "Calculating…" : "Calculate LCA"}</Button>
+            <div><strong>LCA Results</strong><span>{isCalculating ? "Calculating the currently applied product graph…" : isDirty ? "Calculate the YAML changes before viewing updated results." : "Calculated from the currently applied product graph."}</span></div>
           </div>
           <div className="results-panel-body">
             {resultsError ? <div className="results-error"><strong>Calculation failed</strong><p>{resultsError}</p></div>

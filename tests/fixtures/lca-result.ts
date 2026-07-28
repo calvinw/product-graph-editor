@@ -55,6 +55,7 @@ const processScores = [
 ]
 
 export const lcaResultFixture = {
+  result_id: "fixture-result",
   name: "Jacket — 1 unit (3-tier)",
   method: "TRACI v2.1",
   functional_unit: "1 jacket, ready for sale",
@@ -319,6 +320,4 @@ export const lcaResultFixture = {
     ],
     available_units: ["kg", "unit"],
   },
-  svg_scaled: "<svg xmlns=\"http://www.w3.org/2000/svg\" />",
-  svg_structure: "<svg xmlns=\"http://www.w3.org/2000/svg\" />",
 } satisfies LcaResult
