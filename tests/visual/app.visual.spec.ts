@@ -282,6 +282,13 @@ test("form controls preserve selection, clamping, and disabled behavior", async 
   await expect(page.getByRole("heading", { name: "Cotton Fiber" })).toBeVisible()
   await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toBeChecked()
   await expect(page.locator(".markdown-report")).toBeVisible()
+
+  await page.getByRole("radio", { name: "FILE", exact: true }).click()
+  await caseStudy.click()
+  await page.getByRole("option", { name: "Simple Mock Plastic Broom", exact: true }).click()
+  await expect(page.getByRole("heading", { name: "Simple Mock Plastic Broom" })).toBeVisible()
+  await page.getByRole("radio", { name: "FILE", exact: true }).click()
+  await expect(page.getByRole("textbox", { name: "Product graph YAML" })).toHaveValue(/Mock freight transport, small truck, direct emissions only/)
 })
 
 test("settings popovers dismiss predictably and restore trigger focus", async ({ page }) => {
