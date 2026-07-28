@@ -18,7 +18,6 @@ import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { NumberStepper } from "@/components/NumberStepper"
@@ -916,18 +915,19 @@ function SankeyView({ result }: { result: LcaResult }) {
     if (!instanceRef.current) return
     instanceRef.current.setNodes(sankeyNodes)
     instanceRef.current.setEdges(sankeyEdges)
+    // The Sankey arrays are rebuilt on every render, so this effect tracks the
+    // settings they derive from instead of the arrays themselves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, selectedFlow, selectedImpact, minContribution, maxProcesses, orientation, connectionStyle, decimalPlaces])
 
   const fitSankey = () => instanceRef.current?.fitView({ padding: .4, maxZoom: .68, duration: 350 })
 
   return <div className="sankey-view">
     {chartPickerOpen ? <div className="sankey-chart-picker">
-      <Tabs value={mode} onValueChange={(value) => setMode(value as "flow" | "impact")}>
-        <TabsList className="sankey-picker-tabs" aria-label="Sankey result type">
-          <TabsTrigger value="flow"><span className="flow-dot output" />Flow</TabsTrigger>
-          <TabsTrigger value="impact"><BarChart3 size={14} />Impact</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <ToggleGroup type="single" value={mode} onValueChange={(value) => value && setMode(value as "flow" | "impact")} className="sankey-picker-tabs" aria-label="Sankey result type">
+        <ToggleGroupItem value="flow"><span className="flow-dot output" />Flow</ToggleGroupItem>
+        <ToggleGroupItem value="impact"><BarChart3 size={14} />Impact</ToggleGroupItem>
+      </ToggleGroup>
       <label>
         <span>{mode === "flow" ? "Flow category" : "Impact category"}</span>
         {mode === "flow"
@@ -1551,22 +1551,18 @@ function GraphEditor() {
           <div className="canvas-actions">
             {view === "graph" ? <div className="search"><Search size={16} /><Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a node…" aria-label="Find a node" /><kbd>⌘ K</kbd></div> : null}
             <div className="view-tabs">
-              <Tabs value={primaryView} onValueChange={(next) => setView(next as "graph" | "yaml" | "results")}>
-                <TabsList aria-label="Primary views">
-                  <TabsTrigger value="graph">Graph</TabsTrigger>
-                  <TabsTrigger value="yaml">FILE</TabsTrigger>
-                  <TabsTrigger value="results">LCA Results</TabsTrigger>
-                </TabsList>
-              </Tabs>
-              {hasCurrentResults ? <Tabs value={analysisView} onValueChange={(next) => setView(next as AnalysisView)}>
-                <TabsList aria-label="Result analysis views">
-                  <TabsTrigger value="inventory">Inventory</TabsTrigger>
-                  <TabsTrigger value="impact">Impact Analysis</TabsTrigger>
-                  <TabsTrigger value="process">Process Results</TabsTrigger>
-                  <TabsTrigger value="contribution">Contribution</TabsTrigger>
-                  <TabsTrigger value="sankey">Sankey Graph</TabsTrigger>
-                </TabsList>
-              </Tabs> : null}
+              <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && setView(next as "graph" | "yaml" | "results")} className="inline-flex items-center" aria-label="Primary views">
+                <ToggleGroupItem value="graph">Graph</ToggleGroupItem>
+                <ToggleGroupItem value="yaml">FILE</ToggleGroupItem>
+                <ToggleGroupItem value="results">LCA Results</ToggleGroupItem>
+              </ToggleGroup>
+              {hasCurrentResults ? <ToggleGroup type="single" value={analysisView} onValueChange={(next) => next && setView(next as AnalysisView)} className="inline-flex items-center" aria-label="Result analysis views">
+                <ToggleGroupItem value="inventory">Inventory</ToggleGroupItem>
+                <ToggleGroupItem value="impact">Impact Analysis</ToggleGroupItem>
+                <ToggleGroupItem value="process">Process Results</ToggleGroupItem>
+                <ToggleGroupItem value="contribution">Contribution</ToggleGroupItem>
+                <ToggleGroupItem value="sankey">Sankey Graph</ToggleGroupItem>
+              </ToggleGroup> : null}
             </div>
           </div>
         </div>
@@ -1614,7 +1610,7 @@ function GraphEditor() {
                   if (target instanceof Element && target.closest('[data-slot="select-content"]')) event.preventDefault()
                 }}
               >
-                <div className="graph-settings-title"><div><Settings2 size={15} /><span>Graph settings</span></div><button type="button" onClick={() => setGraphSettingsOpen(false)} aria-label="Close graph settings"><X size={15} /></button></div>
+                <div className="graph-settings-title"><div><Settings2 size={15} /><span>Graph settings</span></div><Button variant="ghost" size="icon" type="button" onClick={() => setGraphSettingsOpen(false)} aria-label="Close graph settings"><X size={15} /></Button></div>
                 <div className="graph-settings-grid">
                   <label><span>Max. number of processes</span><NumberStepper value={graphMaxProcesses} min={1} max={availableGraphProcessCount} step={1} integer inputLabel="Graph maximum processes" decrementLabel="Decrease graph maximum processes" incrementLabel="Increase graph maximum processes" onValueChange={(value) => { setGraphMaxProcesses(value); applyGraphSettings({ maximum: value }) }} /></label>
                   <label><span>Orientation</span><AppSelect value={graphOrientation} onValueChange={(value) => { const orientation = value as "vertical" | "horizontal"; setGraphOrientation(orientation); applyGraphSettings({ orientation }) }} label="Graph orientation" options={[{ value: "vertical", label: "Vertical" }, { value: "horizontal", label: "Horizontal" }]} /></label>
@@ -1729,10 +1725,10 @@ function AppContent() {
           <div className="top-actions">
             <Popover modal open={settingsOpen} onOpenChange={setSettingsOpen}>
               <PopoverTrigger asChild>
-                <button className={`global-settings-trigger ${settingsOpen ? "is-active" : ""}`} type="button" aria-label="Global settings"><Settings2 size={16} /><span>Settings</span></button>
+                <Button variant="ghost" className={`global-settings-trigger ${settingsOpen ? "is-active" : ""}`} type="button" aria-label="Global settings"><Settings2 size={16} /><span>Settings</span></Button>
               </PopoverTrigger>
               <PopoverContent className="global-settings-panel" side="bottom" align="end" sideOffset={3}>
-                <div className="global-settings-title"><div><Settings2 size={15} /><span>Global settings</span></div><button type="button" onClick={() => setSettingsOpen(false)} aria-label="Close global settings"><X size={15} /></button></div>
+                <div className="global-settings-title"><div><Settings2 size={15} /><span>Global settings</span></div><Button variant="ghost" size="icon" type="button" onClick={() => setSettingsOpen(false)} aria-label="Close global settings"><X size={15} /></Button></div>
                 <div className="global-setting-field">
                   <span>Decimal places</span>
                   <p>Applied to numerical results across the workspace.</p>

@@ -44,6 +44,9 @@ export function DisplaySettingsProvider({ children }: { children: ReactNode }) {
   return <DisplaySettingsContext.Provider value={value}>{children}</DisplaySettingsContext.Provider>
 }
 
+// The provider and its hook belong together; the fast-refresh cost is a full
+// reload of this file only.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useDisplaySettings() {
   const settings = useContext(DisplaySettingsContext)
   if (!settings) throw new Error("Display settings must be used inside DisplaySettingsProvider.")

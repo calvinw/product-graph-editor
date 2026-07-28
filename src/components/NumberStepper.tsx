@@ -13,6 +13,7 @@ type NumberStepperProps = {
   disabled?: boolean
   integer?: boolean
   suffix?: string
+  className?: string
 }
 
 export function NumberStepper({
@@ -27,6 +28,7 @@ export function NumberStepper({
   disabled = false,
   integer = false,
   suffix,
+  className = "number-stepper",
 }: NumberStepperProps) {
   const precision = String(step).split(".")[1]?.length ?? 0
   const normalize = (next: number) => {
@@ -45,9 +47,9 @@ export function NumberStepper({
     onChange={(event) => onValueChange(normalize(Number(event.target.value)))}
   />
 
-  return <div className="sankey-stepper">
+  return <div className={className}>
     <Button type="button" variant="outline" disabled={disabled} aria-label={decrementLabel} onClick={() => onValueChange(normalize(value - step))}>−</Button>
-    {suffix ? <div className="sankey-number">{input}<span>{suffix}</span></div> : input}
+    {suffix ? <div className="number-stepper-value">{input}<span>{suffix}</span></div> : input}
     <Button type="button" variant="outline" disabled={disabled} aria-label={incrementLabel} onClick={() => onValueChange(normalize(value + step))}>+</Button>
   </div>
 }

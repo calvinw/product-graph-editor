@@ -7,7 +7,7 @@ export default defineConfig({
   reporter: "list",
   snapshotPathTemplate: "{testDir}/__screenshots__/{arg}{ext}",
   use: {
-    baseURL: "http://127.0.0.1:5173",
+    baseURL: "http://127.0.0.1:5178",
     viewport: { width: 1440, height: 900 },
     deviceScaleFactor: 1,
     colorScheme: "dark",
@@ -25,8 +25,8 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: "npm run dev -- --host 127.0.0.1",
-    url: "http://127.0.0.1:5173",
+    command: "npm run dev -- --host 127.0.0.1 --port 5178 --strictPort",
+    url: "http://127.0.0.1:5178",
     reuseExistingServer: false,
     timeout: 30_000,
   },
