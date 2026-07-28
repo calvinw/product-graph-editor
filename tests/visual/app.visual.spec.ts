@@ -3,7 +3,7 @@ import { lcaResultFixture } from "../fixtures/lca-result"
 
 type Theme = "dark" | "light"
 
-async function mockLcaApi(page: Page) {
+async function mockLcaApi(page: Page, result = lcaResultFixture) {
   await page.route("**/lca-api/api/**", async (route) => {
     const { pathname } = new URL(route.request().url())
     if (pathname.endsWith("/api/health")) {
@@ -20,7 +20,7 @@ async function mockLcaApi(page: Page) {
       return
     }
     if (pathname.endsWith("/api/lca/run")) {
-      await route.fulfill({ json: lcaResultFixture })
+      await route.fulfill({ json: result })
       return
     }
     await route.abort("blockedbyclient")
@@ -274,6 +274,33 @@ test("settings popovers dismiss predictably and restore trigger focus", async ({
   await page.mouse.click(700, 700)
   await expect(page.locator(".global-settings-panel")).toBeHidden()
   await expect(page.locator(".global-settings-backdrop, .graph-settings-backdrop")).toHaveCount(0)
+})
+
+test("process results show calculated upstream outputs", async ({ page }) => {
+  const resultWithBackgroundOutput = {
+    ...lcaResultFixture,
+    lci: {
+      ...lcaResultFixture.lci,
+      "Sulfur dioxide, air": { amount: 0.123, unit: "kg", type: "emission" },
+    },
+  }
+  await mockLcaApi(page, resultWithBackgroundOutput)
+  await page.goto("/")
+  await calculate(page)
+
+  await page.getByRole("radio", { name: "Process Results", exact: true }).click()
+  const outputs = page.locator(".process-flow-grids section").filter({ has: page.getByRole("heading", { name: "Outputs" }) })
+
+  await expect(outputs.getByText("Sulfur dioxide, air (SO2)")).toBeVisible()
+  await expect(outputs.getByText("0.12")).toBeVisible()
+  await expect(outputs.getByText("No output flows for this process.")).toHaveCount(0)
+
+  const process = page.getByRole("combobox", { name: "Flow contribution process" })
+  await process.click()
+  await page.getByRole("option", { name: "Raw material extraction", exact: true }).click()
+  const methane = outputs.getByRole("row").filter({ hasText: "Methane" })
+  await expect(methane).toBeVisible()
+  await expect(methane.getByRole("cell").nth(4)).toHaveText("0.02")
 })
 
 for (const theme of ["dark", "light"] as const) {
