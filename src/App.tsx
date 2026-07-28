@@ -35,6 +35,7 @@ import jacketYaml from "../case_studies/jacket.yaml?raw"
 import cottonFiberYaml from "../case_studies/cotton_fiber.yaml?raw"
 import cottonFiberBafuLinkedYaml from "../case_studies/cotton_fiber_bafu_linked.yaml?raw"
 import mockPlasticBroomYaml from "../case_studies/mock_plastic_broom.yaml?raw"
+import mockPlasticBroomSimpleYaml from "../case_studies/mock_plastic_broom_simple.yaml?raw"
 import plasticBroomYaml from "../case_studies/plastic_broom.yaml?raw"
 import polyesterTshirtYaml from "../case_studies/polyester_tshirt.yaml?raw"
 import polyesterTshirtBafuLinkedYaml from "../case_studies/polyester_tshirt_bafu_linked.yaml?raw"
@@ -110,6 +111,7 @@ const caseStudies = {
   cottonFiber: { label: "Cotton Fiber", yaml: cottonFiberYaml },
   cottonFiberBafuLinked: { label: "Cotton Fiber(bafu-linked)", yaml: cottonFiberBafuLinkedYaml },
   mockPlasticBroom: { label: "Mock Plastic Broom", yaml: mockPlasticBroomYaml },
+  mockPlasticBroomSimple: { label: "Simple Mock Plastic Broom", yaml: mockPlasticBroomSimpleYaml },
   plasticBroom: { label: "Plastic Broom(bafu-linked)", yaml: plasticBroomYaml },
   polyesterTshirt: { label: "Polyester T-shirt", yaml: polyesterTshirtYaml },
   polyesterTshirtBafuLinked: { label: "Polyester T-shirt(bafu-linked)", yaml: polyesterTshirtBafuLinkedYaml },
