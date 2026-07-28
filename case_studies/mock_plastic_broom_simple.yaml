@@ -22,3 +22,6 @@ reference_process: Simple mock plastic broom assembly
 
 lcia:
   method_name: "EF v3.1"
+  categories:
+    - climate change
+    - acidification

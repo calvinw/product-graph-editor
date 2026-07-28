@@ -24,10 +24,10 @@ reference_process: "Plastic broom assembly"
 
 lcia:
   method_name: "EF v3.1"
+  categories:
+    - "climate change"
+    - "acidification"
   contribution_graph:
-    categories:
-      - "climate change"
-      - "acidification"
     cutoff: 0.001
     biosphere_cutoff: 0.001
     max_depth: 6
