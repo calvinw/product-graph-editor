@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "eslint . --max-warnings 3",
+    "lint": "eslint . --max-warnings 0",
     "test:visual": "tsc -p tsconfig.visual.json && playwright test",
     "test:visual:update": "tsc -p tsconfig.visual.json && playwright test --update-snapshots",
     "preview": "vite preview"

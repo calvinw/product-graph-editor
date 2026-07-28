@@ -6,6 +6,8 @@ Revised after feasibility review on July 27, 2026.
 
 PR 0 guardrails, PR 1a CLI foundation, the prerequisite YAML consistency work, PR 1b semantic tokens, PR 1c Button/Tooltip primitives, PR 2 selection controls, PR 3 form controls, and PR 4 settings Popovers are implemented on `shadcn-conversion`. Only the optional cleanup and separate responsive follow-up remain.
 
+The post-implementation review and the follow-up fixes applied after it are recorded in [`blah-implementation-comments.md`](./blah-implementation-comments.md).
+
 ## Objective
 
 Adopt shadcn/ui as the application's standard component foundation while preserving the current visual design and leaving domain-specific graph and LCA interfaces custom.
@@ -103,9 +105,9 @@ Responsive redesign, graph changes, and Sankey algorithm changes should not be c
 |---|---|---|
 | Local Button | Shadcn Button | Add application-specific variants where needed |
 | Direct Radix Tooltip | Shadcn Tooltip | Centralize styling and usage |
-| Primary `Graph / FILE / LCA Results` navigation | Controlled Tabs | Derive the primary section from the current detailed view |
-| Result-analysis navigation | Nested Tabs or ToggleGroup | Render only with a current result; preserve the LCA Results fallback |
-| Sankey Flow/Impact switcher | Tabs or ToggleGroup | Choose based on final interaction semantics |
+| Primary `Graph / FILE / LCA Results` navigation | Single-value ToggleGroup | Derive the primary section from the current detailed view. Tabs were tried first and reverted: valid tab semantics need rendered `TabsContent`, which the shared content region cannot supply |
+| Result-analysis navigation | Single-value ToggleGroup | Render only with a current result; preserve the LCA Results fallback |
+| Sankey Flow/Impact switcher | Single-value ToggleGroup | Same constraint as the navigation switchers |
 | Theme selection | ToggleGroup | Single-value selection |
 | Graph mode selection | ToggleGroup or shared Button variants | Preserve disabled behavior |
 | Contribution mode | RadioGroup | Keep contribution calculations unchanged |
@@ -200,6 +202,8 @@ Recommended initial viewport: `1440 × 900`.
    - Base primitives: `radix`
    - CSS variables: enabled
    - Global CSS: `src/index.css`
+
+   The configuration this project landed on is `"style": "radix-nova"` with base color `neutral` and the `lucide` icon library. That style ships its base stylesheet from the `shadcn` package, which is why `src/index.css` imports `shadcn/tailwind.css` and why `shadcn` sits in `dependencies` rather than `devDependencies`.
 7. Review every file changed by the CLI before accepting it.
 8. Reconcile generated changes to `src/index.css`, `src/lib/utils.ts`, and the existing `src/components/ui/button.tsx` manually.
 
