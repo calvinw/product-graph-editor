@@ -563,7 +563,9 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
   const processNodes = result.sankey.nodes.filter((node) => node.kind === "process")
   const [processId, setProcessId] = useState("")
   const [threshold, setThreshold] = useState(0.01)
-  const selectedId = processNodes.some((node) => node.id === processId) ? processId : (processNodes.at(-1)?.id ?? "")
+  const referenceProcessId = result.sankey.links.find((link) => link.kind === "final_product")?.source
+  const defaultProcessId = processNodes.some((node) => node.id === referenceProcessId) ? referenceProcessId! : (processNodes.at(-1)?.id ?? "")
+  const selectedId = processNodes.some((node) => node.id === processId) ? processId : defaultProcessId
   const selectedNode = processNodes.find((node) => node.id === selectedId)
   const processIds = new Set(processNodes.map((node) => node.id))
   const incoming = new Map<string, string[]>()
@@ -603,6 +605,86 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
       flowRows.set(key, existing)
     })
   })
+
+  // Linked background processes are absent from the foreground YAML. Their
+  // per-process inventory is carried by the contribution graph occurrences.
+  // The same physical exchange can appear in several impact-category graphs,
+  // so retain the largest matching amount instead of counting it repeatedly.
+  type CalculatedFlow = { name: string; category: string; unit: string; upstream: number; direct: number; input: boolean }
+  const calculatedFlows = new Map<string, CalculatedFlow>()
+  result.contribution_graphs.forEach((graph) => {
+    const selectedOccurrences = new Set(graph.nodes
+      .filter((node) => node.kind === "process" && node.activity_id === selectedId)
+      .map((node) => node.id))
+    if (!selectedOccurrences.size) return
+
+    const children = new Map<string, string[]>()
+    graph.edges.forEach((edge) => children.set(edge.source, [...(children.get(edge.source) ?? []), edge.target]))
+    const upstreamOccurrences = new Set<string>()
+    const includeUpstream = (id: string) => {
+      if (upstreamOccurrences.has(id)) return
+      upstreamOccurrences.add(id)
+      ;(children.get(id) ?? []).forEach(includeUpstream)
+    }
+    selectedOccurrences.forEach(includeUpstream)
+
+    const graphFlows = new Map<string, CalculatedFlow>()
+    graph.flows.forEach((flow) => {
+      if (!upstreamOccurrences.has(flow.process_occurrence_id)) return
+      const input = flow.kind === "extraction"
+      const category = `elementary flows/${flow.categories.join("/") || (input ? "resource" : "air")}`
+      const key = `${input}:${normalizedFlow(flow.flow_name)}`
+      const existing = graphFlows.get(key) ?? {
+        name: flow.flow_name,
+        category,
+        unit: flow.unit,
+        upstream: 0,
+        direct: 0,
+        input,
+      }
+      existing.upstream += flow.amount
+      if (selectedOccurrences.has(flow.process_occurrence_id)) existing.direct += flow.amount
+      graphFlows.set(key, existing)
+    })
+    graphFlows.forEach((flow, key) => {
+      const existing = calculatedFlows.get(key)
+      if (!existing) {
+        calculatedFlows.set(key, flow)
+        return
+      }
+      if (Math.abs(flow.upstream) > Math.abs(existing.upstream)) existing.upstream = flow.upstream
+      if (Math.abs(flow.direct) > Math.abs(existing.direct)) existing.direct = flow.direct
+    })
+  })
+  calculatedFlows.forEach((flow) => {
+    const yamlKey = `${flow.input}:${normalizedFlow(flow.name)}`
+    const existing = flowRows.get(yamlKey)
+    if (existing) {
+      existing.upstream = flow.upstream
+      existing.direct = flow.direct
+    } else {
+      flowRows.set(yamlKey, flow)
+    }
+  })
+
+  // For the reference process, the complete calculated LCI is authoritative;
+  // contribution graphs intentionally omit flows below their cutoffs.
+  if (includedIds.size === processIds.size) {
+    Object.entries(result.lci).forEach(([name, value]) => {
+      const input = isInventoryInput(value.type)
+      const baseName = name.split(/[|,]/)[0].trim()
+      const key = `${input}:${normalizedFlow(baseName)}`
+      const existing = flowRows.get(key)
+      flowRows.set(key, {
+        name,
+        category: input ? "elementary flows/resource" : "elementary flows/air",
+        unit: value.unit,
+        upstream: value.amount,
+        direct: existing?.direct ?? 0,
+        input,
+      })
+    })
+  }
   const flowTotals = [...flowRows.values()].reduce((totals, flow) => {
     totals.set(flow.input, (totals.get(flow.input) ?? 0) + Math.abs(flow.upstream))
     return totals
