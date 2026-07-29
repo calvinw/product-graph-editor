@@ -90,11 +90,8 @@ test("Calculate LCA applies YAML and opens the active results view", async ({ pa
   const appliedSource = await editor.inputValue()
   await editor.fill(appliedSource.replace("Jacket", "Draft jacket"))
   await expect(page.getByText("Unapplied changes. Calculate LCA to apply this YAML.")).toBeVisible()
-
-  await page.getByRole("radio", { name: "LCA Results", exact: true }).click()
-  await expect(page.getByRole("button", { name: "Calculate LCA" })).toHaveCount(0)
-  await expect(page.locator(".markdown-report")).toBeVisible()
-  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeVisible()
+  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toHaveCount(0)
+  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toHaveCount(0)
 
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   await expect(page.getByRole("heading", { name: "Jacket" })).toBeVisible()
