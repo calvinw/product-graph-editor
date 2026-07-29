@@ -439,6 +439,19 @@ test("LCA Results shows progress during lazy contribution calculations", async (
   await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toHaveCount(0)
 })
 
+test("Sankey starts in Impact mode without briefly rendering the Flow graph", async ({ page }) => {
+  await mockLcaApi(page, { ...lcaResultFixture, contribution_graphs: [] }, undefined, 600)
+  await page.goto("/")
+  await calculate(page)
+  await page.getByRole("radio", { name: "Sankey Graph", exact: true }).click()
+
+  await expect(page.getByRole("status")).toContainText("Loading impact graph")
+  await expect(page.locator(".sankey-process-node")).toHaveCount(0)
+  await expect(page.locator(".sankey-process-node").first()).toBeVisible()
+  await page.getByRole("button", { name: "Chart settings" }).click()
+  await expect(page.getByRole("radio", { name: "Impact", exact: true })).toBeChecked()
+})
+
 test("Scaled Graph can be selected before the initial LCA finishes", async ({ page }) => {
   await mockLcaApi(page, lcaResultFixture, undefined, 0, 600)
   await page.goto("/")

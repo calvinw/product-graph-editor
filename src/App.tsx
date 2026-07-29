@@ -989,6 +989,11 @@ function SankeyView({ result, loadContributionGraphs }: {
   const selectedImpact = impactNames.includes(impact) ? impact : (impactNames[0] ?? "")
   const category = result.process_contributions.categories.find((item) => item.label === selectedImpact || item.id === selectedImpact)
   const selectedContributionGraph = result.contribution_graphs.find((graph) => graph.label === selectedImpact)
+  const impactGraphPending = mode === "impact" && !selectedContributionGraph
+  useEffect(() => {
+    if (!impactGraphPending || !selectedImpact) return
+    void loadContributionGraphs([selectedImpact]).catch(() => undefined)
+  }, [impactGraphPending, loadContributionGraphs, selectedImpact])
   const processNodes = mode === "impact" && selectedContributionGraph
     ? selectedContributionGraph.nodes.map((node) => ({
         id: node.id,
@@ -1166,7 +1171,8 @@ function SankeyView({ result, loadContributionGraphs }: {
       </div>
     </div> : null}
     <div className="sankey-canvas">
-      {totalMagnitude ? <ReactFlow
+      {impactGraphPending ? <div className="sankey-empty" role="status"><strong>Loading impact graph…</strong><p>Calculating cumulative process contributions.</p></div>
+        : totalMagnitude ? <ReactFlow
         key={`sankey-layout-${layoutVersion}`}
         defaultNodes={sankeyNodes}
         defaultEdges={sankeyEdges}
@@ -1180,7 +1186,7 @@ function SankeyView({ result, loadContributionGraphs }: {
         proOptions={{ hideAttribution: true }}
       ><Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#242831" /></ReactFlow> : <div className="sankey-empty"><strong>No contributions for this selection</strong><p>Choose another flow or impact category.</p></div>}
     </div>
-    {totalMagnitude ? <div className="graph-toolbar sankey-toolbar" aria-label="Sankey graph tools">
+    {totalMagnitude && !impactGraphPending ? <div className="graph-toolbar sankey-toolbar" aria-label="Sankey graph tools">
       <div className="toolbar-group"><ToolButton label="Chart settings" onClick={() => setChartPickerOpen((open) => !open)}><Settings2 size={18} /></ToolButton></div>
       <div className="toolbar-group"><ToolButton label="Select"><MousePointer2 size={18} /></ToolButton></div>
       <div className="toolbar-group">
