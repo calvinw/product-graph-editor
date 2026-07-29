@@ -150,12 +150,12 @@ test("a calculation for an older applied revision cannot populate results", asyn
   await editor.fill((await editor.inputValue()).replace("Jacket", "New revision"))
   await page.getByRole("button", { name: "Calculate LCA" }).click()
   await expect(page.getByRole("heading", { name: "New revision" })).toBeVisible()
+  await expect(page.getByRole("radio", { name: "FILE", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toHaveCount(0)
   await page.waitForTimeout(650)
 
-  await page.getByRole("radio", { name: "LCA Results", exact: true }).click()
-  await expect(page.locator(".markdown-report")).toHaveCount(0)
-  await expect(page.locator(".results-placeholder")).toBeVisible()
-  await expect(page.getByText("Calculating the currently applied product graph…")).toBeVisible()
+  await expect(page.getByRole("radio", { name: "FILE", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toHaveCount(0)
 })
 
 test("toolbar tooltips open from keyboard focus and pointer input", async ({ page }) => {
