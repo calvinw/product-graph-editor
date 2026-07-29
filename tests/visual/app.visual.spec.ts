@@ -301,6 +301,9 @@ test("process results show calculated upstream outputs", async ({ page }) => {
   const methane = outputs.getByRole("row").filter({ hasText: "Methane" })
   await expect(methane).toBeVisible()
   await expect(methane.getByRole("cell").nth(4)).toHaveText("0.02")
+
+  await outputs.getByRole("separator", { name: "Resize Flow column" }).press("ArrowRight")
+  await expect(outputs.locator("col").nth(1)).toHaveAttribute("style", "width: 167px;")
 })
 
 for (const theme of ["dark", "light"] as const) {

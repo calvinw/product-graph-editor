@@ -558,11 +558,61 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error }: {
   </div>
 }
 
+function ResizableTableHeader({
+  columns,
+  widths,
+  setWidths,
+}: {
+  columns: string[]
+  widths: number[]
+  setWidths: React.Dispatch<React.SetStateAction<number[]>>
+}) {
+  const resize = (index: number, startX: number, startWidth: number) => {
+    const onMove = (event: PointerEvent) => {
+      const width = Math.max(56, startWidth + event.clientX - startX)
+      setWidths((current) => current.map((value, column) => column === index ? width : value))
+    }
+    const onEnd = () => {
+      window.removeEventListener("pointermove", onMove)
+      window.removeEventListener("pointerup", onEnd)
+      document.body.classList.remove("is-resizing-column")
+    }
+    document.body.classList.add("is-resizing-column")
+    window.addEventListener("pointermove", onMove)
+    window.addEventListener("pointerup", onEnd, { once: true })
+  }
+  const resizeByKeyboard = (index: number, amount: number) => {
+    setWidths((current) => current.map((value, column) => column === index ? Math.max(56, value + amount) : value))
+  }
+
+  return <>
+    <colgroup>{widths.map((width, index) => <col key={columns[index]} style={{ width }} />)}</colgroup>
+    <thead><tr>{columns.map((column, index) => <th key={column}>
+      {column}
+      <span
+        className="column-resizer"
+        role="separator"
+        aria-label={`Resize ${column} column`}
+        aria-orientation="vertical"
+        tabIndex={0}
+        onPointerDown={(event) => { event.preventDefault(); resize(index, event.clientX, widths[index]) }}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+          event.preventDefault()
+          resizeByKeyboard(index, event.key === "ArrowLeft" ? -12 : 12)
+        }}
+      />
+    </th>)}</tr></thead>
+  </>
+}
+
 function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string }) {
   const { formatNumber, formatPercent } = useDisplaySettings()
   const processNodes = result.sankey.nodes.filter((node) => node.kind === "process")
   const [processId, setProcessId] = useState("")
   const [threshold, setThreshold] = useState(0.01)
+  const [flowColumnWidths, setFlowColumnWidths] = useState([110, 155, 165, 120, 95, 64])
+  const [impactColumnWidths, setImpactColumnWidths] = useState([220, 330, 210, 210, 150])
   const referenceProcessId = result.sankey.links.find((link) => link.kind === "final_product")?.source
   const defaultProcessId = processNodes.some((node) => node.id === referenceProcessId) ? referenceProcessId! : (processNodes.at(-1)?.id ?? "")
   const selectedId = processNodes.some((node) => node.id === processId) ? processId : defaultProcessId
@@ -696,12 +746,13 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
   const visibleFlows = [...flowRows.values()].filter((flow) => flowContribution(flow) >= threshold)
   const FlowResultsTable = ({ input }: { input: boolean }) => {
     const rows = visibleFlows.filter((flow) => flow.input === input)
-    return <table className="process-flow-table"><thead><tr><th>Contribution</th><th>Flow</th><th>Category</th><th>Upstream incl. direct</th><th>Direct</th><th>Unit</th></tr></thead>
+    return <div className="resizable-table-wrap"><table className="process-flow-table" style={{ width: flowColumnWidths.reduce((sum, width) => sum + width, 0) }}>
+      <ResizableTableHeader columns={["Contribution", "Flow", "Category", "Upstream incl. direct", "Direct", "Unit"]} widths={flowColumnWidths} setWidths={setFlowColumnWidths} />
       <tbody>{rows.length ? rows.map((flow) => <tr key={`${input}:${flow.name}`}>
         <td><span className="process-result-bar"><i style={{ width: `${Math.min(100, flowContribution(flow))}%` }} /></span></td>
         <td>{inventoryFlowName(flow.name)}</td><td>{flow.category}</td><td>{formatNumber(flow.upstream)}</td><td>{formatNumber(flow.direct)}</td><td>{flow.unit}</td>
       </tr>) : <tr className="empty-row"><td colSpan={6}>No {input ? "input" : "output"} flows for this process.</td></tr>}</tbody>
-    </table>
+    </table></div>
   }
   const impactRows = result.process_contributions.categories.map((category) => {
     const byId = new Map(category.processes.flatMap((process) => [
@@ -721,7 +772,7 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
     </details>
     <details open><summary>Impact assessment results</summary>
       <div className="process-results-controls"><label>Process <AppSelect value={selectedId} onValueChange={setProcessId} label="Impact assessment process" options={processNodes.map((node) => ({ value: node.id, label: cleanImpactProcessName(node.process_name ?? node.label) }))} /></label><label>Don’t show &lt; <Input type="number" min="0" max="100" step="0.01" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label></div>
-      <div className="process-impact-table-wrap"><table className="process-impact-table"><thead><tr><th>Contribution</th><th>Impact category</th><th>Upstream incl. direct</th><th>Direct</th><th>Unit</th></tr></thead><tbody>{impactRows.map((row) => <tr key={row.category.id || row.category.label}><td><span className="process-result-bar"><i style={{ width: `${Math.min(100, Math.abs(row.contribution))}%` }} /></span>{formatPercent(row.contribution)}</td><td>{impactCategoryDisplayName(row.category.label)}</td><td>{formatNumber(row.upstream)}</td><td>{formatNumber(row.direct)}</td><td>{row.category.unit}</td></tr>)}</tbody></table></div>
+      <div className="process-impact-table-wrap"><div className="resizable-table-wrap"><table className="process-impact-table" style={{ width: impactColumnWidths.reduce((sum, width) => sum + width, 0) }}><ResizableTableHeader columns={["Contribution", "Impact category", "Upstream incl. direct", "Direct", "Unit"]} widths={impactColumnWidths} setWidths={setImpactColumnWidths} /><tbody>{impactRows.map((row) => <tr key={row.category.id || row.category.label}><td><span className="process-result-bar"><i style={{ width: `${Math.min(100, Math.abs(row.contribution))}%` }} /></span>{formatPercent(row.contribution)}</td><td>{impactCategoryDisplayName(row.category.label)}</td><td>{formatNumber(row.upstream)}</td><td>{formatNumber(row.direct)}</td><td>{row.category.unit}</td></tr>)}</tbody></table></div></div>
     </details>
   </div>
 }
