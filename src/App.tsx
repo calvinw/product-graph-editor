@@ -1274,6 +1274,7 @@ function GraphEditor() {
   const [resultsMarkdown, setResultsMarkdown] = useState("")
   const [resultsError, setResultsError] = useState("")
   const [isCalculating, setIsCalculating] = useState(false)
+  const [resultsVisible, setResultsVisible] = useState(false)
   const [lcaResult, setLcaResult] = useState<LcaResult | null>(null)
   const [calculatedRevision, setCalculatedRevision] = useState<number | null>(null)
   const [graphMode, setGraphMode] = useState<"scaled" | "structure">("structure")
@@ -1720,6 +1721,7 @@ function GraphEditor() {
       setResultsError("")
       setLcaResult(null)
       setCalculatedRevision(null)
+      setResultsVisible(false)
       setView("graph")
       requestAnimationFrame(() => fitView({ padding: 0.35, maxZoom: 0.75, duration: 350 }))
     } catch (error) {
@@ -1728,10 +1730,39 @@ function GraphEditor() {
   }
 
   const runCalculation = async () => {
-    if (yamlDraft !== appliedYaml || isCalculating) return
+    if (isCalculating) return
+    let source = appliedYaml
+    let revision = appliedRevision
+    if (yamlDraft !== appliedYaml) {
+      try {
+        const parsed = buildGraphFromYaml(yamlDraft, "structure", undefined, graphDecimalPlaces)
+        revision = appliedRevisionRef.current + 1
+        source = yamlDraft
+        appliedRevisionRef.current = revision
+        setAppliedYaml(source)
+        setAppliedRevision(revision)
+        foldDirectionRef.current = "upstream"
+        setEdges(parsed.edges)
+        setNodes(layoutNodes(parsed.nodes.map((node) => ({
+          ...node,
+          data: { ...node.data, canFold: parsed.edges.some((edge) => edge.target === node.id) },
+        })), parsed.edges, { orientation: graphOrientation }))
+        setGraphTitle(parsed.name)
+        setGraphMode("structure")
+        setSelected(null)
+        setYamlError("")
+        setResultsMarkdown("")
+        setResultsError("")
+        setLcaResult(null)
+        setCalculatedRevision(null)
+        requestAnimationFrame(() => fitView({ padding: 0.35, maxZoom: 0.75, duration: 350 }))
+      } catch (error) {
+        setYamlError(error instanceof Error ? error.message : "Could not parse this YAML file.")
+        return
+      }
+    }
+    setResultsVisible(true)
     setView("results")
-    const source = appliedYaml
-    const revision = appliedRevision
     const controller = new AbortController()
     activeCalculationRef.current = controller
     setIsCalculating(true)
@@ -1771,7 +1802,7 @@ function GraphEditor() {
   const connectionCount = edges.length
   const isDirty = yamlDraft !== appliedYaml
   const hasCurrentResults = Boolean(lcaResult && calculatedRevision === appliedRevision)
-  const canCalculate = !isDirty && !isCalculating
+  const canCalculate = !isCalculating
   const primaryView = view === "graph" || view === "yaml" ? view : "results"
   const analysisView = isAnalysisView(view) ? view : ""
   const selectedNode = selected ? nodes.find((node) => node.id === selected.id) : undefined
@@ -1795,7 +1826,7 @@ function GraphEditor() {
               <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && setView(next as "graph" | "yaml" | "results")} className="inline-flex items-center" aria-label="Primary views">
                 <ToggleGroupItem value="graph">Graph</ToggleGroupItem>
                 <ToggleGroupItem value="yaml">FILE</ToggleGroupItem>
-                <ToggleGroupItem value="results">LCA Results</ToggleGroupItem>
+                {resultsVisible ? <ToggleGroupItem value="results">LCA Results</ToggleGroupItem> : null}
               </ToggleGroup>
               {hasCurrentResults ? <ToggleGroup type="single" value={analysisView} onValueChange={(next) => next && setView(next as AnalysisView)} className="inline-flex items-center" aria-label="Result analysis views">
                 <ToggleGroupItem value="inventory">Inventory</ToggleGroupItem>
@@ -1893,15 +1924,15 @@ function GraphEditor() {
           </div>
           <textarea value={yamlDraft} onChange={(event) => { setYamlDraft(event.target.value); setSelectedCaseStudy("custom"); setYamlError("") }} spellCheck={false} aria-label="Product graph YAML" />
           <div className="yaml-editor-foot">
-            <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (isDirty ? "Unapplied changes. Preview changes before calculating." : "Files are parsed locally in your browser.")}</span>
+            <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (isDirty ? "Unapplied changes. Preview or calculate to apply them." : "Files are parsed locally in your browser.")}</span>
             <div className="yaml-editor-foot-actions">
               <Button onClick={previewYaml}>Preview graph</Button>
-              <Button onClick={runCalculation} disabled={!canCalculate} title={isDirty ? "Preview changes before calculating." : undefined}>{isCalculating ? "Calculating…" : "Calculate LCA"}</Button>
+              <Button onClick={runCalculation} disabled={!canCalculate}>{isCalculating ? "Calculating…" : "Calculate LCA"}</Button>
             </div>
           </div>
         </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} /> : <div className="results-panel">
           <div className="results-panel-head">
-            <div><strong>LCA Results</strong><span>{isDirty ? "Preview changes before calculating. Existing results still match the visible graph." : "Calculated from the currently previewed product graph."}</span></div>
+            <div><strong>LCA Results</strong><span>{isDirty ? "Preview or calculate to apply the File changes." : "Calculated from the currently previewed product graph."}</span></div>
           </div>
           <div className="results-panel-body">
             {resultsError ? <div className="results-error"><strong>Calculation failed</strong><p>{resultsError}</p></div>
