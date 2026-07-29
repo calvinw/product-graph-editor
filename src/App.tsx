@@ -1702,7 +1702,7 @@ function GraphEditor() {
   const applyAndCalculateYaml = (source: string) => {
     const revision = applyYaml(source)
     if (revision === null) return
-    setView("yaml")
+    setView("results")
     void calculateSource(source, revision, true)
   }
 
@@ -1720,13 +1720,13 @@ function GraphEditor() {
     setSelectedCaseStudy(id)
     setYamlDraft(source)
     setYamlError("")
-    applyAndCalculateYaml(source)
   }
 
   const connectionCount = edges.length
   const isDirty = yamlDraft !== appliedYaml
   const hasCurrentResults = Boolean(lcaResult && calculatedRevision === appliedRevision)
-  const showResultTabs = hasCurrentResults && !isDirty
+  const showLcaResultsTab = isCalculating || (hasCurrentResults && !isDirty)
+  const showAnalysisTabs = hasCurrentResults && !isDirty
   const primaryView = view === "graph" || view === "yaml" || view === "results" ? view : ""
   const analysisView = isAnalysisView(view) ? view : ""
   const selectedNode = selected ? nodes.find((node) => node.id === selected.id) : undefined
@@ -1827,9 +1827,9 @@ function GraphEditor() {
               <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && setView(next as "graph" | "yaml" | "results")} className="inline-flex items-center" aria-label="Primary views">
                 <ToggleGroupItem value="graph">Graph</ToggleGroupItem>
                 <ToggleGroupItem value="yaml">FILE</ToggleGroupItem>
-                {showResultTabs ? <ToggleGroupItem value="results" aria-label="LCA Results"><span className="results-tab-label">LCA Results{calculationInProgress ? <span className="results-tab-progress" role="status" aria-label="LCA calculation in progress" /> : null}</span></ToggleGroupItem> : null}
+                {showLcaResultsTab ? <ToggleGroupItem value="results" aria-label="LCA Results"><span className="results-tab-label">LCA Results{calculationInProgress ? <span className="results-tab-progress" role="status" aria-label="LCA calculation in progress" /> : null}</span></ToggleGroupItem> : null}
               </ToggleGroup>
-              {showResultTabs ? <ToggleGroup type="single" value={analysisView} onValueChange={(next) => next && openAnalysisView(next as AnalysisView)} className="inline-flex items-center" aria-label="Result analysis views">
+              {showAnalysisTabs ? <ToggleGroup type="single" value={analysisView} onValueChange={(next) => next && openAnalysisView(next as AnalysisView)} className="inline-flex items-center" aria-label="Result analysis views">
                 <ToggleGroupItem value="inventory">Inventory</ToggleGroupItem>
                 <ToggleGroupItem value="impact">Impact Analysis</ToggleGroupItem>
                 <ToggleGroupItem value="process">Process Results</ToggleGroupItem>
