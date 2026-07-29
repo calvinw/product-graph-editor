@@ -150,12 +150,14 @@ test("a calculation for an older applied revision cannot populate results", asyn
   await editor.fill((await editor.inputValue()).replace("Jacket", "New revision"))
   await page.getByRole("button", { name: "Calculate LCA" }).click()
   await expect(page.getByRole("heading", { name: "New revision" })).toBeVisible()
-  await expect(page.getByRole("radio", { name: "FILE", exact: true })).toBeChecked()
-  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toHaveCount(0)
+  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toBeChecked()
+  await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toBeVisible()
+  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toHaveCount(0)
   await page.waitForTimeout(650)
 
-  await expect(page.getByRole("radio", { name: "FILE", exact: true })).toBeChecked()
-  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toHaveCount(0)
+  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toBeChecked()
+  await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toBeVisible()
+  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toHaveCount(0)
 })
 
 test("toolbar tooltips open from keyboard focus and pointer input", async ({ page }) => {
@@ -276,6 +278,9 @@ test("form controls preserve selection, clamping, and disabled behavior", async 
   const caseStudy = page.getByRole("combobox", { name: "Choose a case study" })
   await caseStudy.click()
   await page.getByRole("option", { name: "Cotton Fiber", exact: true }).click()
+  await expect(page.getByRole("textbox", { name: "Product graph YAML" })).toHaveValue(/Cotton Fiber/)
+  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toHaveCount(0)
+  await page.getByRole("button", { name: "Calculate LCA" }).click()
   await expect(page.getByRole("heading", { name: "Cotton Fiber" })).toBeVisible()
   await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toBeChecked()
   await expect(page.locator(".markdown-report")).toBeVisible()
@@ -283,9 +288,9 @@ test("form controls preserve selection, clamping, and disabled behavior", async 
   await page.getByRole("radio", { name: "FILE", exact: true }).click()
   await caseStudy.click()
   await page.getByRole("option", { name: "Simple Mock Plastic Broom", exact: true }).click()
-  await expect(page.getByRole("heading", { name: "Simple Mock Plastic Broom" })).toBeVisible()
-  await page.getByRole("radio", { name: "FILE", exact: true }).click()
   await expect(page.getByRole("textbox", { name: "Product graph YAML" })).toHaveValue(/Mock freight transport, small truck, direct emissions only/)
+  await expect(page.getByRole("heading", { name: "Cotton Fiber" })).toBeVisible()
+  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toHaveCount(0)
 })
 
 test("settings popovers dismiss predictably and restore trigger focus", async ({ page }) => {
