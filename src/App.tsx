@@ -1697,6 +1697,38 @@ function GraphEditor() {
     }
   }
 
+  const previewYaml = () => {
+    try {
+      const parsed = buildGraphFromYaml(yamlDraft, "structure", undefined, graphDecimalPlaces)
+      activeCalculationRef.current?.abort()
+      activeCalculationRef.current = null
+      setIsCalculating(false)
+      const nextRevision = appliedRevisionRef.current + 1
+      appliedRevisionRef.current = nextRevision
+      setAppliedYaml(yamlDraft)
+      setAppliedRevision(nextRevision)
+      foldDirectionRef.current = "upstream"
+      setEdges(parsed.edges)
+      setNodes(layoutNodes(parsed.nodes.map((node) => ({
+        ...node,
+        data: { ...node.data, canFold: parsed.edges.some((edge) => edge.target === node.id) },
+      })), parsed.edges, { orientation: graphOrientation }))
+      setGraphTitle(parsed.name)
+      setGraphMode("structure")
+      setSelected(null)
+      setYamlError("")
+      setResultsMarkdown("")
+      setResultsError("")
+      setLcaResult(null)
+      setCalculatedRevision(null)
+      setResultsVisible(false)
+      setView("graph")
+      requestAnimationFrame(() => fitView({ padding: 0.35, maxZoom: 0.75, duration: 350 }))
+    } catch (error) {
+      setYamlError(error instanceof Error ? error.message : "Could not parse this YAML file.")
+    }
+  }
+
   const runCalculation = async () => {
     if (isCalculating) return
     let source = appliedYaml
@@ -1752,28 +1784,19 @@ function GraphEditor() {
     }
   }
 
-  const updateYamlDraft = (source: string) => {
-    activeCalculationRef.current?.abort()
-    activeCalculationRef.current = null
-    setIsCalculating(false)
-    setYamlDraft(source)
-    setSelectedCaseStudy("custom")
-    setYamlError("")
-    setResultsVisible(false)
-  }
-
   const loadYamlFile = (file?: File) => {
     if (!file) return
     if (!/\.ya?ml$/i.test(file.name)) { setYamlError("Choose a .yaml or .yml file."); return }
     const reader = new FileReader()
-    reader.onload = () => updateYamlDraft(String(reader.result ?? ""))
+    reader.onload = () => { setYamlDraft(String(reader.result ?? "")); setSelectedCaseStudy("custom"); setYamlError("") }
     reader.onerror = () => setYamlError("Could not read the selected file.")
     reader.readAsText(file)
   }
 
   const loadCaseStudy = (id: CaseStudyId) => {
-    updateYamlDraft(caseStudies[id].yaml)
     setSelectedCaseStudy(id)
+    setYamlDraft(caseStudies[id].yaml)
+    setYamlError("")
   }
 
   const connectionCount = edges.length
@@ -1805,7 +1828,7 @@ function GraphEditor() {
                 <ToggleGroupItem value="yaml">FILE</ToggleGroupItem>
                 {resultsVisible ? <ToggleGroupItem value="results">LCA Results</ToggleGroupItem> : null}
               </ToggleGroup>
-              {resultsVisible && hasCurrentResults ? <ToggleGroup type="single" value={analysisView} onValueChange={(next) => next && setView(next as AnalysisView)} className="inline-flex items-center" aria-label="Result analysis views">
+              {hasCurrentResults ? <ToggleGroup type="single" value={analysisView} onValueChange={(next) => next && setView(next as AnalysisView)} className="inline-flex items-center" aria-label="Result analysis views">
                 <ToggleGroupItem value="inventory">Inventory</ToggleGroupItem>
                 <ToggleGroupItem value="impact">Impact Analysis</ToggleGroupItem>
                 <ToggleGroupItem value="process">Process Results</ToggleGroupItem>
@@ -1899,14 +1922,17 @@ function GraphEditor() {
               <label className="yaml-upload"><FileUp size={15} /> Choose file<input type="file" accept=".yaml,.yml,text/yaml" onChange={(event) => loadYamlFile(event.target.files?.[0])} /></label>
             </div>
           </div>
-          <textarea value={yamlDraft} onChange={(event) => updateYamlDraft(event.target.value)} spellCheck={false} aria-label="Product graph YAML" />
+          <textarea value={yamlDraft} onChange={(event) => { setYamlDraft(event.target.value); setSelectedCaseStudy("custom"); setYamlError("") }} spellCheck={false} aria-label="Product graph YAML" />
           <div className="yaml-editor-foot">
-            <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (isDirty ? "Unapplied changes. Calculate to apply them." : "Files are parsed locally in your browser.")}</span>
-            <Button onClick={runCalculation} disabled={!canCalculate}>{isCalculating ? "Calculating…" : "Calculate LCA"}</Button>
+            <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (isDirty ? "Unapplied changes. Preview or calculate to apply them." : "Files are parsed locally in your browser.")}</span>
+            <div className="yaml-editor-foot-actions">
+              <Button onClick={previewYaml}>Preview graph</Button>
+              <Button onClick={runCalculation} disabled={!canCalculate}>{isCalculating ? "Calculating…" : "Calculate LCA"}</Button>
+            </div>
           </div>
         </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} /> : <div className="results-panel">
           <div className="results-panel-head">
-            <div><strong>LCA Results</strong><span>{isDirty ? "Calculate to apply the File changes." : "Calculated from the current product graph."}</span></div>
+            <div><strong>LCA Results</strong><span>{isDirty ? "Preview or calculate to apply the File changes." : "Calculated from the currently previewed product graph."}</span></div>
           </div>
           <div className="results-panel-body">
             {resultsError ? <div className="results-error"><strong>Calculation failed</strong><p>{resultsError}</p></div>
