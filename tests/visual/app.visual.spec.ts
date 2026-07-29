@@ -353,6 +353,65 @@ test("process results show calculated upstream outputs", async ({ page }) => {
   await expect(methane.getByRole("cell").nth(4)).toHaveText("0.02")
 })
 
+test("contribution table columns support accessible keyboard resizing and horizontal scrolling", async ({ page }) => {
+  await mockLcaApi(page)
+  await page.goto("/")
+  await calculate(page)
+  await page.getByRole("radio", { name: "Contribution", exact: true }).click()
+
+  const resizeProcess = page.getByRole("separator", { name: "Resize Process column" })
+  await expect(resizeProcess).toHaveAttribute("aria-valuenow", "320")
+  await resizeProcess.focus()
+  await page.keyboard.press("ArrowRight")
+  await expect(resizeProcess).toHaveAttribute("aria-valuenow", "330")
+  await page.keyboard.press("Shift+ArrowLeft")
+  await expect(resizeProcess).toHaveAttribute("aria-valuenow", "290")
+
+  for (let index = 0; index < 20; index += 1) await page.keyboard.press("Shift+ArrowRight")
+  const tableWrap = page.locator(".contribution-table-wrap")
+  await expect.poll(() => tableWrap.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true)
+})
+
+test("every analysis table exposes accessible column resize controls", async ({ page }) => {
+  await mockLcaApi(page)
+  await page.goto("/")
+  await calculate(page)
+
+  await page.getByRole("radio", { name: "Inventory", exact: true }).click()
+  await expect(page.locator(".inventory-table").first().getByRole("separator")).toHaveCount(4)
+
+  await page.getByRole("radio", { name: "Impact Analysis", exact: true }).click()
+  await expect(page.locator(".impact-table").getByRole("separator")).toHaveCount(5)
+
+  await page.getByRole("radio", { name: "Process Results", exact: true }).click()
+  await expect(page.locator(".process-flow-table").first().getByRole("separator")).toHaveCount(6)
+  await expect(page.locator(".process-impact-table").getByRole("separator")).toHaveCount(5)
+
+  await page.getByRole("radio", { name: "Contribution", exact: true }).click()
+  await expect(page.locator(".contribution-table").getByRole("separator")).toHaveCount(5)
+})
+
+test("Flow and Impact Sankey process limits hide nodes from the bottom-right end", async ({ page }) => {
+  await mockLcaApi(page)
+  await page.goto("/")
+  await calculate(page)
+  await page.getByRole("radio", { name: "Sankey Graph", exact: true }).click()
+  await page.getByRole("button", { name: "Chart settings" }).click()
+  await page.getByRole("radio", { name: "Flow", exact: true }).click()
+
+  await page.getByRole("spinbutton", { name: "Maximum processes" }).fill("1")
+  await expect(page.locator(".sankey-process-node")).toHaveCount(1)
+  await expect(page.locator(".sankey-process-node")).toContainText("Jacket assembly")
+  await expect(page.locator(".sankey-process-node")).not.toContainText("Raw material extraction")
+
+  await page.getByRole("radio", { name: "Impact", exact: true }).click()
+  await expect(page.getByRole("spinbutton", { name: "Maximum processes" })).toHaveValue("6")
+  await page.getByRole("spinbutton", { name: "Maximum processes" }).fill("1")
+  await expect(page.locator(".sankey-process-node")).toHaveCount(1)
+  await expect(page.locator(".sankey-process-node")).toContainText("Raw material extraction")
+  await expect(page.locator(".sankey-process-node")).not.toContainText("Jacket assembly")
+})
+
 test("cumulative contribution graphs load only when an analysis pane opens", async ({ page }) => {
   const contributionRequests: string[][] = []
   await mockLcaApi(page, lcaResultFixture, (categories) => contributionRequests.push(categories))
