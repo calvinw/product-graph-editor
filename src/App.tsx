@@ -1664,7 +1664,7 @@ function GraphEditor() {
     }
   }
 
-  const calculateSource = async (source: string, revision: number) => {
+  const calculateSource = async (source: string, revision: number, openResultsWhenReady = false) => {
     activeCalculationRef.current?.abort()
     const controller = new AbortController()
     activeCalculationRef.current = controller
@@ -1679,6 +1679,7 @@ function GraphEditor() {
       setLcaResult(result)
       setCalculatedRevision(revision)
       setResultsMarkdown(lcaResultToMarkdown(result, decimalPlaces, showAllDecimalPlaces))
+      if (openResultsWhenReady) setView("results")
     } catch (error) {
       if (controller.signal.aborted || appliedRevisionRef.current !== revision) return
       setResultsError(error instanceof Error ? error.message : "Could not calculate the current product graph.")
@@ -1701,8 +1702,8 @@ function GraphEditor() {
   const applyAndCalculateYaml = (source: string) => {
     const revision = applyYaml(source)
     if (revision === null) return
-    setView("results")
-    void calculateSource(source, revision)
+    setView("yaml")
+    void calculateSource(source, revision, true)
   }
 
   const loadYamlFile = (file?: File) => {
