@@ -140,6 +140,8 @@ function InventoryView({ result, yaml, isCurrent, error }: {
   const { formatNumber } = useDisplaySettings()
   const [expandedFlows, setExpandedFlows] = useState<Set<string>>(() => new Set())
   const [collapsedRequirements, setCollapsedRequirements] = useState<Set<string>>(() => new Set())
+  const [flowColumnWidths, setFlowColumnWidths] = useState([360, 280, 140, 100])
+  const [requirementColumnWidths, setRequirementColumnWidths] = useState([360, 280, 140, 100])
   if (!result || !isCurrent) return <div className="results-panel inventory-panel">
     <div className="results-panel-head"><div><strong>Inventory results</strong><span>Calculated quantities for the current product graph.</span></div></div>
     <div className="results-placeholder">
@@ -173,8 +175,8 @@ function InventoryView({ result, yaml, isCurrent, error }: {
     })
     return candidates.sort((left, right) => right.length - left.length)[0] ?? []
   }
-  const FlowTable = ({ rows, empty }: { rows: typeof flows; empty: string }) => <div className="inventory-table-wrap"><table className="inventory-table">
-    <thead><tr><th>Name</th><th>Category</th><th className="number">Amount</th><th>Unit</th></tr></thead>
+  const FlowTable = ({ rows, empty }: { rows: typeof flows; empty: string }) => <div className="inventory-table-wrap"><table className="inventory-table" style={{ width: Math.max(880, flowColumnWidths.reduce((sum, width) => sum + width, 0)) }}>
+    <ResizableTableHeader labels={["Name", "Category", "Amount", "Unit"]} widths={flowColumnWidths} onWidthsChange={setFlowColumnWidths} />
     <tbody>{rows.length ? rows.flatMap((flow) => {
       const key = `${flow.type}-${flow.name}`
       const children = flowChildren(flow.name)
@@ -220,7 +222,7 @@ function InventoryView({ result, yaml, isCurrent, error }: {
     <details open><summary>Inputs <span>{inputs.length}</span></summary><FlowTable rows={inputs} empty="No environmental input flows were returned." /></details>
     <details open><summary>Outputs <span>{outputs.length}</span></summary><FlowTable rows={outputs} empty="No environmental output flows were returned." /></details>
     <details open className="requirements"><summary>Total requirements <span>{requirementGraph?.nodes.filter((node) => node.kind === "process").length ?? fallbackRequirements.length}</span></summary>
-      <div className="inventory-table-wrap"><table className="inventory-table"><thead><tr><th>Process</th><th>Product</th><th className="number">Amount</th><th>Unit</th></tr></thead><tbody>
+      <div className="inventory-table-wrap"><table className="inventory-table" style={{ width: Math.max(880, requirementColumnWidths.reduce((sum, width) => sum + width, 0)) }}><ResizableTableHeader labels={["Process", "Product", "Amount", "Unit"]} widths={requirementColumnWidths} onWidthsChange={setRequirementColumnWidths} /><tbody>
         {requirementRoot ? renderRequirementRows([requirementRoot.id], 0) : fallbackRequirements.map((row) => <tr key={row.process}><td><span className="process-mark">⌘</span>{row.process}</td><td><span className="product-mark">⚙</span>{row.product}</td><td className="number">{formatNumber(row.amount)}</td><td>{row.unit}</td></tr>)}
       </tbody></table></div>
     </details>
@@ -270,6 +272,7 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error, loadContributionGr
   const [collapsedFlows, setCollapsedFlows] = useState<Set<string>>(() => new Set())
   const [loadingCategories, setLoadingCategories] = useState<Set<string>>(() => new Set())
   const [categoryErrors, setCategoryErrors] = useState<Map<string, string>>(() => new Map())
+  const [columnWidths, setColumnWidths] = useState([300, 240, 160, 180, 220])
   useEffect(() => {
     setLoadingCategories(new Set())
     setCategoryErrors(new Map())
@@ -390,8 +393,8 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error, loadContributionGr
       <i />
       <label className="impact-threshold">Don’t show &lt; <Input type="number" min="0" max="100" step="0.1" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label>
     </div>
-    <div className="impact-table-wrap"><table className="impact-table">
-      <thead><tr><th>Name</th><th>Category</th><th>Inventory result</th><th>Characterization factor</th><th>Impact assessment result</th></tr></thead>
+    <div className="impact-table-wrap"><table className="impact-table" style={{ width: Math.max(1100, columnWidths.reduce((sum, width) => sum + width, 0)) }}>
+      <ResizableTableHeader labels={["Name", "Category", "Inventory result", "Characterization factor", "Impact assessment result"]} widths={columnWidths} onWidthsChange={setColumnWidths} />
       <tbody>{[...categories.values()].map((category) => {
         const categoryId = category.id || category.label
         const isOpen = expandedCategories.has(categoryId)
@@ -489,6 +492,8 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
   const processNodes = result.sankey.nodes.filter((node) => node.kind === "process")
   const [processId, setProcessId] = useState("")
   const [threshold, setThreshold] = useState(0.01)
+  const [flowColumnWidths, setFlowColumnWidths] = useState([140, 220, 230, 180, 140, 90])
+  const [impactColumnWidths, setImpactColumnWidths] = useState([170, 300, 190, 150, 120])
   const referenceProcessId = result.sankey.links.find((link) => link.kind === "final_product")?.source
   const defaultProcessId = processNodes.some((node) => node.id === referenceProcessId) ? referenceProcessId! : (processNodes.at(-1)?.id ?? "")
   const selectedId = processNodes.some((node) => node.id === processId) ? processId : defaultProcessId
@@ -622,7 +627,7 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
   const visibleFlows = [...flowRows.values()].filter((flow) => flowContribution(flow) >= threshold)
   const FlowResultsTable = ({ input }: { input: boolean }) => {
     const rows = visibleFlows.filter((flow) => flow.input === input)
-    return <table className="process-flow-table"><thead><tr><th>Contribution</th><th>Flow</th><th>Category</th><th>Upstream incl. direct</th><th>Direct</th><th>Unit</th></tr></thead>
+    return <table className="process-flow-table" style={{ width: Math.max(1000, flowColumnWidths.reduce((sum, width) => sum + width, 0)) }}><ResizableTableHeader labels={["Contribution", "Flow", "Category", "Upstream incl. direct", "Direct", "Unit"]} widths={flowColumnWidths} onWidthsChange={setFlowColumnWidths} />
       <tbody>{rows.length ? rows.map((flow) => <tr key={`${input}:${flow.name}`}>
         <td><span className="process-result-bar"><i style={{ width: `${Math.min(100, flowContribution(flow))}%` }} /></span></td>
         <td>{inventoryFlowName(flow.name)}</td><td>{flow.category}</td><td>{formatNumber(flow.upstream)}</td><td>{formatNumber(flow.direct)}</td><td>{flow.unit}</td>
@@ -653,9 +658,61 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
     </details>
     <details open><summary>Impact assessment results</summary>
       <div className="process-results-controls"><label>Process <AppSelect value={selectedId} onValueChange={setProcessId} label="Impact assessment process" options={processNodes.map((node) => ({ value: node.id, label: cleanImpactProcessName(node.process_name ?? node.label) }))} /></label><label>Don’t show &lt; <Input type="number" min="0" max="100" step="0.01" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label></div>
-      <div className="process-impact-table-wrap"><table className="process-impact-table"><thead><tr><th>Contribution</th><th>Impact category</th><th>Upstream incl. direct</th><th>Direct</th><th>Unit</th></tr></thead><tbody>{impactRows.map((row) => <tr key={row.category.id || row.category.label}><td><span className="process-result-bar"><i style={{ width: `${Math.min(100, Math.abs(row.contribution))}%` }} /></span>{formatPercent(row.contribution)}</td><td>{impactCategoryDisplayName(row.category.label)}</td><td>{formatNumber(row.upstream)}</td><td>{formatNumber(row.direct)}</td><td>{row.category.unit}</td></tr>)}</tbody></table></div>
+      <div className="process-impact-table-wrap"><table className="process-impact-table" style={{ width: Math.max(930, impactColumnWidths.reduce((sum, width) => sum + width, 0)) }}><ResizableTableHeader labels={["Contribution", "Impact category", "Upstream incl. direct", "Direct", "Unit"]} widths={impactColumnWidths} onWidthsChange={setImpactColumnWidths} /><tbody>{impactRows.map((row) => <tr key={row.category.id || row.category.label}><td><span className="process-result-bar"><i style={{ width: `${Math.min(100, Math.abs(row.contribution))}%` }} /></span>{formatPercent(row.contribution)}</td><td>{impactCategoryDisplayName(row.category.label)}</td><td>{formatNumber(row.upstream)}</td><td>{formatNumber(row.direct)}</td><td>{row.category.unit}</td></tr>)}</tbody></table></div>
     </details>
   </div>
+}
+
+function ColumnResizeHandle({ label, width, onResize }: {
+  label: string
+  width: number
+  onResize: (width: number) => void
+}) {
+  const drag = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null)
+  const resize = (nextWidth: number) => onResize(Math.max(80, Math.round(nextWidth)))
+
+  return <span
+    className="column-resize-handle"
+    role="separator"
+    aria-label={`Resize ${label} column`}
+    aria-orientation="vertical"
+    aria-valuemin={80}
+    aria-valuenow={width}
+    tabIndex={0}
+    onPointerDown={(event) => {
+      event.preventDefault()
+      drag.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: width }
+      event.currentTarget.setPointerCapture(event.pointerId)
+    }}
+    onPointerMove={(event) => {
+      if (drag.current?.pointerId !== event.pointerId) return
+      resize(drag.current.startWidth + event.clientX - drag.current.startX)
+    }}
+    onPointerUp={(event) => {
+      if (drag.current?.pointerId !== event.pointerId) return
+      drag.current = null
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }}
+    onPointerCancel={() => { drag.current = null }}
+    onKeyDown={(event) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+      event.preventDefault()
+      const step = event.shiftKey ? 40 : 10
+      resize(width + (event.key === "ArrowRight" ? step : -step))
+    }}
+  />
+}
+
+function ResizableTableHeader({ labels, widths, onWidthsChange }: {
+  labels: string[]
+  widths: number[]
+  onWidthsChange: (widths: number[]) => void
+}) {
+  const resizeColumn = (index: number, width: number) => onWidthsChange(widths.map((value, candidate) => candidate === index ? width : value))
+  return <>
+    <colgroup>{widths.map((width, index) => <col key={`${index}:${labels[index]}`} style={{ width }} />)}</colgroup>
+    <thead><tr>{labels.map((label, index) => <th key={`${index}:${label}`}>{label}<ColumnResizeHandle label={label} width={widths[index]} onResize={(width) => resizeColumn(index, width)} /></th>)}</tr></thead>
+  </>
 }
 
 function ContributionView({ result, yaml, isCurrent, error, loadContributionGraphs }: {
@@ -671,6 +728,7 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
   const [impact, setImpact] = useState("")
   const [expanded, setExpanded] = useState(false)
   const [expandedProcesses, setExpandedProcesses] = useState<Set<string>>(() => new Set())
+  const [columnWidths, setColumnWidths] = useState([140, 320, 180, 220, 180])
 
   const flowNames = result ? Object.keys(result.lci) : []
   const impactNames = result ? Object.keys(result.lcia) : []
@@ -883,7 +941,13 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
         {mode === "impact" && !selectedContributionGraph ? <p className="contribution-fallback-note">Recursive contributions were not requested for this category. Showing the available process-contribution results.</p> : null}
       </RadioGroup>
     </div>
-    {mode !== null ? <div className="contribution-table-wrap"><table className="contribution-table"><thead><tr><th>Contribution rate</th><th>Process</th><th>{selectedContributionGraph ? "Supply amount" : "Required amount"}</th><th>{selectedContributionGraph ? "Cumulative result" : "Total result"}</th><th>Direct contribution</th></tr></thead><tbody>
+    {mode !== null ? <div className="contribution-table-wrap"><table className="contribution-table" style={{ width: Math.max(1040, columnWidths.reduce((sum, width) => sum + width, 0)) }}><ResizableTableHeader labels={[
+      "Contribution rate",
+      "Process",
+      selectedContributionGraph ? "Supply amount" : "Required amount",
+      selectedContributionGraph ? "Cumulative result" : "Total result",
+      "Direct contribution",
+    ]} widths={columnWidths} onWidthsChange={setColumnWidths} /><tbody>
       {selectedContributionGraph ? <>
         <tr className="contribution-root"><td>{graphRootPercentage === null ? "—" : formatPercent(graphRootPercentage)}</td><td>{graphCanExpand ? <button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} upstream processes`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className="process-mark">⌘</span>{graphRoot?.process_name || result.name}</td><td>{graphRoot ? <>{number(graphRoot.supply_amount)} <small>{graphRoot.unit}</small></> : "—"}</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(graphRootCumulative)} <small>{selectedContributionGraph.unit}</small></td><td>{number(graphRootDirect)} <small>{selectedContributionGraph.unit}</small></td></tr>
         {expanded && graphRoot ? renderGraphChildren(graphRoot, 0) : null}
@@ -1015,7 +1079,9 @@ function SankeyView({ result, loadContributionGraphs }: {
   const totalMagnitude = Math.abs(selectedTotal)
   const rootIds = new Set(processNodes.filter((node) => !(outgoing.get(node.id)?.length)).map((node) => node.id))
   const eligibleNodes = processNodes.filter((node) => rootIds.has(node.id) || !totalMagnitude || Math.abs(upstreamTotal(node.id) / selectedTotal * 100) >= minContribution)
-  const visibleNodes = eligibleNodes.slice(Math.max(0, eligibleNodes.length - Math.max(1, maxProcesses)))
+  const visibleNodes = [...eligibleNodes]
+    .sort((left, right) => depth(left.id) - depth(right.id))
+    .slice(0, Math.max(1, maxProcesses))
   const visibleIds = new Set(visibleNodes.map((node) => node.id))
   const visibleLinks = links.filter((link) => visibleIds.has(link.source) && visibleIds.has(link.target))
   const rows = new Map<number, typeof visibleNodes>()
