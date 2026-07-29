@@ -45,8 +45,9 @@ async function selectTheme(page: Page, theme: Theme) {
 }
 
 async function calculate(page: Page) {
-  await page.getByRole("radio", { name: "LCA Results", exact: true }).click()
+  await page.getByRole("radio", { name: "FILE", exact: true }).click()
   await page.getByRole("button", { name: "Calculate LCA" }).click()
+  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toBeChecked()
   await expect(page.locator(".markdown-report")).toBeVisible()
 }
 
@@ -62,8 +63,9 @@ test("YAML drafts apply only through Preview Graph", async ({ page }) => {
   await editor.fill(appliedSource.replace("Jacket", "Draft jacket"))
   await expect(page.getByText("Unapplied changes. Preview changes before calculating.")).toBeVisible()
 
-  await page.getByRole("radio", { name: "LCA Results", exact: true }).click()
+  await page.getByRole("radio", { name: "FILE", exact: true }).click()
   await expect(page.getByRole("button", { name: "Calculate LCA" })).toBeDisabled()
+  await page.getByRole("radio", { name: "LCA Results", exact: true }).click()
   await expect(page.locator(".markdown-report")).toBeVisible()
   await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeVisible()
 
@@ -82,8 +84,9 @@ test("YAML drafts apply only through Preview Graph", async ({ page }) => {
   await page.getByRole("button", { name: "Preview graph" }).click()
   await expect(page.getByRole("heading", { name: "Previewed jacket" })).toBeVisible()
   await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toHaveCount(0)
-  await page.getByRole("radio", { name: "LCA Results", exact: true }).click()
+  await page.getByRole("radio", { name: "FILE", exact: true }).click()
   await expect(page.getByRole("button", { name: "Calculate LCA" })).toBeEnabled()
+  await page.getByRole("radio", { name: "LCA Results", exact: true }).click()
   await expect(page.locator(".results-placeholder")).toBeVisible()
 })
 
@@ -112,7 +115,7 @@ test("a calculation for an older applied revision cannot populate results", asyn
   })
 
   await page.goto("/")
-  await page.getByRole("radio", { name: "LCA Results", exact: true }).click()
+  await page.getByRole("radio", { name: "FILE", exact: true }).click()
   await page.getByRole("button", { name: "Calculate LCA" }).click()
   await calculationRequested
 
@@ -123,10 +126,11 @@ test("a calculation for an older applied revision cannot populate results", asyn
   await expect(page.getByRole("heading", { name: "New revision" })).toBeVisible()
   await page.waitForTimeout(650)
 
+  await page.getByRole("radio", { name: "FILE", exact: true }).click()
+  await expect(page.getByRole("button", { name: "Calculate LCA" })).toBeEnabled()
   await page.getByRole("radio", { name: "LCA Results", exact: true }).click()
   await expect(page.locator(".markdown-report")).toHaveCount(0)
   await expect(page.locator(".results-placeholder")).toBeVisible()
-  await expect(page.getByRole("button", { name: "Calculate LCA" })).toBeEnabled()
 })
 
 test("toolbar tooltips open from keyboard focus and pointer input", async ({ page }) => {

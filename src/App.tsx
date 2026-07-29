@@ -1729,6 +1729,7 @@ function GraphEditor() {
 
   const runCalculation = async () => {
     if (yamlDraft !== appliedYaml || isCalculating) return
+    setView("results")
     const source = appliedYaml
     const revision = appliedRevision
     const controller = new AbortController()
@@ -1893,17 +1894,19 @@ function GraphEditor() {
           <textarea value={yamlDraft} onChange={(event) => { setYamlDraft(event.target.value); setSelectedCaseStudy("custom"); setYamlError("") }} spellCheck={false} aria-label="Product graph YAML" />
           <div className="yaml-editor-foot">
             <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (isDirty ? "Unapplied changes. Preview changes before calculating." : "Files are parsed locally in your browser.")}</span>
-            <Button onClick={previewYaml}>Preview graph</Button>
+            <div className="yaml-editor-foot-actions">
+              <Button onClick={previewYaml}>Preview graph</Button>
+              <Button onClick={runCalculation} disabled={!canCalculate} title={isDirty ? "Preview changes before calculating." : undefined}>{isCalculating ? "Calculating…" : "Calculate LCA"}</Button>
+            </div>
           </div>
         </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} /> : <div className="results-panel">
           <div className="results-panel-head">
             <div><strong>LCA Results</strong><span>{isDirty ? "Preview changes before calculating. Existing results still match the visible graph." : "Calculated from the currently previewed product graph."}</span></div>
-            <Button onClick={runCalculation} disabled={!canCalculate} title={isDirty ? "Preview changes before calculating." : undefined}>{isCalculating ? "Calculating…" : "Calculate LCA"}</Button>
           </div>
           <div className="results-panel-body">
             {resultsError ? <div className="results-error"><strong>Calculation failed</strong><p>{resultsError}</p></div>
               : resultsMarkdown ? <article className="markdown-report"><ReactMarkdown remarkPlugins={[remarkGfm]}>{resultsMarkdown}</ReactMarkdown></article>
-              : <div className="results-placeholder"><div className="results-empty-icon"><BarChart3 size={22} /></div><strong>No LCA results yet</strong><p>Select Calculate to analyze the current YAML graph.</p></div>}
+              : <div className="results-placeholder"><div className="results-empty-icon"><BarChart3 size={22} /></div><strong>{isCalculating ? "Calculating LCA…" : "No LCA results yet"}</strong><p>{isCalculating ? "The full results will appear here when the calculation finishes." : "Open the File tab and select Calculate LCA to analyze the current YAML graph."}</p></div>}
           </div>
         </div>}
         {view === "graph" ? <div className="graph-meta">{nodes.length} nodes&nbsp;&nbsp;·&nbsp;&nbsp;{connectionCount} connections</div> : null}
