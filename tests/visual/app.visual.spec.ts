@@ -61,10 +61,10 @@ test("YAML drafts apply only through Preview Graph", async ({ page }) => {
   const editor = page.getByRole("textbox", { name: "Product graph YAML" })
   const appliedSource = await editor.inputValue()
   await editor.fill(appliedSource.replace("Jacket", "Draft jacket"))
-  await expect(page.getByText("Unapplied changes. Preview or calculate to apply them.")).toBeVisible()
+  await expect(page.getByText("Unapplied changes. Preview changes before calculating.")).toBeVisible()
 
   await page.getByRole("radio", { name: "FILE", exact: true }).click()
-  await expect(page.getByRole("button", { name: "Calculate LCA" })).toBeEnabled()
+  await expect(page.getByRole("button", { name: "Calculate LCA" })).toBeDisabled()
   await page.getByRole("radio", { name: "LCA Results", exact: true }).click()
   await expect(page.locator(".markdown-report")).toBeVisible()
   await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeVisible()
@@ -84,29 +84,10 @@ test("YAML drafts apply only through Preview Graph", async ({ page }) => {
   await page.getByRole("button", { name: "Preview graph" }).click()
   await expect(page.getByRole("heading", { name: "Previewed jacket" })).toBeVisible()
   await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toHaveCount(0)
-  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toHaveCount(0)
   await page.getByRole("radio", { name: "FILE", exact: true }).click()
   await expect(page.getByRole("button", { name: "Calculate LCA" })).toBeEnabled()
-  await page.getByRole("button", { name: "Calculate LCA" }).click()
-  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toBeChecked()
-  await expect(page.locator(".markdown-report")).toBeVisible()
-})
-
-test("Calculate LCA applies the File draft before calculating and reveals result tabs", async ({ page }) => {
-  await mockLcaApi(page)
-  await page.goto("/")
-
-  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toHaveCount(0)
-  await page.getByRole("radio", { name: "FILE", exact: true }).click()
-  const editor = page.getByRole("textbox", { name: "Product graph YAML" })
-  await editor.fill((await editor.inputValue()).replace("Jacket", "Calculated jacket"))
-  await page.getByRole("button", { name: "Calculate LCA" }).click()
-
-  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toBeChecked()
-  await expect(page.locator(".markdown-report")).toBeVisible()
-  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeVisible()
-  await page.getByRole("radio", { name: "Graph", exact: true }).click()
-  await expect(page.getByRole("heading", { name: "Calculated jacket" })).toBeVisible()
+  await page.getByRole("radio", { name: "LCA Results", exact: true }).click()
+  await expect(page.locator(".results-placeholder")).toBeVisible()
 })
 
 test("a calculation for an older applied revision cannot populate results", async ({ page }) => {
@@ -147,8 +128,9 @@ test("a calculation for an older applied revision cannot populate results", asyn
 
   await page.getByRole("radio", { name: "FILE", exact: true }).click()
   await expect(page.getByRole("button", { name: "Calculate LCA" })).toBeEnabled()
-  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toHaveCount(0)
+  await page.getByRole("radio", { name: "LCA Results", exact: true }).click()
   await expect(page.locator(".markdown-report")).toHaveCount(0)
+  await expect(page.locator(".results-placeholder")).toBeVisible()
 })
 
 test("toolbar tooltips open from keyboard focus and pointer input", async ({ page }) => {
@@ -264,7 +246,7 @@ test("form controls preserve selection, clamping, and disabled behavior", async 
   await caseStudy.click()
   await page.getByRole("option", { name: "Cotton Fiber", exact: true }).click()
   await expect(caseStudy).toHaveText(/Cotton Fiber/)
-  await expect(page.getByText("Unapplied changes. Preview or calculate to apply them.")).toBeVisible()
+  await expect(page.getByText("Unapplied changes. Preview changes before calculating.")).toBeVisible()
 })
 
 test("settings popovers dismiss predictably and restore trigger focus", async ({ page }) => {
@@ -354,7 +336,9 @@ for (const theme of ["dark", "light"] as const) {
     await expect(page.locator(".yaml-editor")).toBeVisible()
     await screenshot(page, `${theme}-yaml-editor.png`)
 
-    await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toHaveCount(0)
+    await page.getByRole("radio", { name: "LCA Results", exact: true }).click()
+    await expect(page.locator(".results-placeholder")).toBeVisible()
+    await screenshot(page, `${theme}-lca-results-empty.png`)
 
     await calculate(page)
     await screenshot(page, `${theme}-lca-results.png`)
