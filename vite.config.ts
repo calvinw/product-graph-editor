@@ -17,7 +17,7 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       "/lca-api": {
-        target: "https://lca-mcp.mathplosion.com",
+        target: "https://lca.mathplosion.com",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/lca-api/, ""),
       },

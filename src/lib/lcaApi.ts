@@ -195,7 +195,7 @@ type ToolDefinition = {
 }
 
 const configuredBase = import.meta.env.VITE_LCA_API_BASE as string | undefined
-const apiBase = (configuredBase ?? (import.meta.env.DEV ? "/lca-api" : "https://lca-mcp.mathplosion.com")).replace(/\/$/, "")
+const apiBase = (configuredBase ?? (import.meta.env.DEV ? "/lca-api" : "https://lca.mathplosion.com")).replace(/\/$/, "")
 
 async function readJson(response: Response) {
   const body = await response.json().catch(() => null)

@@ -12,7 +12,11 @@ import {
   FileUp, Minus, Moon, MousePointer2, Plus, Search, Settings2, Share2, Sun, X,
 } from "lucide-react"
 import { parse } from "yaml"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -1225,6 +1229,7 @@ function GraphEditor() {
   const [selected, setSelected] = useState<(NodeMeta & { id: string }) | null>(null)
   const [query, setQuery] = useState("")
   const [view, setView] = useState<View>("results")
+  const [pendingView, setPendingView] = useState<View | null>(null)
   const [yamlDraft, setYamlDraft] = useState("")
   const [appliedYaml, setAppliedYaml] = useState("")
   const [appliedRevision, setAppliedRevision] = useState(0)
@@ -1758,18 +1763,23 @@ function GraphEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const applyAndCalculateYaml = (source: string) => {
+  const applyAndCalculateYaml = (source: string, openResultsWhenReady = true) => {
     const revision = applyYaml(source)
     if (revision === null) return
-    setView("results")
-    void calculateSource(source, revision, true)
+    void calculateSource(source, revision, openResultsWhenReady)
   }
 
   const loadYamlFile = (file?: File) => {
     if (!file) return
     if (!/\.ya?ml$/i.test(file.name)) { setYamlError("Choose a .yaml or .yml file."); return }
     const reader = new FileReader()
-    reader.onload = () => { setYamlDraft(String(reader.result ?? "")); setSelectedProductGraph("custom"); setYamlError("") }
+    reader.onload = () => {
+      const source = String(reader.result ?? "")
+      setYamlDraft(source)
+      setSelectedProductGraph("custom")
+      setYamlError("")
+      applyAndCalculateYaml(source)
+    }
     reader.onerror = () => setYamlError("Could not read the selected file.")
     reader.readAsText(file)
   }
@@ -1780,13 +1790,28 @@ function GraphEditor() {
     setSelectedProductGraph(id)
     setYamlDraft(source)
     setYamlError("")
+    applyAndCalculateYaml(source)
   }
 
   const connectionCount = edges.length
   const isDirty = yamlDraft !== appliedYaml
+  const discardYamlChanges = () => {
+    setYamlDraft(appliedYaml)
+    setSelectedProductGraph(productGraphs.find((item) => item.product_graph === appliedYaml)?.id ?? "custom")
+    setYamlError("")
+  }
+  useEffect(() => {
+    const confirmDiscard = (event: BeforeUnloadEvent) => {
+      if (!isDirty) return
+      event.preventDefault()
+      event.returnValue = ""
+    }
+    window.addEventListener("beforeunload", confirmDiscard)
+    return () => window.removeEventListener("beforeunload", confirmDiscard)
+  }, [isDirty])
   const hasCurrentResults = Boolean(lcaResult && calculatedRevision === appliedRevision)
-  const showLcaResultsTab = isCalculating || (hasCurrentResults && !isDirty)
-  const showAnalysisTabs = hasCurrentResults && !isDirty
+  const showLcaResultsTab = isCalculating || hasCurrentResults
+  const showAnalysisTabs = hasCurrentResults
   const primaryView = view === "graph" || view === "yaml" || view === "results" ? view : ""
   const analysisView = isAnalysisView(view) ? view : ""
   const selectedNode = selected ? nodes.find((node) => node.id === selected.id) : undefined
@@ -1876,6 +1901,38 @@ function GraphEditor() {
     }
   }
 
+  const continueToView = (next: View) => {
+    if (isAnalysisView(next)) openAnalysisView(next)
+    else setView(next)
+  }
+
+  const requestView = (next: View) => {
+    if (isDirty && next !== "yaml") {
+      setPendingView(next)
+      return
+    }
+    continueToView(next)
+  }
+
+  const discardAndContinue = () => {
+    if (!pendingView) return
+    const next = pendingView
+    discardYamlChanges()
+    setPendingView(null)
+    continueToView(next)
+  }
+
+  const calculateAndContinue = () => {
+    if (!pendingView) return
+    const revision = applyYaml(yamlDraft)
+    if (revision === null) {
+      setPendingView(null)
+      return
+    }
+    setPendingView(null)
+    void calculateSource(yamlDraft, revision, true)
+  }
+
   return (
     <>
       <div className="canvas-wrap">
@@ -1884,12 +1941,12 @@ function GraphEditor() {
           <div className="canvas-actions">
             {view === "graph" ? <div className="search"><Search size={16} /><Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a node…" aria-label="Find a node" /><kbd>⌘ K</kbd></div> : null}
             <div className="view-tabs">
-              <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && setView(next as "graph" | "yaml" | "results")} className="inline-flex items-center" aria-label="Primary views">
+              <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && requestView(next as "graph" | "yaml" | "results")} className="inline-flex items-center" aria-label="Primary views">
                 <ToggleGroupItem value="graph">Graph</ToggleGroupItem>
                 <ToggleGroupItem value="yaml">FILE</ToggleGroupItem>
                 {showLcaResultsTab ? <ToggleGroupItem value="results" aria-label="LCA Results"><span className="results-tab-label">LCA Results{calculationInProgress ? <span className="results-tab-progress" role="status" aria-label="LCA calculation in progress" /> : null}</span></ToggleGroupItem> : null}
               </ToggleGroup>
-              {showAnalysisTabs ? <ToggleGroup type="single" value={analysisView} onValueChange={(next) => next && openAnalysisView(next as AnalysisView)} className="inline-flex items-center" aria-label="Result analysis views">
+              {showAnalysisTabs ? <ToggleGroup type="single" value={analysisView} onValueChange={(next) => next && requestView(next as AnalysisView)} className="inline-flex items-center" aria-label="Result analysis views">
                 <ToggleGroupItem value="inventory">Inventory</ToggleGroupItem>
                 <ToggleGroupItem value="impact">Impact Analysis</ToggleGroupItem>
                 <ToggleGroupItem value="process">Process Results</ToggleGroupItem>
@@ -1965,7 +2022,7 @@ function GraphEditor() {
           </div>
         </div>
         <div className="graph-mode-toolbar" aria-label="Graph display mode">
-          <Button title={!hasCurrentResults ? "Scaled amounts will appear when the LCA calculation finishes" : undefined} variant="ghost" className={`graph-action ${graphMode === "scaled" ? "is-active" : ""}`} aria-pressed={graphMode === "scaled"} onClick={() => showGraphMode("scaled")}><Scan size={16} />Scaled Graph</Button>
+          <Button title={!hasCurrentResults ? "Scaled amounts will appear when the LCA calculation finishes" : undefined} variant="ghost" className={`graph-action ${graphMode === "scaled" ? "is-active" : ""}`} aria-pressed={graphMode === "scaled"} disabled={!hasCurrentResults} onClick={() => showGraphMode("scaled")}><Scan size={16} />Scaled Graph</Button>
           <Button variant="ghost" className={`graph-action ${graphMode === "structure" ? "is-active" : ""}`} aria-pressed={graphMode === "structure"} onClick={() => showGraphMode("structure")}><LayoutGrid size={16} />Structure Graph</Button>
         </div></> : view === "yaml" ? <div className="yaml-editor">
           <div className="yaml-editor-head">
@@ -1989,8 +2046,8 @@ function GraphEditor() {
           </div>
           <textarea value={yamlDraft} onChange={(event) => { setYamlDraft(event.target.value); setSelectedProductGraph("custom"); setYamlError("") }} spellCheck={false} aria-label="Product graph YAML" />
           <div className="yaml-editor-foot">
-            <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (isDirty ? "Unapplied changes. Calculate LCA to apply this YAML." : "Catalog YAML is loaded from the LCA server and parsed locally.")}</span>
-            <Button onClick={() => applyAndCalculateYaml(yamlDraft)}>Calculate LCA</Button>
+            <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (isDirty ? "Unapplied changes. Calculate the LCA or discard changes before leaving this view." : isCalculating ? "Calculating the selected YAML…" : "Catalog YAML is loaded from the LCA server and parsed locally.")}</span>
+            <Button size="sm" disabled={!isDirty || isCalculating} onClick={() => applyAndCalculateYaml(yamlDraft)}>Calculate LCA</Button>
           </div>
         </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} loadContributionGraphs={loadContributionGraphs} /> : <div className="results-panel">
           <div className="results-panel-head">
@@ -2045,6 +2102,21 @@ function GraphEditor() {
           </>}
         </>
       </aside> : null}
+      <AlertDialog open={pendingView !== null} onOpenChange={(open) => { if (!open) setPendingView(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved YAML changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              Calculate the LCA to apply your YAML changes, or discard them before leaving the file editor.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={discardAndContinue}>Discard changes</AlertDialogAction>
+            <AlertDialogAction onClick={calculateAndContinue}>Calculate LCA</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }
