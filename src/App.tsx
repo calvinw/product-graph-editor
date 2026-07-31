@@ -1221,7 +1221,7 @@ function AppSelect({
   </Select>
 }
 
-function GraphEditor() {
+function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void }) {
   const { decimalPlaces, showAllDecimalPlaces, formatNumber, theme } = useDisplaySettings()
   const graphDecimalPlaces = showAllDecimalPlaces ? 20 : decimalPlaces
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<ProcessNodeData>>(layoutNodes(initialNodes, initialEdges))
@@ -1269,6 +1269,7 @@ function GraphEditor() {
   })()
 
   useEffect(() => setGraphMaxProcesses(availableGraphProcessCount), [availableGraphProcessCount])
+  useEffect(() => onTitleChange(graphTitle), [graphTitle, onTitleChange])
   useEffect(() => {
     if (lcaResult) setResultsMarkdown(lcaResultToMarkdown(lcaResult, decimalPlaces, showAllDecimalPlaces))
   }, [decimalPlaces, showAllDecimalPlaces, lcaResult])
@@ -1810,8 +1811,6 @@ function GraphEditor() {
     return () => window.removeEventListener("beforeunload", confirmDiscard)
   }, [isDirty])
   const hasCurrentResults = Boolean(lcaResult && calculatedRevision === appliedRevision)
-  const showLcaResultsTab = isCalculating || hasCurrentResults
-  const showAnalysisTabs = hasCurrentResults
   const primaryView = view === "graph" || view === "yaml" || view === "results" ? view : ""
   const analysisView = isAnalysisView(view) ? view : ""
   const selectedNode = selected ? nodes.find((node) => node.id === selected.id) : undefined
@@ -1937,25 +1936,40 @@ function GraphEditor() {
     <>
       <div className="canvas-wrap">
         <div className="canvas-head">
-          <h1>{graphTitle}</h1>
           <div className="canvas-actions">
-            {view === "graph" ? <div className="search"><Search size={16} /><Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a node…" aria-label="Find a node" /><kbd>⌘ K</kbd></div> : null}
             <div className="view-tabs">
-              <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && requestView(next as "graph" | "yaml" | "results")} className="inline-flex items-center" aria-label="Primary views">
-                <ToggleGroupItem value="graph">Graph</ToggleGroupItem>
-                <ToggleGroupItem value="yaml">FILE</ToggleGroupItem>
-                {showLcaResultsTab ? <ToggleGroupItem value="results" aria-label="LCA Results"><span className="results-tab-label">LCA Results{calculationInProgress ? <span className="results-tab-progress" role="status" aria-label="LCA calculation in progress" /> : null}</span></ToggleGroupItem> : null}
-              </ToggleGroup>
-              {showAnalysisTabs ? <ToggleGroup type="single" value={analysisView} onValueChange={(next) => next && requestView(next as AnalysisView)} className="inline-flex items-center" aria-label="Result analysis views">
-                <ToggleGroupItem value="inventory">Inventory</ToggleGroupItem>
-                <ToggleGroupItem value="impact">Impact Analysis</ToggleGroupItem>
-                <ToggleGroupItem value="process">Process Results</ToggleGroupItem>
-                <ToggleGroupItem value="contribution">Contribution</ToggleGroupItem>
-                <ToggleGroupItem value="sankey">Sankey Graph</ToggleGroupItem>
-              </ToggleGroup> : null}
+              <label className="case-study-select navigation-product-select"><span>LCA File</span><AppSelect
+                value={selectedProductGraph}
+                onValueChange={(value) => !["custom", "loading", "unavailable"].includes(value) && loadProductGraph(value)}
+                label="Choose a product graph"
+                options={productGraphs.length ? [
+                  ...productGraphs.map((item) => ({ value: item.id, label: productGraphLabel(item.name) })),
+                  ...(selectedProductGraph === "custom" ? [{ value: "custom", label: "Custom YAML", disabled: true }] : []),
+                ] : [{
+                  value: selectedProductGraph,
+                  label: selectedProductGraph === "unavailable" ? "Catalog unavailable" : "Loading catalog…",
+                  disabled: true,
+                }]}
+              /></label>
+              {calculationInProgress ? <span className="calculation-message" role="status" aria-label="LCA calculation in progress">Calculating…</span> : null}
+              <div className="view-tab-groups">
+                <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && requestView(next as "graph" | "yaml" | "results")} className="inline-flex items-center" aria-label="Primary views">
+                  <ToggleGroupItem value="graph">Graph</ToggleGroupItem>
+                  <ToggleGroupItem value="yaml">Editor</ToggleGroupItem>
+                  <ToggleGroupItem value="results" aria-label="Results">Results</ToggleGroupItem>
+                </ToggleGroup>
+                <ToggleGroup type="single" value={analysisView} onValueChange={(next) => next && requestView(next as AnalysisView)} className="inline-flex items-center" aria-label="Result analysis views">
+                  <ToggleGroupItem value="inventory" disabled={!hasCurrentResults}>Inventory</ToggleGroupItem>
+                  <ToggleGroupItem value="impact" disabled={!hasCurrentResults}>Impact Analysis</ToggleGroupItem>
+                  <ToggleGroupItem value="process" disabled={!hasCurrentResults}>Process Results</ToggleGroupItem>
+                  <ToggleGroupItem value="contribution" disabled={!hasCurrentResults}>Contribution</ToggleGroupItem>
+                  <ToggleGroupItem value="sankey" disabled={!hasCurrentResults}>Sankey Graph</ToggleGroupItem>
+                </ToggleGroup>
+              </div>
             </div>
           </div>
         </div>
+        {view === "graph" ? <div className="search graph-search"><Search size={16} /><Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a node…" aria-label="Find a node" /><kbd>⌘ K</kbd></div> : null}
         {view === "graph" ? <><ReactFlow
           className="reactflow-canvas"
           nodes={nodes}
@@ -2026,32 +2040,19 @@ function GraphEditor() {
           <Button variant="ghost" className={`graph-action ${graphMode === "structure" ? "is-active" : ""}`} aria-pressed={graphMode === "structure"} onClick={() => showGraphMode("structure")}><LayoutGrid size={16} />Structure Graph</Button>
         </div></> : view === "yaml" ? <div className="yaml-editor">
           <div className="yaml-editor-head">
-            <div><strong>Product graph YAML</strong><span>Choose a server catalog entry, paste YAML, or open a local file.</span></div>
+            <div><strong>Product graph YAML</strong><span>Edit the selected example, paste YAML, or open a local file.</span></div>
             <div className="yaml-editor-actions">
-              <label className="case-study-select">Product graph<AppSelect
-                value={selectedProductGraph}
-                onValueChange={(value) => !["custom", "loading", "unavailable"].includes(value) && loadProductGraph(value)}
-                label="Choose a product graph"
-                options={productGraphs.length ? [
-                  ...productGraphs.map((item) => ({ value: item.id, label: productGraphLabel(item.name) })),
-                  ...(selectedProductGraph === "custom" ? [{ value: "custom", label: "Custom YAML", disabled: true }] : []),
-                ] : [{
-                  value: selectedProductGraph,
-                  label: selectedProductGraph === "unavailable" ? "Catalog unavailable" : "Loading catalog…",
-                  disabled: true,
-                }]}
-              /></label>
-              <label className="yaml-upload"><FileUp size={15} /> Choose file<input type="file" accept=".yaml,.yml,text/yaml" onChange={(event) => loadYamlFile(event.target.files?.[0])} /></label>
+              <label className="yaml-upload"><FileUp size={15} /> Upload<input type="file" accept=".yaml,.yml,text/yaml" onChange={(event) => loadYamlFile(event.target.files?.[0])} /></label>
             </div>
           </div>
           <textarea value={yamlDraft} onChange={(event) => { setYamlDraft(event.target.value); setSelectedProductGraph("custom"); setYamlError("") }} spellCheck={false} aria-label="Product graph YAML" />
           <div className="yaml-editor-foot">
             <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (isDirty ? "Unapplied changes. Calculate the LCA or discard changes before leaving this view." : isCalculating ? "Calculating the selected YAML…" : "Catalog YAML is loaded from the LCA server and parsed locally.")}</span>
-            <Button size="sm" disabled={!isDirty || isCalculating} onClick={() => applyAndCalculateYaml(yamlDraft)}>Calculate LCA</Button>
+            <Button size="sm" disabled={!isDirty || isCalculating} onClick={() => applyAndCalculateYaml(yamlDraft)}>Recalculate</Button>
           </div>
         </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} loadContributionGraphs={loadContributionGraphs} /> : <div className="results-panel">
           <div className="results-panel-head">
-            <div><strong>LCA Results</strong><span>{isCalculating ? "Calculating the currently applied product graph…" : isDirty ? "Calculate the YAML changes before viewing updated results." : "Calculated from the currently applied product graph."}</span></div>
+            <div><strong>LCA Results</strong>{isCalculating ? <span className="calculation-message">Calculating…</span> : null}</div>
           </div>
           <div className="results-panel-body">
             {resultsError ? <div className="results-error"><strong>Calculation failed</strong><p>{resultsError}</p></div>
@@ -2113,7 +2114,7 @@ function GraphEditor() {
           <AlertDialogFooter>
             <AlertDialogCancel>Keep editing</AlertDialogCancel>
             <AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={discardAndContinue}>Discard changes</AlertDialogAction>
-            <AlertDialogAction onClick={calculateAndContinue}>Calculate LCA</AlertDialogAction>
+            <AlertDialogAction onClick={calculateAndContinue}>Recalculate</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -2123,13 +2124,14 @@ function GraphEditor() {
 
 function AppContent() {
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [workspaceTitle, setWorkspaceTitle] = useState("Loading product graphs…")
   const { decimalPlaces, setDecimalPlaces, showAllDecimalPlaces, setShowAllDecimalPlaces, theme, setTheme } = useDisplaySettings()
 
   return (
     <TooltipProvider delayDuration={250}>
       <main className={`app-shell theme-${theme}`}>
         <header className="topbar">
-          <div className="brand"><div className="brand-mark"><Share2 size={16} /></div><span>PRISM Life Cycle Assessment</span></div>
+          <div className="brand"><div className="brand-mark"><Share2 size={16} /></div><span>PRISM Life Cycle Assessment</span><span className="brand-separator">·</span><h1 className="brand-study-title">{workspaceTitle}</h1></div>
           <div className="top-actions">
             <Popover modal open={settingsOpen} onOpenChange={setSettingsOpen}>
               <PopoverTrigger asChild>
@@ -2158,7 +2160,7 @@ function AppContent() {
 
         <section className="workspace">
           <ReactFlowProvider>
-            <GraphEditor />
+            <GraphEditor onTitleChange={setWorkspaceTitle} />
           </ReactFlowProvider>
         </section>
       </main>

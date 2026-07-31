@@ -79,8 +79,11 @@ async function selectTheme(page: Page, theme: Theme) {
 }
 
 async function calculate(page: Page) {
-  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toBeChecked()
-  await expect(page.locator(".markdown-report")).toBeVisible()
+  await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeChecked()
+  const report = page.locator(".markdown-report")
+  await expect(report).toBeVisible()
+  await expect(report.locator("h1")).toHaveCount(0)
+  await expect(report.locator("p").first()).toContainText("Method:")
 }
 
 test("manual YAML changes must be calculated or discarded before navigation", async ({ page }) => {
@@ -90,48 +93,48 @@ test("manual YAML changes must be calculated or discarded before navigation", as
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   await expect(page.locator(".react-flow__node")).toHaveCount(5)
 
-  await page.getByRole("radio", { name: "FILE", exact: true }).click()
+  await page.getByRole("radio", { name: "Editor", exact: true }).click()
   const editor = page.getByRole("textbox", { name: "Product graph YAML" })
   const appliedSource = await editor.inputValue()
   await editor.fill(appliedSource.replace("Jacket", "Draft jacket"))
   await expect(page.getByText("Unapplied changes. Calculate the LCA or discard changes before leaving this view.")).toBeVisible()
-  await expect(page.getByRole("button", { name: "Calculate LCA" })).toBeEnabled()
-  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Recalculate" })).toBeEnabled()
+  await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeVisible()
   await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeVisible()
 
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   const dialog = page.getByRole("alertdialog")
   await expect(dialog.getByRole("heading", { name: "Unsaved YAML changes" })).toBeVisible()
   await dialog.getByRole("button", { name: "Keep editing" }).click()
-  await expect(page.getByRole("radio", { name: "FILE", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "Editor", exact: true })).toBeChecked()
 
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   await dialog.getByRole("button", { name: "Discard changes" }).click()
   await expect(page.getByRole("heading", { name: "Jacket" })).toBeVisible()
-  await page.getByRole("radio", { name: "FILE", exact: true }).click()
+  await page.getByRole("radio", { name: "Editor", exact: true }).click()
   await expect(editor).toHaveValue(appliedSource)
 
   await editor.fill("not: [valid")
-  await page.getByRole("button", { name: "Calculate LCA" }).click()
+  await page.getByRole("button", { name: "Recalculate" }).click()
   await expect(page.locator(".yaml-error")).toBeVisible()
 
   await editor.fill(appliedSource.replace("Jacket", "Calculated jacket"))
-  await page.getByRole("button", { name: "Calculate LCA" }).click()
+  await page.getByRole("button", { name: "Recalculate" }).click()
   await expect(page.getByRole("heading", { name: "Calculated jacket" })).toBeVisible()
-  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeChecked()
   await expect(page.locator(".markdown-report")).toBeVisible()
   await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeVisible()
 
   await page.getByRole("radio", { name: "Inventory", exact: true }).click()
   await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeChecked()
-  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).not.toBeChecked()
+  await expect(page.getByRole("radio", { name: "Results", exact: true })).not.toBeChecked()
 
-  await page.getByRole("radio", { name: "FILE", exact: true }).click()
+  await page.getByRole("radio", { name: "Editor", exact: true }).click()
   await editor.fill(appliedSource.replace("Jacket", "Modal calculated jacket"))
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
-  await dialog.getByRole("button", { name: "Calculate LCA" }).click()
+  await dialog.getByRole("button", { name: "Recalculate" }).click()
   await expect(page.getByRole("heading", { name: "Modal calculated jacket" })).toBeVisible()
-  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeChecked()
   await expect(page.locator(".markdown-report")).toBeVisible()
   await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeVisible()
 })
@@ -169,19 +172,21 @@ test("a calculation for an older applied revision cannot populate results", asyn
   await page.goto("/")
   await calculationRequested
 
-  await page.getByRole("radio", { name: "FILE", exact: true }).click()
+  await page.getByRole("radio", { name: "Editor", exact: true }).click()
   const editor = page.getByRole("textbox", { name: "Product graph YAML" })
   await editor.fill((await editor.inputValue()).replace("Jacket", "New revision"))
-  await page.getByRole("button", { name: "Calculate LCA" }).click()
+  await page.getByRole("button", { name: "Recalculate" }).click()
   await expect(page.getByRole("heading", { name: "New revision" })).toBeVisible()
-  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toBeChecked()
   await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toBeVisible()
-  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toHaveCount(0)
+  await expect(page.getByRole("radio", { name: "Editor", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeDisabled()
   await page.waitForTimeout(650)
 
-  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toBeChecked()
   await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toBeVisible()
-  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toHaveCount(0)
+  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeDisabled()
+  await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeChecked()
+  await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toHaveCount(0)
+  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeEnabled()
 })
 
 test("toolbar tooltips open from keyboard focus and pointer input", async ({ page }) => {
@@ -210,7 +215,7 @@ test("primary and result view switchers support arrow-key navigation", async ({ 
 
   await page.getByRole("radio", { name: "Graph", exact: true }).focus()
   await page.keyboard.press("ArrowRight")
-  const fileView = page.getByRole("radio", { name: "FILE", exact: true })
+  const fileView = page.getByRole("radio", { name: "Editor", exact: true })
   await expect(fileView).toBeFocused()
   await page.keyboard.press("Space")
   await expect(fileView).toBeChecked()
@@ -222,7 +227,7 @@ test("primary and result view switchers support arrow-key navigation", async ({ 
   await expect(impactView).toBeFocused()
   await page.keyboard.press("Space")
   await expect(impactView).toBeChecked()
-  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).not.toBeChecked()
+  await expect(page.getByRole("radio", { name: "Results", exact: true })).not.toBeChecked()
   await expect(page.locator(".impact-view")).toBeVisible()
 })
 
@@ -298,25 +303,25 @@ test("form controls preserve selection, clamping, and disabled behavior", async 
   await expect(decimalPlaces).toBeEnabled()
   await page.getByRole("button", { name: "Close global settings" }).click()
 
-  await page.getByRole("radio", { name: "FILE", exact: true }).click()
+  await page.getByRole("radio", { name: "Editor", exact: true }).click()
   const caseStudy = page.getByRole("combobox", { name: "Choose a product graph" })
   await caseStudy.click()
   await page.getByRole("option", { name: "Cotton Fiber", exact: true }).click()
   await expect(page.getByRole("heading", { name: "Cotton Fiber" })).toBeVisible()
-  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeChecked()
   await expect(page.locator(".markdown-report")).toBeVisible()
 
-  await page.getByRole("radio", { name: "FILE", exact: true }).click()
+  await page.getByRole("radio", { name: "Editor", exact: true }).click()
   await expect(page.getByRole("textbox", { name: "Product graph YAML" })).toHaveValue(/Cotton Fiber/)
-  await expect(page.getByRole("button", { name: "Calculate LCA" })).toBeDisabled()
+  await expect(page.getByRole("button", { name: "Recalculate" })).toBeDisabled()
   await caseStudy.click()
   await page.getByRole("option", { name: "Simple Mock Plastic Broom", exact: true }).click()
   await expect(page.getByRole("heading", { name: "Simple Mock Plastic Broom" })).toBeVisible()
-  await expect(page.getByRole("radio", { name: "LCA Results", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeChecked()
   await expect(page.locator(".markdown-report")).toBeVisible()
-  await page.getByRole("radio", { name: "FILE", exact: true }).click()
+  await page.getByRole("radio", { name: "Editor", exact: true }).click()
   await expect(page.getByRole("textbox", { name: "Product graph YAML" })).toHaveValue(/Mock freight transport, small truck, direct emissions only/)
-  await expect(page.getByRole("button", { name: "Calculate LCA" })).toBeDisabled()
+  await expect(page.getByRole("button", { name: "Recalculate" })).toBeDisabled()
 })
 
 test("settings popovers dismiss predictably and restore trigger focus", async ({ page }) => {
@@ -455,7 +460,7 @@ test("cumulative contribution graphs load only when an analysis pane opens", asy
   )
 })
 
-test("LCA Results shows progress during lazy contribution calculations", async ({ page }) => {
+test("Results shows progress during lazy contribution calculations", async ({ page }) => {
   await mockLcaApi(page, lcaResultFixture, undefined, 600)
   await page.goto("/")
   await calculate(page)
@@ -520,11 +525,11 @@ for (const theme of ["dark", "light"] as const) {
     await screenshot(page, `${theme}-graph-settings.png`)
     await page.getByRole("button", { name: "Close graph settings" }).click()
 
-    await page.getByRole("radio", { name: "FILE", exact: true }).click()
+    await page.getByRole("radio", { name: "Editor", exact: true }).click()
     await expect(page.locator(".yaml-editor")).toBeVisible()
     await screenshot(page, `${theme}-yaml-editor.png`)
 
-    await page.getByRole("radio", { name: "LCA Results", exact: true }).click()
+    await page.getByRole("radio", { name: "Results", exact: true }).click()
     await expect(page.locator(".markdown-report")).toBeVisible()
     await screenshot(page, `${theme}-lca-results.png`)
 

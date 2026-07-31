@@ -468,8 +468,6 @@ export function lcaResultToMarkdown(result: LcaResult, decimalPlaces = 5, showAl
   const inventoryRows = Object.entries(result.lci).map(([flow, value]) => `| ${cell(inventoryFlowLabel(flow))} | ${formatNumber(value.amount ?? 0)} | ${cell(value.unit)} | ${cell(value.type ?? "—")} |`)
 
   return [
-    `# ${result.name}`,
-    "",
     `**Method:** ${result.method}  `,
     `**Functional unit:** ${result.functional_unit}`,
     "",
