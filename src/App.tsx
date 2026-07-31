@@ -9,7 +9,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import {
   BarChart3, Box, Component, Scan, LayoutGrid, ChevronDown, Factory, Leaf,
-  FileUp, Minus, Moon, MousePointer2, Plus, Search, Settings2, Share2, Sun, X,
+  ClipboardPaste, FileUp, Minus, Moon, MousePointer2, Plus, Search, Settings2, Share2, Sun, X,
 } from "lucide-react"
 import { parse } from "yaml"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -41,6 +41,7 @@ type View = "graph" | "yaml" | "inventory" | "impact" | "process" | "contributio
 type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribution" | "sankey">
 const analysisViews: AnalysisView[] = ["inventory", "impact", "process", "contribution", "sankey"]
 const isAnalysisView = (view: View): view is AnalysisView => analysisViews.includes(view as AnalysisView)
+const WEBAPP_DEFAULT_PRODUCT_GRAPH_ID = import.meta.env.VITE_DEFAULT_PRODUCT_GRAPH_ID ?? "cotton_fiber"
 
 const initialEdges: Edge[] = []
 const initialNodes: Node<ProcessNodeData>[] = []
@@ -1228,8 +1229,9 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges)
   const [selected, setSelected] = useState<(NodeMeta & { id: string }) | null>(null)
   const [query, setQuery] = useState("")
-  const [view, setView] = useState<View>("results")
+  const [view, setView] = useState<View>("graph")
   const [pendingView, setPendingView] = useState<View | null>(null)
+  const [confirmNewYamlOpen, setConfirmNewYamlOpen] = useState(false)
   const [yamlDraft, setYamlDraft] = useState("")
   const [appliedYaml, setAppliedYaml] = useState("")
   const [appliedRevision, setAppliedRevision] = useState(0)
@@ -1249,6 +1251,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
   const [graphMaxProcesses, setGraphMaxProcesses] = useState(1)
   const [graphOrientation, setGraphOrientation] = useState<"vertical" | "horizontal">("horizontal")
   const [graphConnectionStyle, setGraphConnectionStyle] = useState<"curved" | "straight" | "step">("curved")
+  const inspectorOpen = selected !== null
   const foldDirectionRef = useRef<"upstream" | "downstream">("upstream")
   const nodesRef = useRef(nodes)
   const edgesRef = useRef(edges)
@@ -1260,6 +1263,18 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
   edgesRef.current = edges
   appliedRevisionRef.current = appliedRevision
   const { fitView, zoomIn, zoomOut } = useReactFlow()
+
+  useEffect(() => {
+    if (view !== "graph") return
+    let fitFrame = 0
+    const resizeFrame = requestAnimationFrame(() => {
+      fitFrame = requestAnimationFrame(() => fitView({ padding: 0.35, maxZoom: 0.75, duration: 250 }))
+    })
+    return () => {
+      cancelAnimationFrame(resizeFrame)
+      cancelAnimationFrame(fitFrame)
+    }
+  }, [fitView, inspectorOpen, view])
   const availableGraphProcessCount = (() => {
     try {
       return buildGraphFromYaml(appliedYaml, "structure").nodes.filter((node) => node.data.scope !== "background").length
@@ -1713,7 +1728,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
     }
   }
 
-  const calculateSource = async (source: string, revision: number, openResultsWhenReady = false) => {
+  const calculateSource = async (source: string, revision: number, openGraphWhenReady = false) => {
     activeCalculationRef.current?.abort()
     const controller = new AbortController()
     activeCalculationRef.current = controller
@@ -1728,7 +1743,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
       setLcaResult(result)
       setCalculatedRevision(revision)
       setResultsMarkdown(lcaResultToMarkdown(result, decimalPlaces, showAllDecimalPlaces))
-      if (openResultsWhenReady) setView("results")
+      if (openGraphWhenReady) setView("graph")
     } catch (error) {
       if (controller.signal.aborted || appliedRevisionRef.current !== revision) return
       setResultsError(error instanceof Error ? error.message : "Could not calculate the current product graph.")
@@ -1746,7 +1761,8 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
     void (async () => {
       try {
         const catalog = await getProductGraphCatalog()
-        const initial = catalog.product_graphs.find((item) => item.id === catalog.default_id)
+        const initial = catalog.product_graphs.find((item) => item.id === WEBAPP_DEFAULT_PRODUCT_GRAPH_ID)
+          ?? catalog.product_graphs.find((item) => item.id === catalog.default_id)
         if (!initial) throw new Error("The product-graph catalog has no default selection.")
         setProductGraphs(catalog.product_graphs)
         setSelectedProductGraph(initial.id)
@@ -1764,10 +1780,10 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const applyAndCalculateYaml = (source: string, openResultsWhenReady = true) => {
+  const applyAndCalculateYaml = (source: string, openGraphWhenReady = true) => {
     const revision = applyYaml(source)
     if (revision === null) return
-    void calculateSource(source, revision, openResultsWhenReady)
+    void calculateSource(source, revision, openGraphWhenReady)
   }
 
   const loadYamlFile = (file?: File) => {
@@ -1796,6 +1812,29 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
 
   const connectionCount = edges.length
   const isDirty = yamlDraft !== appliedYaml
+  const customYamlLabel = (() => {
+    try {
+      const source = parse(yamlDraft) as { name?: unknown }
+      return typeof source?.name === "string" && source.name.trim()
+        ? productGraphLabel(source.name.trim())
+        : "Pasted YAML"
+    } catch {
+      return "Pasted YAML"
+    }
+  })()
+  const openBlankYamlEditor = () => {
+    setSelectedProductGraph("custom")
+    setYamlDraft("")
+    setYamlError("")
+    setView("yaml")
+  }
+  const startPastedYaml = () => {
+    if (isDirty) {
+      setConfirmNewYamlOpen(true)
+      return
+    }
+    openBlankYamlEditor()
+  }
   const discardYamlChanges = () => {
     setYamlDraft(appliedYaml)
     setSelectedProductGraph(productGraphs.find((item) => item.product_graph === appliedYaml)?.id ?? "custom")
@@ -1944,7 +1983,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
                 label="Choose a product graph"
                 options={productGraphs.length ? [
                   ...productGraphs.map((item) => ({ value: item.id, label: productGraphLabel(item.name) })),
-                  ...(selectedProductGraph === "custom" ? [{ value: "custom", label: "Custom YAML", disabled: true }] : []),
+                  ...(selectedProductGraph === "custom" ? [{ value: "custom", label: customYamlLabel, disabled: true }] : []),
                 ] : [{
                   value: selectedProductGraph,
                   label: selectedProductGraph === "unavailable" ? "Catalog unavailable" : "Loading catalog…",
@@ -1970,7 +2009,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
           </div>
         </div>
         {view === "graph" ? <div className="search graph-search"><Search size={16} /><Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a node…" aria-label="Find a node" /><kbd>⌘ K</kbd></div> : null}
-        {view === "graph" ? <><ReactFlow
+        {view === "graph" ? <><div className={`graph-viewport${inspectorOpen ? " has-inspector" : ""}`}><ReactFlow
           className="reactflow-canvas"
           nodes={nodes}
           edges={edges}
@@ -1991,7 +2030,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
           proOptions={{ hideAttribution: true }}
         >
           <Background variant={BackgroundVariant.Dots} gap={22} size={1} color={theme === "dark" ? "#242831" : "#cbd5e1"} />
-        </ReactFlow>
+        </ReactFlow></div>
         <div className="graph-toolbar" aria-label="Graph tools">
           <div className="toolbar-group">
             <Popover modal open={graphSettingsOpen} onOpenChange={setGraphSettingsOpen}>
@@ -2042,13 +2081,14 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
           <div className="yaml-editor-head">
             <div><strong>Product graph YAML</strong><span>Edit the selected example, paste YAML, or open a local file.</span></div>
             <div className="yaml-editor-actions">
+              <Button size="sm" variant="outline" className="yaml-paste-button" onClick={startPastedYaml}><ClipboardPaste size={14} />Paste YAML</Button>
               <label className="yaml-upload"><FileUp size={15} /> Upload<input type="file" accept=".yaml,.yml,text/yaml" onChange={(event) => loadYamlFile(event.target.files?.[0])} /></label>
             </div>
           </div>
           <textarea value={yamlDraft} onChange={(event) => { setYamlDraft(event.target.value); setSelectedProductGraph("custom"); setYamlError("") }} spellCheck={false} aria-label="Product graph YAML" />
           <div className="yaml-editor-foot">
-            <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (isDirty ? "Unapplied changes. Calculate the LCA or discard changes before leaving this view." : isCalculating ? "Calculating the selected YAML…" : "Catalog YAML is loaded from the LCA server and parsed locally.")}</span>
-            <Button size="sm" disabled={!isDirty || isCalculating} onClick={() => applyAndCalculateYaml(yamlDraft)}>Recalculate</Button>
+            <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (!yamlDraft.trim() ? "Paste YAML to create a new LCA." : isDirty ? "Unapplied changes. Calculate the LCA or discard changes before leaving this view." : isCalculating ? "Calculating the selected YAML…" : "Catalog YAML is loaded from the LCA server and parsed locally.")}</span>
+            <Button size="sm" disabled={!isDirty || isCalculating || !yamlDraft.trim()} onClick={() => applyAndCalculateYaml(yamlDraft)}>Calculate</Button>
           </div>
         </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} loadContributionGraphs={loadContributionGraphs} /> : <div className="results-panel">
           <div className="results-panel-head">
@@ -2114,7 +2154,21 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
           <AlertDialogFooter>
             <AlertDialogCancel>Keep editing</AlertDialogCancel>
             <AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={discardAndContinue}>Discard changes</AlertDialogAction>
-            <AlertDialogAction onClick={calculateAndContinue}>Recalculate</AlertDialogAction>
+            <AlertDialogAction onClick={calculateAndContinue}>Calculate</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={confirmNewYamlOpen} onOpenChange={setConfirmNewYamlOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard current YAML changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Starting a new pasted YAML file will clear the unapplied changes currently in the editor.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={openBlankYamlEditor}>Discard and start new</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -244,6 +244,8 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
 .graph-search { position: absolute; z-index: 3; top: 70px; right: 28px; }
 .search input { width: auto; min-width: 0; height: auto; flex: 1; padding: 0; color: var(--search-input-foreground); border: 0; border-radius: 0; outline: 0; background: transparent; box-shadow: none; font-size: 12px; }
 .search kbd { padding: 2px 5px; border: 1px solid #343840; border-radius: 4px; color: #676d77; font-size: 9px; }
+.graph-viewport { position: absolute; inset: 0; z-index: 1; }
+.graph-viewport.has-inspector { right: 322px; }
 .reactflow-canvas { position: absolute; inset: 0; z-index: 1; }
 .reactflow-canvas .react-flow__edge-path, .sankey-canvas .react-flow__edge-path { stroke: var(--graph-edge) !important; stroke-linecap: round; }
 .reactflow-canvas marker path, .sankey-canvas marker path,
@@ -261,6 +263,7 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
 .navigation-product-select { gap: 5px; padding-right: 3px; }
 .navigation-product-select > span { padding-left: 5px; color: var(--label-foreground); font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .navigation-product-select [data-slot="select-trigger"] { width: 190px; height: 26px; border: 0; background: transparent; }
+.yaml-paste-button { height: 30px; padding: 0 10px; font-size: 11px; }
 .yaml-upload { display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 10px; border: 1px solid var(--control-border); border-radius: 7px; color: var(--upload-foreground); background: var(--select-background); font-size: 11px; cursor: pointer; }
 .yaml-upload:hover { border-color: var(--control-border-hover); color: var(--foreground); }.yaml-upload input { display: none; }
 .yaml-editor textarea { width: 100%; height: 100%; resize: none; padding: 18px; border: 0; outline: 0; color: var(--editor-foreground); background: var(--editor-background); font: 12px/1.6 "SFMono-Regular", Consolas, "Liberation Mono", monospace; tab-size: 2; }

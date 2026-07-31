@@ -79,7 +79,9 @@ async function selectTheme(page: Page, theme: Theme) {
 }
 
 async function calculate(page: Page) {
-  await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeEnabled()
+  await page.getByRole("radio", { name: "Results", exact: true }).click()
   const report = page.locator(".markdown-report")
   await expect(report).toBeVisible()
   await expect(report.locator("h1")).toHaveCount(0)
@@ -98,7 +100,7 @@ test("manual YAML changes must be calculated or discarded before navigation", as
   const appliedSource = await editor.inputValue()
   await editor.fill(appliedSource.replace("Jacket", "Draft jacket"))
   await expect(page.getByText("Unapplied changes. Calculate the LCA or discard changes before leaving this view.")).toBeVisible()
-  await expect(page.getByRole("button", { name: "Recalculate" })).toBeEnabled()
+  await expect(page.getByRole("button", { name: "Calculate" })).toBeEnabled()
   await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeVisible()
   await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeVisible()
 
@@ -115,13 +117,14 @@ test("manual YAML changes must be calculated or discarded before navigation", as
   await expect(editor).toHaveValue(appliedSource)
 
   await editor.fill("not: [valid")
-  await page.getByRole("button", { name: "Recalculate" }).click()
+  await page.getByRole("button", { name: "Calculate" }).click()
   await expect(page.locator(".yaml-error")).toBeVisible()
 
   await editor.fill(appliedSource.replace("Jacket", "Calculated jacket"))
-  await page.getByRole("button", { name: "Recalculate" }).click()
+  await page.getByRole("button", { name: "Calculate" }).click()
   await expect(page.getByRole("heading", { name: "Calculated jacket" })).toBeVisible()
-  await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
+  await page.getByRole("radio", { name: "Results", exact: true }).click()
   await expect(page.locator(".markdown-report")).toBeVisible()
   await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeVisible()
 
@@ -132,11 +135,34 @@ test("manual YAML changes must be calculated or discarded before navigation", as
   await page.getByRole("radio", { name: "Editor", exact: true }).click()
   await editor.fill(appliedSource.replace("Jacket", "Modal calculated jacket"))
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
-  await dialog.getByRole("button", { name: "Recalculate" }).click()
+  await dialog.getByRole("button", { name: "Calculate" }).click()
   await expect(page.getByRole("heading", { name: "Modal calculated jacket" })).toBeVisible()
-  await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
+  await page.getByRole("radio", { name: "Results", exact: true }).click()
   await expect(page.locator(".markdown-report")).toBeVisible()
   await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeVisible()
+})
+
+test("Paste YAML opens a blank custom editor and calculates the pasted source", async ({ page }) => {
+  await mockLcaApi(page)
+  await page.goto("/")
+  await calculate(page)
+
+  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  const editor = page.getByRole("textbox", { name: "Product graph YAML" })
+  const source = await editor.inputValue()
+  await page.getByRole("button", { name: "Paste YAML" }).click()
+
+  await expect(editor).toHaveValue("")
+  await expect(page.getByText("Paste YAML to create a new LCA.")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Calculate" })).toBeDisabled()
+
+  await editor.fill(source.replace("Jacket", "Pasted jacket"))
+  await expect(page.getByRole("button", { name: "Calculate" })).toBeEnabled()
+  await expect(page.getByRole("combobox", { name: "Choose a product graph" })).toHaveText(/Pasted jacket/)
+  await page.getByRole("button", { name: "Calculate" }).click()
+  await expect(page.getByRole("heading", { name: "Pasted jacket" })).toBeVisible()
+  await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
 })
 
 test("a calculation for an older applied revision cannot populate results", async ({ page }) => {
@@ -175,7 +201,7 @@ test("a calculation for an older applied revision cannot populate results", asyn
   await page.getByRole("radio", { name: "Editor", exact: true }).click()
   const editor = page.getByRole("textbox", { name: "Product graph YAML" })
   await editor.fill((await editor.inputValue()).replace("Jacket", "New revision"))
-  await page.getByRole("button", { name: "Recalculate" }).click()
+  await page.getByRole("button", { name: "Calculate" }).click()
   await expect(page.getByRole("heading", { name: "New revision" })).toBeVisible()
   await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toBeVisible()
   await expect(page.getByRole("radio", { name: "Editor", exact: true })).toBeChecked()
@@ -184,7 +210,7 @@ test("a calculation for an older applied revision cannot populate results", asyn
 
   await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toBeVisible()
   await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeDisabled()
-  await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
   await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toHaveCount(0)
   await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeEnabled()
 })
@@ -308,20 +334,24 @@ test("form controls preserve selection, clamping, and disabled behavior", async 
   await caseStudy.click()
   await page.getByRole("option", { name: "Cotton Fiber", exact: true }).click()
   await expect(page.getByRole("heading", { name: "Cotton Fiber" })).toBeVisible()
-  await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeEnabled()
+  await page.getByRole("radio", { name: "Results", exact: true }).click()
   await expect(page.locator(".markdown-report")).toBeVisible()
 
   await page.getByRole("radio", { name: "Editor", exact: true }).click()
   await expect(page.getByRole("textbox", { name: "Product graph YAML" })).toHaveValue(/Cotton Fiber/)
-  await expect(page.getByRole("button", { name: "Recalculate" })).toBeDisabled()
+  await expect(page.getByRole("button", { name: "Calculate" })).toBeDisabled()
   await caseStudy.click()
   await page.getByRole("option", { name: "Simple Mock Plastic Broom", exact: true }).click()
   await expect(page.getByRole("heading", { name: "Simple Mock Plastic Broom" })).toBeVisible()
-  await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeEnabled()
+  await page.getByRole("radio", { name: "Results", exact: true }).click()
   await expect(page.locator(".markdown-report")).toBeVisible()
   await page.getByRole("radio", { name: "Editor", exact: true }).click()
   await expect(page.getByRole("textbox", { name: "Product graph YAML" })).toHaveValue(/Mock freight transport, small truck, direct emissions only/)
-  await expect(page.getByRole("button", { name: "Recalculate" })).toBeDisabled()
+  await expect(page.getByRole("button", { name: "Calculate" })).toBeDisabled()
 })
 
 test("settings popovers dismiss predictably and restore trigger focus", async ({ page }) => {
@@ -499,6 +529,23 @@ test("Structure Graph is the default and Scaled Graph is enabled after the LCA f
   await expect(scaledGraph).toHaveAttribute("aria-pressed", "true")
   await structureGraph.click()
   await expect(structureGraph).toHaveAttribute("aria-pressed", "true")
+})
+
+test("opening the inspector keeps the selected jacket node visible", async ({ page }) => {
+  await mockLcaApi(page)
+  await page.goto("/")
+  await expect(page.locator(".react-flow__node")).toHaveCount(5)
+
+  const jacketNode = page.locator(".react-flow__node").last()
+  await jacketNode.click()
+  const inspector = page.locator(".inspector")
+  await expect(inspector).toBeVisible()
+  await expect.poll(async () => {
+    const nodeBounds = await jacketNode.boundingBox()
+    const inspectorBounds = await inspector.boundingBox()
+    if (!nodeBounds || !inspectorBounds) return Number.NEGATIVE_INFINITY
+    return inspectorBounds.x - (nodeBounds.x + nodeBounds.width)
+  }).toBeGreaterThanOrEqual(16)
 })
 
 for (const theme of ["dark", "light"] as const) {
