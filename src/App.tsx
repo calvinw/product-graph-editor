@@ -26,21 +26,11 @@ import { layoutNodes } from "./lib/layout"
 import { chemicalFlowLabel } from "./lib/flowLabels"
 import { buildGraphFromYaml, buildInventoryRequirements, nodeScopeColors } from "./lib/yamlGraph"
 import {
-  calculateContributionGraphs, calculateLca, getBackgroundActivityDetails, impactCategoryAbbreviation, impactCategoryDisplayName, lcaResultToMarkdown,
-  type ContributionGraph, type ContributionGraphEdge, type ContributionGraphFlow, type ContributionGraphNode, type LcaResult,
+  calculateContributionGraphs, calculateLca, getBackgroundActivityDetails, getProductGraphCatalog, impactCategoryAbbreviation, impactCategoryDisplayName, lcaResultToMarkdown,
+  type ContributionGraph, type ContributionGraphEdge, type ContributionGraphFlow, type ContributionGraphNode, type LcaResult, type ProductGraphCatalogEntry,
 } from "./lib/lcaApi"
 import { unitsAreCompatible } from "./lib/units"
 import { DisplaySettingsProvider, useDisplaySettings } from "./lib/displaySettings"
-import jacketYaml from "../case_studies/jacket.yaml?raw"
-import cottonFiberYaml from "../case_studies/cotton_fiber.yaml?raw"
-import cottonFiberBafuLinkedYaml from "../case_studies/cotton_fiber_bafu_linked.yaml?raw"
-import mockPlasticBroomYaml from "../case_studies/mock_plastic_broom.yaml?raw"
-import mockPlasticBroomSimpleYaml from "../case_studies/mock_plastic_broom_simple.yaml?raw"
-import plasticBroomYaml from "../case_studies/plastic_broom.yaml?raw"
-import polyesterTshirtYaml from "../case_studies/polyester_tshirt.yaml?raw"
-import polyesterTshirtBafuLinkedYaml from "../case_studies/polyester_tshirt_bafu_linked.yaml?raw"
-import woolYarnYaml from "../case_studies/wool_yarn.yaml?raw"
-import woolYarnBafuLinkedYaml from "../case_studies/wool_yarn_bafu_linked.yaml?raw"
 
 type NodeMeta = { label: string; kind: string; detail: string; color: string; scope?: "foreground" | "background" }
 type View = "graph" | "yaml" | "inventory" | "impact" | "process" | "contribution" | "sankey" | "results"
@@ -48,12 +38,8 @@ type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribu
 const analysisViews: AnalysisView[] = ["inventory", "impact", "process", "contribution", "sankey"]
 const isAnalysisView = (view: View): view is AnalysisView => analysisViews.includes(view as AnalysisView)
 
-const defaultGraph = buildGraphFromYaml(jacketYaml, "structure")
-const initialEdges: Edge[] = defaultGraph.edges
-const initialNodes: Node<ProcessNodeData>[] = defaultGraph.nodes.map((node) => ({
-  ...node,
-  data: { ...node.data, canFold: initialEdges.some((edge) => edge.target === node.id) },
-}))
+const initialEdges: Edge[] = []
+const initialNodes: Node<ProcessNodeData>[] = []
 
 const nodeTypes = { process: ProcessNode }
 type SankeyProcessNodeData = {
@@ -106,19 +92,7 @@ const targetExpandedInputRows = (nodes: Node<ProcessNodeData>[], edges: Edge[]) 
       : edge
   })
 }
-const caseStudies = {
-  jacket: { label: "Jacket", yaml: jacketYaml },
-  cottonFiber: { label: "Cotton Fiber", yaml: cottonFiberYaml },
-  cottonFiberBafuLinked: { label: "Cotton Fiber(bafu-linked)", yaml: cottonFiberBafuLinkedYaml },
-  mockPlasticBroom: { label: "Mock Plastic Broom", yaml: mockPlasticBroomYaml },
-  mockPlasticBroomSimple: { label: "Simple Mock Plastic Broom", yaml: mockPlasticBroomSimpleYaml },
-  plasticBroom: { label: "Plastic Broom(bafu-linked)", yaml: plasticBroomYaml },
-  polyesterTshirt: { label: "Polyester T-shirt", yaml: polyesterTshirtYaml },
-  polyesterTshirtBafuLinked: { label: "Polyester T-shirt(bafu-linked)", yaml: polyesterTshirtBafuLinkedYaml },
-  woolYarn: { label: "Wool Yarn", yaml: woolYarnYaml },
-  woolYarnBafuLinked: { label: "Wool Yarn(bafu-linked)", yaml: woolYarnBafuLinkedYaml },
-} as const
-type CaseStudyId = keyof typeof caseStudies
+const productGraphLabel = (name: string) => name.replace(/\s+—\s+1\s+.*$/, "")
 
 const isInventoryInput = (type: string) => /resource|extraction|input/i.test(type)
 const inventoryFlowName = (name: string) => {
@@ -990,10 +964,6 @@ function SankeyView({ result, loadContributionGraphs }: {
   const category = result.process_contributions.categories.find((item) => item.label === selectedImpact || item.id === selectedImpact)
   const selectedContributionGraph = result.contribution_graphs.find((graph) => graph.label === selectedImpact)
   const impactGraphPending = mode === "impact" && !selectedContributionGraph
-  useEffect(() => {
-    if (!impactGraphPending || !selectedImpact) return
-    void loadContributionGraphs([selectedImpact]).catch(() => undefined)
-  }, [impactGraphPending, loadContributionGraphs, selectedImpact])
   const processNodes = mode === "impact" && selectedContributionGraph
     ? selectedContributionGraph.nodes.map((node) => ({
         id: node.id,
@@ -1255,12 +1225,13 @@ function GraphEditor() {
   const [selected, setSelected] = useState<(NodeMeta & { id: string }) | null>(null)
   const [query, setQuery] = useState("")
   const [view, setView] = useState<View>("results")
-  const [yamlDraft, setYamlDraft] = useState(jacketYaml)
-  const [appliedYaml, setAppliedYaml] = useState(jacketYaml)
+  const [yamlDraft, setYamlDraft] = useState("")
+  const [appliedYaml, setAppliedYaml] = useState("")
   const [appliedRevision, setAppliedRevision] = useState(0)
-  const [selectedCaseStudy, setSelectedCaseStudy] = useState<CaseStudyId | "custom">("jacket")
+  const [productGraphs, setProductGraphs] = useState<ProductGraphCatalogEntry[]>([])
+  const [selectedProductGraph, setSelectedProductGraph] = useState("loading")
   const [yamlError, setYamlError] = useState("")
-  const [graphTitle, setGraphTitle] = useState(defaultGraph.name)
+  const [graphTitle, setGraphTitle] = useState("Loading product graphs…")
   const [resultsMarkdown, setResultsMarkdown] = useState("")
   const [resultsError, setResultsError] = useState("")
   const [contributionError, setContributionError] = useState("")
@@ -1270,7 +1241,7 @@ function GraphEditor() {
   const [calculatedRevision, setCalculatedRevision] = useState<number | null>(null)
   const [graphMode, setGraphMode] = useState<"scaled" | "structure">("structure")
   const [graphSettingsOpen, setGraphSettingsOpen] = useState(false)
-  const [graphMaxProcesses, setGraphMaxProcesses] = useState(initialNodes.filter((node) => node.data.scope !== "background").length)
+  const [graphMaxProcesses, setGraphMaxProcesses] = useState(1)
   const [graphOrientation, setGraphOrientation] = useState<"vertical" | "horizontal">("horizontal")
   const [graphConnectionStyle, setGraphConnectionStyle] = useState<"curved" | "straight" | "step">("curved")
   const foldDirectionRef = useRef<"upstream" | "downstream">("upstream")
@@ -1766,8 +1737,24 @@ function GraphEditor() {
   useEffect(() => {
     if (initialCalculationStartedRef.current) return
     initialCalculationStartedRef.current = true
-    void calculateSource(jacketYaml, appliedRevisionRef.current)
-    // The initial Jacket calculation must run exactly once per app mount.
+    void (async () => {
+      try {
+        const catalog = await getProductGraphCatalog()
+        const initial = catalog.product_graphs.find((item) => item.id === catalog.default_id)
+        if (!initial) throw new Error("The product-graph catalog has no default selection.")
+        setProductGraphs(catalog.product_graphs)
+        setSelectedProductGraph(initial.id)
+        setYamlDraft(initial.product_graph)
+        const revision = applyYaml(initial.product_graph)
+        if (revision !== null) void calculateSource(initial.product_graph, revision)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Could not load product graphs from the LCA server."
+        setSelectedProductGraph("unavailable")
+        setYamlError(message)
+        setResultsError(message)
+      }
+    })()
+    // The initial catalog load and calculation must run exactly once per app mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -1782,14 +1769,15 @@ function GraphEditor() {
     if (!file) return
     if (!/\.ya?ml$/i.test(file.name)) { setYamlError("Choose a .yaml or .yml file."); return }
     const reader = new FileReader()
-    reader.onload = () => { setYamlDraft(String(reader.result ?? "")); setSelectedCaseStudy("custom"); setYamlError("") }
+    reader.onload = () => { setYamlDraft(String(reader.result ?? "")); setSelectedProductGraph("custom"); setYamlError("") }
     reader.onerror = () => setYamlError("Could not read the selected file.")
     reader.readAsText(file)
   }
 
-  const loadCaseStudy = (id: CaseStudyId) => {
-    const source = caseStudies[id].yaml
-    setSelectedCaseStudy(id)
+  const loadProductGraph = (id: string) => {
+    const source = productGraphs.find((item) => item.id === id)?.product_graph
+    if (!source) return
+    setSelectedProductGraph(id)
     setYamlDraft(source)
     setYamlError("")
   }
@@ -1981,23 +1969,27 @@ function GraphEditor() {
           <Button variant="ghost" className={`graph-action ${graphMode === "structure" ? "is-active" : ""}`} aria-pressed={graphMode === "structure"} onClick={() => showGraphMode("structure")}><LayoutGrid size={16} />Structure Graph</Button>
         </div></> : view === "yaml" ? <div className="yaml-editor">
           <div className="yaml-editor-head">
-            <div><strong>Product graph YAML</strong><span>Paste YAML or choose a local .yaml/.yml file.</span></div>
+            <div><strong>Product graph YAML</strong><span>Choose a server catalog entry, paste YAML, or open a local file.</span></div>
             <div className="yaml-editor-actions">
-              <label className="case-study-select">Case study<AppSelect
-                value={selectedCaseStudy}
-                onValueChange={(value) => value !== "custom" && loadCaseStudy(value as CaseStudyId)}
-                label="Choose a case study"
-                options={[
-                  ...Object.entries(caseStudies).map(([value, study]) => ({ value, label: study.label })),
-                  ...(selectedCaseStudy === "custom" ? [{ value: "custom", label: "Custom YAML", disabled: true }] : []),
-                ]}
+              <label className="case-study-select">Product graph<AppSelect
+                value={selectedProductGraph}
+                onValueChange={(value) => !["custom", "loading", "unavailable"].includes(value) && loadProductGraph(value)}
+                label="Choose a product graph"
+                options={productGraphs.length ? [
+                  ...productGraphs.map((item) => ({ value: item.id, label: productGraphLabel(item.name) })),
+                  ...(selectedProductGraph === "custom" ? [{ value: "custom", label: "Custom YAML", disabled: true }] : []),
+                ] : [{
+                  value: selectedProductGraph,
+                  label: selectedProductGraph === "unavailable" ? "Catalog unavailable" : "Loading catalog…",
+                  disabled: true,
+                }]}
               /></label>
               <label className="yaml-upload"><FileUp size={15} /> Choose file<input type="file" accept=".yaml,.yml,text/yaml" onChange={(event) => loadYamlFile(event.target.files?.[0])} /></label>
             </div>
           </div>
-          <textarea value={yamlDraft} onChange={(event) => { setYamlDraft(event.target.value); setSelectedCaseStudy("custom"); setYamlError("") }} spellCheck={false} aria-label="Product graph YAML" />
+          <textarea value={yamlDraft} onChange={(event) => { setYamlDraft(event.target.value); setSelectedProductGraph("custom"); setYamlError("") }} spellCheck={false} aria-label="Product graph YAML" />
           <div className="yaml-editor-foot">
-            <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (isDirty ? "Unapplied changes. Calculate LCA to apply this YAML." : "Files are parsed locally in your browser.")}</span>
+            <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (isDirty ? "Unapplied changes. Calculate LCA to apply this YAML." : "Catalog YAML is loaded from the LCA server and parsed locally.")}</span>
             <Button onClick={() => applyAndCalculateYaml(yamlDraft)}>Calculate LCA</Button>
           </div>
         </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} loadContributionGraphs={loadContributionGraphs} /> : <div className="results-panel">
