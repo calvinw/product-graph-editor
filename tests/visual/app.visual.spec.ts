@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 import { lcaResultFixture } from "../fixtures/lca-result"
+import { productGraphCatalogFixture } from "../fixtures/product-graph-catalog"
 
 type Theme = "dark" | "light"
 
@@ -12,6 +13,10 @@ async function mockLcaApi(
 ) {
   await page.route("**/lca-api/api/**", async (route) => {
     const { pathname } = new URL(route.request().url())
+    if (pathname.endsWith("/api/product-graphs")) {
+      await route.fulfill({ json: productGraphCatalogFixture })
+      return
+    }
     if (pathname.endsWith("/api/health")) {
       await route.fulfill({ json: { running: true } })
       return
@@ -101,7 +106,7 @@ test("Calculate LCA applies YAML and opens the active results view", async ({ pa
   await expect(page.locator(".yaml-error")).toBeVisible()
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   await expect(page.getByRole("heading", { name: "Jacket" })).toBeVisible()
-  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeVisible()
+  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toHaveCount(0)
 
   await page.getByRole("radio", { name: "FILE", exact: true }).click()
   await editor.fill(appliedSource.replace("Jacket", "Calculated jacket"))
@@ -124,6 +129,10 @@ test("a calculation for an older applied revision cannot populate results", asyn
   })
   await page.route("**/lca-api/api/**", async (route) => {
     const { pathname } = new URL(route.request().url())
+    if (pathname.endsWith("/api/product-graphs")) {
+      await route.fulfill({ json: productGraphCatalogFixture })
+      return
+    }
     if (pathname.endsWith("/api/health")) {
       await route.fulfill({ json: { running: true } })
       return
@@ -275,7 +284,7 @@ test("form controls preserve selection, clamping, and disabled behavior", async 
   await page.getByRole("button", { name: "Close global settings" }).click()
 
   await page.getByRole("radio", { name: "FILE", exact: true }).click()
-  const caseStudy = page.getByRole("combobox", { name: "Choose a case study" })
+  const caseStudy = page.getByRole("combobox", { name: "Choose a product graph" })
   await caseStudy.click()
   await page.getByRole("option", { name: "Cotton Fiber", exact: true }).click()
   await expect(page.getByRole("textbox", { name: "Product graph YAML" })).toHaveValue(/Cotton Fiber/)
@@ -440,12 +449,12 @@ test("LCA Results shows progress during lazy contribution calculations", async (
 })
 
 test("Sankey starts in Impact mode without briefly rendering the Flow graph", async ({ page }) => {
-  await mockLcaApi(page, { ...lcaResultFixture, contribution_graphs: [] }, undefined, 600)
+  await mockLcaApi(page, lcaResultFixture, undefined, 600)
   await page.goto("/")
   await calculate(page)
   await page.getByRole("radio", { name: "Sankey Graph", exact: true }).click()
 
-  await expect(page.getByRole("status")).toContainText("Loading impact graph")
+  await expect(page.locator(".sankey-empty[role=status]")).toContainText("Loading impact graph")
   await expect(page.locator(".sankey-process-node")).toHaveCount(0)
   await expect(page.locator(".sankey-process-node").first()).toBeVisible()
   await page.getByRole("button", { name: "Chart settings" }).click()

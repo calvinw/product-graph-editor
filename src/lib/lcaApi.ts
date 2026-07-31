@@ -169,6 +169,18 @@ export type BackgroundActivityDetails = {
   exchanges: ActivityExchange[]
 }
 
+export type ProductGraphCatalogEntry = {
+  id: string
+  filename: string
+  name: string
+  product_graph: string
+}
+
+export type ProductGraphCatalog = {
+  default_id: string
+  product_graphs: ProductGraphCatalogEntry[]
+}
+
 type ActivitySearchResult = {
   name: string
   reference_product: string | null
@@ -197,6 +209,37 @@ async function readJson(response: Response) {
 const isObject = (value: unknown): value is Record<string, unknown> => (
   typeof value === "object" && value !== null && !Array.isArray(value)
 )
+
+function readProductGraphCatalog(value: unknown): ProductGraphCatalog {
+  if (!isObject(value) || typeof value.default_id !== "string" || !Array.isArray(value.product_graphs)) {
+    throw new Error("The LCA server returned an invalid product-graph catalog.")
+  }
+  const productGraphs = value.product_graphs.map((item) => {
+    if (
+      !isObject(item)
+      || typeof item.id !== "string"
+      || typeof item.filename !== "string"
+      || typeof item.name !== "string"
+      || typeof item.product_graph !== "string"
+    ) {
+      throw new Error("The LCA server returned an invalid product-graph catalog entry.")
+    }
+    return item as ProductGraphCatalogEntry
+  })
+  if (!productGraphs.some((item) => item.id === value.default_id)) {
+    throw new Error("The product-graph catalog does not contain its default entry.")
+  }
+  if (new Set(productGraphs.map((item) => item.id)).size !== productGraphs.length) {
+    throw new Error("The product-graph catalog contains duplicate identifiers.")
+  }
+  return { default_id: value.default_id, product_graphs: productGraphs }
+}
+
+export async function getProductGraphCatalog(signal?: AbortSignal): Promise<ProductGraphCatalog> {
+  return readProductGraphCatalog(await readJson(
+    await fetch(`${apiBase}/api/product-graphs`, { signal }),
+  ))
+}
 
 function readLcaResult(value: unknown): LcaResult {
   if (!isObject(value) || value.result_schema_version !== 3) {
