@@ -1848,7 +1848,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
       setLoadingContributionKeys(new Set())
       setLcaResult(null)
       setCalculatedRevision(null)
-      requestAnimationFrame(() => fitView({ padding: 0.35, maxZoom: 0.75, duration: 350 }))
+      requestAnimationFrame(() => requestAnimationFrame(() => fitView({ padding: 0.35, maxZoom: 0.75, duration: 350 })))
       return nextRevision
     } catch (error) {
       setYamlError(error instanceof Error ? error.message : "Could not parse this YAML file.")
@@ -2154,7 +2154,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
           maxZoom={2.4}
           zoomOnScroll={false}
           panOnScroll
-          onInit={(instance) => requestAnimationFrame(() => instance.fitView({ padding: 0.35, maxZoom: 0.75 }))}
+          onInit={(instance) => requestAnimationFrame(() => requestAnimationFrame(() => instance.fitView({ padding: 0.35, maxZoom: 0.75 })))}
           proOptions={{ hideAttribution: true }}
         >
           <Background variant={BackgroundVariant.Dots} gap={22} size={1} color={theme === "dark" ? "#242831" : "#cbd5e1"} />
