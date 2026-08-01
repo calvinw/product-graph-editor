@@ -10,7 +10,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import {
   BarChart3, Box, Component, Scan, LayoutGrid, ChevronDown, Factory, Leaf,
-  ClipboardPaste, FileUp, Minus, Moon, MousePointer2, Plus, Search, Settings2, Share2, Sun, X,
+  ChevronsDownUp, ChevronsUpDown, ClipboardPaste, FileUp, Minus, Moon, MousePointer2, Plus, Search, Settings2, Share2, Sun, X,
 } from "lucide-react"
 import { parse } from "yaml"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -1738,6 +1738,31 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
     }))
   }, [edges, graphOrientation, hydrateBackgroundNode, setEdges, setNodes])
 
+  const setAllExpanded = useCallback((expanded: boolean) => {
+    const currentEdges = edgesRef.current
+    const nodesById = new Map(nodesRef.current.map((node) => [node.id, node]))
+    setNodes((current) => {
+      const updated = current.map((node) => node.data.expanded === expanded
+        ? node
+        : { ...node, data: { ...node.data, expanded } })
+      return expanded ? populateExpandedConnections(updated, currentEdges) : updated
+    })
+    setEdges((current) => current.map((edge) => ({
+      ...edge,
+      targetHandle: expanded && nodesById.get(edge.target)?.data.scope !== "background"
+        ? inputHandleIdFor(edge.id)
+        : undefined,
+    })))
+    if (expanded) {
+      nodesRef.current
+        .filter((node) => node.data.scope === "background")
+        .forEach((node) => void hydrateBackgroundNode(node.id))
+    }
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      setNodes((current) => layoutNodes(current, edgesRef.current, { orientation: graphOrientation }))
+    }))
+  }, [graphOrientation, hydrateBackgroundNode, setEdges, setNodes])
+
   const fit = () => fitView({ padding: 0.35, maxZoom: 0.75, duration: 350 })
   const relayout = () => {
     setNodes((current) => layoutNodes(current, edges, { orientation: graphOrientation }))
@@ -2198,6 +2223,10 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
           </div>
           <div className="toolbar-group">
             <ToolButton label="Select"><MousePointer2 size={18} /></ToolButton>
+          </div>
+          <div className="toolbar-group">
+            <ToolButton label="Expand all activities" onClick={() => setAllExpanded(true)}><ChevronsUpDown size={18} /></ToolButton>
+            <ToolButton label="Collapse all activities" onClick={() => setAllExpanded(false)}><ChevronsDownUp size={18} /></ToolButton>
           </div>
           <div className="toolbar-group">
             <ToolButton label="Auto layout" onClick={relayout}><LayoutGrid size={18} /></ToolButton>
