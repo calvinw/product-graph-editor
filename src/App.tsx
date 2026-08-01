@@ -957,6 +957,7 @@ function SankeyView({ result, loadContributionGraphs }: {
   const [maxProcesses, setMaxProcesses] = useState(availableProcessCount)
   const [orientation, setOrientation] = useState<"vertical" | "horizontal">("vertical")
   const [connectionStyle, setConnectionStyle] = useState<"curved" | "straight" | "step">("curved")
+  const [selectedProcessId, setSelectedProcessId] = useState<string | null>(null)
   const instanceRef = useRef<ReactFlowInstance<Node<SankeyProcessNodeData>, Edge> | null>(null)
   const [renderedNodes, setRenderedNodes, onSankeyNodesChange] = useNodesState<Node<SankeyProcessNodeData>>([])
   const [renderedEdges, setRenderedEdges, onSankeyEdgesChange] = useEdgesState<Edge>([])
@@ -1162,15 +1163,50 @@ function SankeyView({ result, loadContributionGraphs }: {
       labelBgStyle: { fill: "#202225", fillOpacity: .9 },
     }
   })
+  const highlightConnectedEdges = (edges: Edge[], nodeId: string | null) => {
+    if (!nodeId) return edges
+    const highlightedEdgeIds = new Set<string>()
+    const visitedNodeIds = new Set([nodeId])
+    const queue = [nodeId]
+    while (queue.length) {
+      const current = queue.shift()!
+      edges.filter((edge) => edge.source === current).forEach((edge) => {
+        highlightedEdgeIds.add(edge.id)
+        if (visitedNodeIds.has(edge.target)) return
+        visitedNodeIds.add(edge.target)
+        queue.push(edge.target)
+      })
+    }
+    return edges.map((edge) => highlightedEdgeIds.has(edge.id)
+      ? {
+          ...edge,
+          zIndex: 10,
+          animated: true,
+          style: { ...edge.style, stroke: "#facc15", strokeWidth: Math.max(4, Number(edge.style?.strokeWidth ?? 2) + 2), opacity: 1 },
+          labelStyle: { ...edge.labelStyle, fill: "#fde68a", fontWeight: 700 },
+        }
+      : {
+          ...edge,
+          animated: false,
+          style: { ...edge.style, opacity: .16 },
+          labelStyle: { ...edge.labelStyle, opacity: .2 },
+        })
+  }
   useEffect(() => {
     setRenderedNodes(sankeyNodes)
-    setRenderedEdges(sankeyEdges)
+    setRenderedEdges(highlightConnectedEdges(sankeyEdges, selectedProcessId))
     const instance = instanceRef.current
     if (instance) requestAnimationFrame(() => instance.fitView({ padding: .25, maxZoom: .68, duration: 350 }))
     // Node and edge arrays are rebuilt during render; these are the settings
     // that change their contents and should reset the draggable graph state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, selectedFlow, selectedImpact, selectedContributionGraph?.id, minContribution, maxProcesses, orientation, connectionStyle, decimalPlaces])
+  useEffect(() => {
+    setRenderedEdges(highlightConnectedEdges(sankeyEdges, selectedProcessId))
+    // Edge arrays are rebuilt during render; selection alone should update
+    // highlighting without resetting dragged node positions or refitting.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProcessId])
 
   const fitSankey = () => instanceRef.current?.fitView({ padding: .4, maxZoom: .68, duration: 350 })
 
@@ -1209,7 +1245,8 @@ function SankeyView({ result, loadContributionGraphs }: {
         onEdgesChange={onSankeyEdgesChange}
         nodeTypes={sankeyNodeTypes}
         onInit={(instance) => { instanceRef.current = instance }}
-        onPaneClick={() => setChartPickerOpen(false)}
+        onNodeClick={(_, node) => setSelectedProcessId(node.id)}
+        onPaneClick={() => { setChartPickerOpen(false); setSelectedProcessId(null) }}
         minZoom={0.02}
         maxZoom={2}
         zoomOnScroll={false}
