@@ -1696,10 +1696,16 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
   }, [fitView, formatNumber, graphConnectionStyle, graphOrientation, setEdges, setNodes])
 
   useEffect(() => {
-    setNodes((current) => current.map((node) => node.data.scope === "background" && node.data.onToggleBackground !== toggleBackgroundBranch
-      ? { ...node, data: { ...node.data, onToggleBackground: toggleBackgroundBranch } }
-      : node))
-  }, [setNodes, toggleBackgroundBranch])
+    setNodes((current) => {
+      let changed = false
+      const next = current.map((node) => {
+        if (node.data.scope !== "background" || node.data.onToggleBackground === toggleBackgroundBranch) return node
+        changed = true
+        return { ...node, data: { ...node.data, onToggleBackground: toggleBackgroundBranch } }
+      })
+      return changed ? next : current
+    })
+  }, [nodes, setNodes, toggleBackgroundBranch])
 
   const toggleExpanded = useCallback((nodeId: string) => {
     const target = nodesRef.current.find((node) => node.id === nodeId)
