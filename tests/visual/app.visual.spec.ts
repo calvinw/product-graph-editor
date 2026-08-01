@@ -598,6 +598,28 @@ test("find node stays beside the graph toolbar when the inspector opens", async 
   expect(searchBounds!.x + searchBounds!.width).toBeLessThanOrEqual(inspectorBounds!.x - 16)
 })
 
+test("opening the property editor preserves the graph viewport", async ({ page }) => {
+  await mockLcaApi(page)
+  await page.goto("/")
+  await page.getByRole("radio", { name: "Graph", exact: true }).click()
+  await expect(page.locator(".react-flow__node")).not.toHaveCount(0)
+
+  await page.getByRole("button", { name: "Zoom in" }).click()
+  await page.waitForTimeout(300)
+  const viewport = page.locator(".react-flow__viewport")
+  const zoomedTransform = await viewport.getAttribute("style")
+
+  await page.locator(".react-flow__node").last().click()
+  await expect(page.locator(".inspector")).toBeVisible()
+  await page.waitForTimeout(300)
+  await expect(viewport).toHaveAttribute("style", zoomedTransform ?? "")
+
+  await page.getByRole("button", { name: "Close property editor" }).click()
+  await expect(page.locator(".inspector")).toBeHidden()
+  await page.waitForTimeout(300)
+  await expect(viewport).toHaveAttribute("style", zoomedTransform ?? "")
+})
+
 for (const theme of ["dark", "light"] as const) {
   test(`${theme} application views`, async ({ page }) => {
     await mockLcaApi(page)

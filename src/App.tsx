@@ -1402,7 +1402,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
       cancelAnimationFrame(resizeFrame)
       cancelAnimationFrame(fitFrame)
     }
-  }, [fitView, inspectorOpen, view])
+  }, [fitView, view])
   const availableGraphProcessCount = (() => {
     try {
       return buildGraphFromYaml(appliedYaml, "structure").nodes.filter((node) => node.data.scope !== "background").length
