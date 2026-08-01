@@ -54,9 +54,11 @@ type SankeyProcessNodeData = {
   upstream: string
   orientation: "vertical" | "horizontal"
   scope: "foreground" | "background"
+  pathHighlighted?: boolean
+  pathDimmed?: boolean
 }
 function SankeyProcessNode({ data }: NodeProps<Node<SankeyProcessNodeData>>) {
-  return <div className="pg-node is-expanded sankey-process-node" style={{ "--node-color": nodeScopeColors[data.scope] } as React.CSSProperties}>
+  return <div className={`pg-node is-expanded sankey-process-node${data.pathHighlighted ? " is-path-highlighted" : ""}${data.pathDimmed ? " is-path-dimmed" : ""}`} style={{ "--node-color": nodeScopeColors[data.scope] } as React.CSSProperties}>
     <Handle type="target" position={data.orientation === "vertical" ? Position.Bottom : Position.Right} />
     <div className="pg-node-head"><Component size={14} /><span className="pg-node-label">{data.label}</span><small className={`pg-node-scope is-${data.scope}`}>{data.scope}</small></div>
     <div className="sankey-process-metrics">
@@ -1163,21 +1165,28 @@ function SankeyView({ result, loadContributionGraphs }: {
       labelBgStyle: { fill: "#202225", fillOpacity: .9 },
     }
   })
-  const highlightConnectedEdges = (edges: Edge[], nodeId: string | null) => {
-    if (!nodeId) return edges
-    const highlightedEdgeIds = new Set<string>()
+  const downstreamSelection = (edges: Edge[], nodeId: string | null) => {
+    const edgeIds = new Set<string>()
+    const nodeIds = new Set<string>(nodeId ? [nodeId] : [])
+    if (!nodeId) return { edgeIds, nodeIds }
     const visitedNodeIds = new Set([nodeId])
     const queue = [nodeId]
     while (queue.length) {
       const current = queue.shift()!
       edges.filter((edge) => edge.source === current).forEach((edge) => {
-        highlightedEdgeIds.add(edge.id)
+        edgeIds.add(edge.id)
+        nodeIds.add(edge.target)
         if (visitedNodeIds.has(edge.target)) return
         visitedNodeIds.add(edge.target)
         queue.push(edge.target)
       })
     }
-    return edges.map((edge) => highlightedEdgeIds.has(edge.id)
+    return { edgeIds, nodeIds }
+  }
+  const highlightConnectedEdges = (edges: Edge[], nodeId: string | null) => {
+    if (!nodeId) return edges
+    const { edgeIds } = downstreamSelection(edges, nodeId)
+    return edges.map((edge) => edgeIds.has(edge.id)
       ? {
           ...edge,
           zIndex: 10,
@@ -1192,8 +1201,19 @@ function SankeyView({ result, loadContributionGraphs }: {
           labelStyle: { ...edge.labelStyle, opacity: .2 },
         })
   }
+  const highlightConnectedNodes = (nodes: Node<SankeyProcessNodeData>[], edges: Edge[], nodeId: string | null) => {
+    const { nodeIds } = downstreamSelection(edges, nodeId)
+    return nodes.map((node) => ({
+      ...node,
+      data: {
+        ...node.data,
+        pathHighlighted: Boolean(nodeId && nodeIds.has(node.id)),
+        pathDimmed: Boolean(nodeId && !nodeIds.has(node.id)),
+      },
+    }))
+  }
   useEffect(() => {
-    setRenderedNodes(sankeyNodes)
+    setRenderedNodes(highlightConnectedNodes(sankeyNodes, sankeyEdges, selectedProcessId))
     setRenderedEdges(highlightConnectedEdges(sankeyEdges, selectedProcessId))
     const instance = instanceRef.current
     if (instance) requestAnimationFrame(() => instance.fitView({ padding: .25, maxZoom: .68, duration: 350 }))
@@ -1203,6 +1223,15 @@ function SankeyView({ result, loadContributionGraphs }: {
   }, [mode, selectedFlow, selectedImpact, selectedContributionGraph?.id, minContribution, maxProcesses, orientation, connectionStyle, decimalPlaces])
   useEffect(() => {
     setRenderedEdges(highlightConnectedEdges(sankeyEdges, selectedProcessId))
+    const { nodeIds } = downstreamSelection(sankeyEdges, selectedProcessId)
+    setRenderedNodes((nodes) => nodes.map((node) => ({
+      ...node,
+      data: {
+        ...node.data,
+        pathHighlighted: Boolean(selectedProcessId && nodeIds.has(node.id)),
+        pathDimmed: Boolean(selectedProcessId && !nodeIds.has(node.id)),
+      },
+    })))
     // Edge arrays are rebuilt during render; selection alone should update
     // highlighting without resetting dragged node positions or refitting.
     // eslint-disable-next-line react-hooks/exhaustive-deps
