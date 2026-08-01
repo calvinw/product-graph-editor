@@ -1595,7 +1595,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
       const nextEdges = edgesRef.current.filter((edge) => !descendants.has(edge.source) && !descendants.has(edge.target))
       setNodes(layoutNodes(nextNodes, nextEdges, { orientation: graphOrientation }))
       setEdges(nextEdges)
-      requestAnimationFrame(() => fitView({ padding: .35, maxZoom: .75, duration: 350 }))
+      requestAnimationFrame(() => requestAnimationFrame(() => fitView({ padding: .35, maxZoom: .75, duration: 350 })))
       return
     }
 
@@ -1682,7 +1682,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
       const nextEdges = [...edgesRef.current.filter((edge) => !edge.id.startsWith(`${nodeId}::background-edge::`)), ...childEdges]
       setNodes(layoutNodes(nextNodes, nextEdges, { orientation: graphOrientation }))
       setEdges(nextEdges)
-      requestAnimationFrame(() => fitView({ padding: .35, maxZoom: .75, duration: 350 }))
+      requestAnimationFrame(() => requestAnimationFrame(() => fitView({ padding: .35, maxZoom: .75, duration: 350 })))
     } catch (error) {
       setNodes((current) => current.map((candidate) => candidate.id === nodeId
         ? { ...candidate, data: {
@@ -1727,7 +1727,10 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
         : edge))
     }
     if (target?.data.scope === "background" && !target.data.expanded) void hydrateBackgroundNode(nodeId)
-  }, [edges, hydrateBackgroundNode, setEdges, setNodes])
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      setNodes((current) => layoutNodes(current, edgesRef.current, { orientation: graphOrientation }))
+    }))
+  }, [edges, graphOrientation, hydrateBackgroundNode, setEdges, setNodes])
 
   const fit = () => fitView({ padding: 0.35, maxZoom: 0.75, duration: 350 })
   const relayout = () => {
