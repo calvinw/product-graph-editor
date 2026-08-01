@@ -3,10 +3,10 @@ import { Position, type Edge, type Node } from "@xyflow/react"
 
 const NODE_WIDTH = 190
 const NODE_HEIGHT = 36
-const NODE_GAP = 96
-const RANK_GAP = 180
-const BACKGROUND_BRANCH_NODE_GAP = 150
-const BACKGROUND_BRANCH_RANK_GAP = 220
+const NODE_GAP = 140
+const RANK_GAP = 230
+const BACKGROUND_BRANCH_NODE_GAP = 600
+const BACKGROUND_BRANCH_RANK_GAP = 650
 
 export function layoutNodes<T extends Record<string, unknown>>(
   nodes: Node<T>[],
