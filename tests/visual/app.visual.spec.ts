@@ -426,6 +426,23 @@ test("process results show calculated upstream outputs", async ({ page }) => {
   await expect(methane.getByRole("cell").nth(4)).toHaveText("0.02")
 })
 
+test("process result sections select processes independently", async ({ page }) => {
+  await mockLcaApi(page)
+  await page.goto("/")
+  await calculate(page)
+  await page.getByRole("radio", { name: "Process Results", exact: true }).click()
+
+  const flowProcess = page.getByRole("combobox", { name: "Flow contribution process" })
+  const impactProcess = page.getByRole("combobox", { name: "Impact assessment process" })
+  const initialImpactProcess = await impactProcess.textContent()
+
+  await flowProcess.click()
+  await page.getByRole("option", { name: "Raw material extraction", exact: true }).click()
+
+  await expect(flowProcess).toHaveText("Raw material extraction")
+  await expect(impactProcess).toHaveText(initialImpactProcess ?? "")
+})
+
 test("contribution table columns support accessible keyboard resizing and horizontal scrolling", async ({ page }) => {
   await mockLcaApi(page)
   await page.goto("/")
