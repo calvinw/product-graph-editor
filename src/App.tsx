@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react"
+import dagre from "@dagrejs/dagre"
 import {
   ReactFlow, ReactFlowProvider, Background, BackgroundVariant,
   Handle, Position, useNodesState, useEdgesState, useReactFlow,
@@ -957,6 +958,8 @@ function SankeyView({ result, loadContributionGraphs }: {
   const [orientation, setOrientation] = useState<"vertical" | "horizontal">("vertical")
   const [connectionStyle, setConnectionStyle] = useState<"curved" | "straight" | "step">("curved")
   const instanceRef = useRef<ReactFlowInstance<Node<SankeyProcessNodeData>, Edge> | null>(null)
+  const [renderedNodes, setRenderedNodes, onSankeyNodesChange] = useNodesState<Node<SankeyProcessNodeData>>([])
+  const [renderedEdges, setRenderedEdges, onSankeyEdgesChange] = useEdgesState<Edge>([])
   useEffect(() => setMaxProcesses(availableProcessCount), [availableProcessCount])
   const flowNames = Object.keys(result.lci)
   const impactNames = [...Object.entries(result.lcia).filter(([, value]) => value.score !== 0).reduce((unique, [name]) => {
@@ -975,9 +978,10 @@ function SankeyView({ result, loadContributionGraphs }: {
         label: node.process_name,
         process_name: node.process_name,
         scope: node.scope ?? "foreground" as const,
+        kind: node.kind,
       }))
-    : result.sankey.nodes.filter((node) => node.kind === "process")
-  useEffect(() => setMaxProcesses(processNodes.length), [processNodes.length])
+    : result.sankey.nodes.filter((node) => node.kind === "process").map((node) => ({ ...node, kind: node.kind }))
+  useEffect(() => setMaxProcesses(processNodes.length), [mode, processNodes.length, selectedContributionGraph?.id, selectedFlow, selectedImpact])
   const processIds = new Set(processNodes.map((node) => node.id))
   const links = mode === "impact" && selectedContributionGraph
     ? selectedContributionGraph.edges.map((edge) => ({
@@ -1064,19 +1068,67 @@ function SankeyView({ result, loadContributionGraphs }: {
     .slice(0, Math.max(1, maxProcesses))
   const visibleIds = new Set(visibleNodes.map((node) => node.id))
   const visibleLinks = links.filter((link) => visibleIds.has(link.source) && visibleIds.has(link.target))
-  const rows = new Map<number, typeof visibleNodes>()
-  visibleNodes.forEach((node) => {
-    const row = depth(node.id)
-    rows.set(row, [...(rows.get(row) ?? []), node])
-  })
-  const width = 1200
   const nodeWidth = 300
-  const rowGap = 205
+  const nodeHeight = 112
+  const layoutGraph = new dagre.graphlib.Graph()
+  layoutGraph.setDefaultEdgeLabel(() => ({}))
+  layoutGraph.setGraph({
+    rankdir: orientation === "vertical" ? "TB" : "LR",
+    nodesep: 180,
+    ranksep: 260,
+    marginx: 80,
+    marginy: 80,
+    ranker: "network-simplex",
+    acyclicer: "greedy",
+  })
+  visibleNodes.forEach((node) => layoutGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight }))
+  const adjacency = new Map<string, string[]>()
+  visibleLinks.forEach((link) => {
+    adjacency.set(link.source, [...(adjacency.get(link.source) ?? []), link.target])
+    adjacency.set(link.target, [...(adjacency.get(link.target) ?? []), link.source])
+  })
+  const productRoot = selectedContributionGraph
+    ? visibleNodes.find((node) => node.kind === "functional_unit")
+    : visibleNodes.find((node) => !(outgoing.get(node.id)?.length))
+  const laidOut = new Set<string>()
+  const queue = productRoot ? [productRoot.id] : []
+  if (productRoot) laidOut.add(productRoot.id)
+  while (queue.length) {
+    const parent = queue.shift()!
+    ;(adjacency.get(parent) ?? []).forEach((child) => {
+      if (laidOut.has(child)) return
+      laidOut.add(child)
+      queue.push(child)
+      layoutGraph.setEdge(parent, child, { weight: 2 })
+    })
+  }
+  visibleLinks.forEach((link) => {
+    if (!laidOut.has(link.source) || !laidOut.has(link.target)) layoutGraph.setEdge(link.source, link.target, { weight: 1 })
+  })
+  dagre.layout(layoutGraph)
   const positions = new Map<string, { x: number; y: number }>()
-  rows.forEach((nodesInRow, row) => nodesInRow.forEach((node, index) => positions.set(node.id, {
-    x: orientation === "vertical" ? (index + 1) * width / (nodesInRow.length + 1) - nodeWidth / 2 : row * 410,
-    y: orientation === "vertical" ? row * rowGap : index * 170,
-  })))
+  visibleNodes.forEach((node) => {
+    const position = layoutGraph.node(node.id)
+    positions.set(node.id, { x: position.x - nodeWidth / 2, y: position.y - nodeHeight / 2 })
+  })
+  if (orientation === "vertical" && productRoot && positions.size) {
+    const horizontalExtents = [...positions.values()].flatMap((position) => [position.x, position.x + nodeWidth])
+    const graphMidpoint = (Math.min(...horizontalExtents) + Math.max(...horizontalExtents)) / 2
+    const rootPosition = positions.get(productRoot.id)
+    if (rootPosition) {
+      const centeredX = graphMidpoint - nodeWidth / 2
+      positions.set(productRoot.id, { ...rootPosition, x: centeredX })
+      const immediateChildren = adjacency.get(productRoot.id) ?? []
+      if (immediateChildren.length === 1) {
+        const childPosition = positions.get(immediateChildren[0])
+        if (childPosition) positions.set(immediateChildren[0], {
+          ...childPosition,
+          x: centeredX,
+          y: rootPosition.y + nodeHeight + 110,
+        })
+      }
+    }
+  }
   const unit = mode === "impact" ? (category?.unit ?? result.lcia[selectedImpact]?.unit ?? "") : (result.lci[selectedFlow]?.unit ?? "")
   const format = (value: number) => formatNumber(value)
   const percentage = (value: number) => selectedTotal ? value / selectedTotal * 100 : 0
@@ -1111,11 +1163,12 @@ function SankeyView({ result, loadContributionGraphs }: {
     }
   })
   useEffect(() => {
-    if (!instanceRef.current) return
-    instanceRef.current.setNodes(sankeyNodes)
-    instanceRef.current.setEdges(sankeyEdges)
-    // The Sankey arrays are rebuilt on every render, so this effect tracks the
-    // settings they derive from instead of the arrays themselves.
+    setRenderedNodes(sankeyNodes)
+    setRenderedEdges(sankeyEdges)
+    const instance = instanceRef.current
+    if (instance) requestAnimationFrame(() => instance.fitView({ padding: .25, maxZoom: .68, duration: 350 }))
+    // Node and edge arrays are rebuilt during render; these are the settings
+    // that change their contents and should reset the draggable graph state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, selectedFlow, selectedImpact, selectedContributionGraph?.id, minContribution, maxProcesses, orientation, connectionStyle, decimalPlaces])
 
@@ -1148,16 +1201,22 @@ function SankeyView({ result, loadContributionGraphs }: {
     <div className="sankey-canvas">
       {impactGraphPending ? <div className="sankey-empty" role="status"><strong>Loading impact graph…</strong><p>Calculating cumulative process contributions.</p></div>
         : totalMagnitude ? <ReactFlow
-        key={`sankey-layout-${layoutVersion}`}
-        defaultNodes={sankeyNodes}
-        defaultEdges={sankeyEdges}
+        key={`sankey-layout-${layoutVersion}-${mode}-${selectedContributionGraph?.id ?? selectedFlow}-${processNodes.length}`}
+        className="reactflow-canvas"
+        nodes={renderedNodes}
+        edges={renderedEdges}
+        onNodesChange={onSankeyNodesChange}
+        onEdgesChange={onSankeyEdgesChange}
         nodeTypes={sankeyNodeTypes}
         onInit={(instance) => { instanceRef.current = instance }}
         onPaneClick={() => setChartPickerOpen(false)}
-        minZoom={0.25}
+        minZoom={0.02}
         maxZoom={2}
+        zoomOnScroll={false}
+        panOnScroll
+        onlyRenderVisibleElements={false}
         fitView
-        fitViewOptions={{ padding: .4, maxZoom: .68 }}
+        fitViewOptions={{ padding: .25, maxZoom: .68 }}
         proOptions={{ hideAttribution: true }}
       ><Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#242831" /></ReactFlow> : <div className="sankey-empty"><strong>No contributions for this selection</strong><p>Choose another flow or impact category.</p></div>}
     </div>
@@ -1182,7 +1241,7 @@ function SankeyView({ result, loadContributionGraphs }: {
       <span className="sankey-selection-result">{format(selectedTotal)} {unit}</span>
       <dl>
         <div><dt>Min. contribution</dt><dd>{minContribution}%</dd></div>
-        <div><dt>Max. processes</dt><dd>{maxProcesses}</dd></div>
+        <div><dt>Processes shown</dt><dd>{visibleNodes.length} / {processNodes.length}</dd></div>
         <div><dt>Orientation</dt><dd>{orientation}</dd></div>
         <div><dt>Connections</dt><dd>{connectionStyle}</dd></div>
       </dl>
