@@ -577,6 +577,27 @@ test("opening the inspector keeps the selected jacket node visible", async ({ pa
   }).toBeGreaterThanOrEqual(16)
 })
 
+test("find node stays beside the graph toolbar when the inspector opens", async ({ page }) => {
+  await mockLcaApi(page)
+  await page.goto("/")
+
+  const toolbar = page.locator(".graph-toolbar")
+  const search = page.getByRole("textbox", { name: "Find a node" }).locator("..")
+  await page.locator(".react-flow__node").last().click()
+  const inspector = page.locator(".inspector")
+
+  const [toolbarBounds, searchBounds, inspectorBounds] = await Promise.all([
+    toolbar.boundingBox(),
+    search.boundingBox(),
+    inspector.boundingBox(),
+  ])
+  expect(toolbarBounds).not.toBeNull()
+  expect(searchBounds).not.toBeNull()
+  expect(inspectorBounds).not.toBeNull()
+  expect(searchBounds!.x).toBeGreaterThanOrEqual(toolbarBounds!.x + toolbarBounds!.width + 8)
+  expect(searchBounds!.x + searchBounds!.width).toBeLessThanOrEqual(inspectorBounds!.x - 16)
+})
+
 for (const theme of ["dark", "light"] as const) {
   test(`${theme} application views`, async ({ page }) => {
     await mockLcaApi(page)
