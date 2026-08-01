@@ -472,14 +472,16 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error, loadContributionGr
 function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string }) {
   const { formatNumber, formatPercent } = useDisplaySettings()
   const processNodes = result.sankey.nodes.filter((node) => node.kind === "process")
-  const [processId, setProcessId] = useState("")
+  const [flowProcessId, setFlowProcessId] = useState("")
+  const [impactProcessId, setImpactProcessId] = useState("")
   const [threshold, setThreshold] = useState(0.01)
   const [flowColumnWidths, setFlowColumnWidths] = useState([140, 220, 230, 180, 140, 90])
   const [impactColumnWidths, setImpactColumnWidths] = useState([170, 300, 190, 150, 120])
   const referenceProcessId = result.sankey.links.find((link) => link.kind === "final_product")?.source
   const defaultProcessId = processNodes.some((node) => node.id === referenceProcessId) ? referenceProcessId! : (processNodes.at(-1)?.id ?? "")
-  const selectedId = processNodes.some((node) => node.id === processId) ? processId : defaultProcessId
-  const selectedNode = processNodes.find((node) => node.id === selectedId)
+  const selectedFlowProcessId = processNodes.some((node) => node.id === flowProcessId) ? flowProcessId : defaultProcessId
+  const selectedImpactProcessId = processNodes.some((node) => node.id === impactProcessId) ? impactProcessId : defaultProcessId
+  const selectedImpactNode = processNodes.find((node) => node.id === selectedImpactProcessId)
   const processIds = new Set(processNodes.map((node) => node.id))
   const incoming = new Map<string, string[]>()
   result.sankey.links.forEach((link) => {
@@ -491,7 +493,8 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
     ;(incoming.get(id) ?? []).forEach((source) => upstreamIds(source, found))
     return found
   }
-  const includedIds = upstreamIds(selectedId)
+  const flowIncludedIds = upstreamIds(selectedFlowProcessId)
+  const impactIncludedIds = upstreamIds(selectedImpactProcessId)
   let source: ImpactYaml = {}
   try { source = parse(yaml) as ImpactYaml } catch { source = {} }
   const yamlProcesses = source.processes ?? []
@@ -502,7 +505,7 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
   const nodeProcess = (node: (typeof processNodes)[number]) => yamlByName.get((node.process_name ?? node.label).toLowerCase())
     ?? yamlByName.get(cleanImpactProcessName(node.process_name ?? node.label).toLowerCase())
   const flowRows = new Map<string, { name: string; category: string; unit: string; upstream: number; direct: number; input: boolean }>()
-  processNodes.filter((node) => includedIds.has(node.id)).forEach((node) => {
+  processNodes.filter((node) => flowIncludedIds.has(node.id)).forEach((node) => {
     const process = nodeProcess(node)
     const scale = result.scaling_vector[node.id] ?? result.scaling_vector[node.process_name ?? ""] ?? result.scaling_vector[process?.name ?? ""] ?? 1
     const exchanges = [
@@ -514,7 +517,7 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
       const existing = flowRows.get(key) ?? { name: flow.flow, category: flow.input ? "elementary flows/resource" : "elementary flows/air", unit: flow.unit ?? "kg", upstream: 0, direct: 0, input: flow.input }
       const amount = flow.amount * scale
       existing.upstream += amount
-      if (node.id === selectedId) existing.direct += amount
+      if (node.id === selectedFlowProcessId) existing.direct += amount
       flowRows.set(key, existing)
     })
   })
@@ -527,7 +530,7 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
   const calculatedFlows = new Map<string, CalculatedFlow>()
   result.contribution_graphs.forEach((graph) => {
     const selectedOccurrences = new Set(graph.nodes
-      .filter((node) => node.kind === "process" && node.activity_id === selectedId)
+      .filter((node) => node.kind === "process" && node.activity_id === selectedFlowProcessId)
       .map((node) => node.id))
     if (!selectedOccurrences.size) return
 
@@ -582,7 +585,7 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
 
   // For the reference process, the complete calculated LCI is authoritative;
   // contribution graphs intentionally omit flows below their cutoffs.
-  if (includedIds.size === processIds.size) {
+  if (flowIncludedIds.size === processIds.size) {
     Object.entries(result.lci).forEach(([name, value]) => {
       const input = isInventoryInput(value.type)
       const baseName = name.split(/[|,]/)[0].trim()
@@ -624,22 +627,22 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
     const scoreFor = (node: (typeof processNodes)[number]) => byId.get(node.id) ?? byId.get(cleanImpactProcessName(node.process_name ?? node.label).toLowerCase())
     const graph = result.contribution_graphs.find((candidate) => candidate.label === category.label)
     const exactOccurrences = graph?.nodes.filter((node) => (
-      node.kind === "process" && node.activity_id === selectedId
+      node.kind === "process" && node.activity_id === selectedImpactProcessId
     )) ?? []
     const upstream = exactOccurrences.length
       ? exactOccurrences.reduce((sum, node) => sum + node.cumulative_score, 0)
-      : processNodes.filter((node) => includedIds.has(node.id)).reduce((sum, node) => sum + (scoreFor(node)?.direct_score ?? 0), 0)
-    const direct = selectedNode ? scoreFor(selectedNode)?.direct_score ?? 0 : 0
+      : processNodes.filter((node) => impactIncludedIds.has(node.id)).reduce((sum, node) => sum + (scoreFor(node)?.direct_score ?? 0), 0)
+    const direct = selectedImpactNode ? scoreFor(selectedImpactNode)?.direct_score ?? 0 : 0
     return { category, upstream, direct, contribution: category.total_score ? upstream / category.total_score * 100 : 0 }
   }).filter((row) => Math.abs(row.contribution) >= threshold && row.upstream !== 0)
 
   return <div className="process-results-view">
     <details open><summary>Flow contributions to process results</summary>
-      <div className="process-results-controls"><label>Process <AppSelect value={selectedId} onValueChange={setProcessId} label="Flow contribution process" options={processNodes.map((node) => ({ value: node.id, label: cleanImpactProcessName(node.process_name ?? node.label) }))} /></label><label>Don’t show &lt; <Input type="number" min="0" max="100" step="0.01" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label></div>
+      <div className="process-results-controls"><label>Process <AppSelect value={selectedFlowProcessId} onValueChange={setFlowProcessId} label="Flow contribution process" options={processNodes.map((node) => ({ value: node.id, label: cleanImpactProcessName(node.process_name ?? node.label) }))} /></label><label>Don’t show &lt; <Input type="number" min="0" max="100" step="0.01" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label></div>
       <div className="process-flow-grids"><section><h3>Inputs</h3><FlowResultsTable input /></section><section><h3>Outputs</h3><FlowResultsTable input={false} /></section></div>
     </details>
     <details open><summary>Impact assessment results</summary>
-      <div className="process-results-controls"><label>Process <AppSelect value={selectedId} onValueChange={setProcessId} label="Impact assessment process" options={processNodes.map((node) => ({ value: node.id, label: cleanImpactProcessName(node.process_name ?? node.label) }))} /></label><label>Don’t show &lt; <Input type="number" min="0" max="100" step="0.01" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label></div>
+      <div className="process-results-controls"><label>Process <AppSelect value={selectedImpactProcessId} onValueChange={setImpactProcessId} label="Impact assessment process" options={processNodes.map((node) => ({ value: node.id, label: cleanImpactProcessName(node.process_name ?? node.label) }))} /></label><label>Don’t show &lt; <Input type="number" min="0" max="100" step="0.01" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label></div>
       <div className="process-impact-table-wrap"><table className="process-impact-table" style={{ width: Math.max(930, impactColumnWidths.reduce((sum, width) => sum + width, 0)) }}><ResizableTableHeader labels={["Contribution", "Impact category", "Upstream incl. direct", "Direct", "Unit"]} widths={impactColumnWidths} onWidthsChange={setImpactColumnWidths} /><tbody>{impactRows.map((row) => <tr key={row.category.id || row.category.label}><td><span className="process-result-bar"><i style={{ width: `${Math.min(100, Math.abs(row.contribution))}%` }} /></span>{formatPercent(row.contribution)}</td><td>{impactCategoryDisplayName(row.category.label)}</td><td>{formatNumber(row.upstream)}</td><td>{formatNumber(row.direct)}</td><td>{row.category.unit}</td></tr>)}</tbody></table></div>
     </details>
   </div>
