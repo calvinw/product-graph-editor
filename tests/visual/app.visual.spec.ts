@@ -233,6 +233,18 @@ test("toolbar tooltips open from keyboard focus and pointer input", async ({ pag
   await expect(page.getByRole("tooltip", { name: "Graph settings" })).toBeVisible()
 })
 
+test("graph toolbar expands and collapses all activities", async ({ page }) => {
+  await mockLcaApi(page)
+  await page.goto("/")
+  await expect(page.locator(".react-flow__node")).toHaveCount(5)
+
+  await page.getByRole("button", { name: "Expand all activities" }).click()
+  await expect(page.locator(".react-flow__node .pg-node.is-expanded")).toHaveCount(5)
+
+  await page.getByRole("button", { name: "Collapse all activities" }).click()
+  await expect(page.locator(".react-flow__node .pg-node.is-expanded")).toHaveCount(0)
+})
+
 test("primary and result view switchers support arrow-key navigation", async ({ page }) => {
   await mockLcaApi(page)
   await page.goto("/")
