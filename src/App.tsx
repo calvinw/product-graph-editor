@@ -2150,7 +2150,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
           }}
           onNodeDoubleClick={(_, node) => toggleExpanded(node.id)}
           onPaneClick={() => setSelected(null)}
-          minZoom={0.35}
+          minZoom={0.05}
           maxZoom={2.4}
           zoomOnScroll={false}
           panOnScroll
