@@ -1596,14 +1596,13 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
         .filter((candidate) => !descendants.has(candidate.id))
         .map((candidate) => candidate.id === nodeId ? { ...candidate, data: { ...candidate.data, backgroundExplored: false } } : candidate)
       const nextEdges = edgesRef.current.filter((edge) => !descendants.has(edge.source) && !descendants.has(edge.target))
-      setNodes(layoutNodes(nextNodes, nextEdges, { orientation: graphOrientation }))
+      setNodes(nextNodes)
       setEdges(nextEdges)
-      requestAnimationFrame(() => requestAnimationFrame(() => fitView({ padding: .35, maxZoom: .75, duration: 350 })))
       return
     }
 
     setNodes((current) => current.map((candidate) => candidate.id === nodeId
-      ? { ...candidate, data: { ...candidate.data, expanded: true, backgroundLoading: true, backgroundExploring: true, backgroundError: undefined } }
+      ? { ...candidate, data: { ...candidate.data, backgroundLoading: true, backgroundExploring: true, backgroundError: undefined } }
       : candidate))
     try {
       const details = await getBackgroundActivityDetails({
@@ -1618,11 +1617,17 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
       const activityScale = (node.data.backgroundDemand ?? 1) / productionAmount
       const scaled = (amount: number) => Number((amount * activityScale).toPrecision(8))
       const technosphere = details.exchanges.filter((exchange) => exchange.exchange_type === "technosphere")
-      const childNodes: Node<ProcessNodeData>[] = technosphere.map((exchange) => ({
-        id: `${nodeId}::background::${exchange.input_database}::${exchange.input_code}`,
-        type: "process",
-        position: { x: node.position.x - 360, y: node.position.y },
-        data: {
+      const childNodes: Node<ProcessNodeData>[] = technosphere.map((exchange, index) => {
+        const crossAxisOffset = (index - (technosphere.length - 1) / 2) * 420
+        return {
+          id: `${nodeId}::background::${exchange.input_database}::${exchange.input_code}`,
+          type: "process",
+          position: graphOrientation === "vertical"
+            ? { x: node.position.x + crossAxisOffset, y: node.position.y + 650 }
+            : { x: node.position.x - 650, y: node.position.y + crossAxisOffset },
+          sourcePosition: graphOrientation === "vertical" ? Position.Top : Position.Right,
+          targetPosition: graphOrientation === "vertical" ? Position.Bottom : Position.Left,
+          data: {
           label: exchange.input_name,
           kind: "process",
           detail: `Background activity · ${exchange.input_database}${exchange.input_location ? ` · ${exchange.input_location}` : ""}`,
@@ -1634,8 +1639,9 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
           backgroundDemand: scaled(exchange.amount),
           backgroundDemandUnit: exchange.unit ?? undefined,
           backgroundParentId: nodeId,
-        },
-      }))
+          },
+        }
+      })
       const childEdges: Edge[] = technosphere.map((exchange, index) => {
         const amount = scaled(exchange.amount)
         return {
@@ -1671,7 +1677,6 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
           detail: `Background activity · ${details.database}${details.location ? ` · ${details.location}` : ""}`,
           code: details.code,
           location: details.location ?? undefined,
-          expanded: true,
           inputs,
           outputs,
           biosphere,
@@ -1683,9 +1688,8 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
       }
       const nextNodes = [...currentNodes, updatedParent, ...childNodes]
       const nextEdges = [...edgesRef.current.filter((edge) => !edge.id.startsWith(`${nodeId}::background-edge::`)), ...childEdges]
-      setNodes(layoutNodes(nextNodes, nextEdges, { orientation: graphOrientation }))
+      setNodes(nextNodes)
       setEdges(nextEdges)
-      requestAnimationFrame(() => requestAnimationFrame(() => fitView({ padding: .35, maxZoom: .75, duration: 350 })))
     } catch (error) {
       setNodes((current) => current.map((candidate) => candidate.id === nodeId
         ? { ...candidate, data: {
@@ -1696,7 +1700,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
           } }
         : candidate))
     }
-  }, [fitView, formatNumber, graphConnectionStyle, graphOrientation, setEdges, setNodes])
+  }, [formatNumber, graphConnectionStyle, graphOrientation, setEdges, setNodes])
 
   useEffect(() => {
     setNodes((current) => {
@@ -2091,6 +2095,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
       : []
   })()
   const calculationInProgress = isCalculating || loadingContributionKeys.size > 0
+  const backgroundProcessing = nodes.some((node) => node.data.backgroundExploring)
 
   const openAnalysisView = (next: AnalysisView) => {
     setView(next)
@@ -2152,7 +2157,8 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
                   disabled: true,
                 }]}
               /></label>
-              {calculationInProgress ? <span className="calculation-message" role="status" aria-label="LCA calculation in progress">Calculating…</span> : null}
+              {calculationInProgress ? <span className="calculation-message" role="status" aria-label="LCA calculation in progress">Calculating…</span>
+                : backgroundProcessing ? <span className="calculation-message" role="status" aria-label="Background graph processing">Processing…</span> : null}
               <div className="view-tab-groups">
                 <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && requestView(next as "graph" | "yaml" | "results")} className="inline-flex items-center" aria-label="Primary views">
                   <ToggleGroupItem value="graph">Graph</ToggleGroupItem>
