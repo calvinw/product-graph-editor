@@ -1740,10 +1740,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
         : edge))
     }
     if (target?.data.scope === "background" && !target.data.expanded) void hydrateBackgroundNode(nodeId)
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      setNodes((current) => layoutNodes(current, edgesRef.current, { orientation: graphOrientation }))
-    }))
-  }, [edges, graphOrientation, hydrateBackgroundNode, setEdges, setNodes])
+  }, [edges, hydrateBackgroundNode, setEdges, setNodes])
 
   const setAllExpanded = useCallback((expanded: boolean) => {
     const currentEdges = edgesRef.current
