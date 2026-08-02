@@ -1375,6 +1375,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
   const [lcaResult, setLcaResult] = useState<LcaResult | null>(null)
   const [calculatedRevision, setCalculatedRevision] = useState<number | null>(null)
   const [graphMode, setGraphMode] = useState<"scaled" | "structure">("structure")
+  const [showReferenceAmounts, setShowReferenceAmounts] = useState(false)
   const [graphSettingsOpen, setGraphSettingsOpen] = useState(false)
   const [graphMaxProcesses, setGraphMaxProcesses] = useState(1)
   const [graphOrientation, setGraphOrientation] = useState<"vertical" | "horizontal">("horizontal")
@@ -1413,6 +1414,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
   })()
 
   useEffect(() => setGraphMaxProcesses(availableGraphProcessCount), [availableGraphProcessCount])
+  useEffect(() => setShowReferenceAmounts(false), [graphMode, selected?.id])
   useEffect(() => onTitleChange(graphTitle), [graphTitle, onTitleChange])
   useEffect(() => {
     if (lcaResult) setResultsMarkdown(lcaResultToMarkdown(lcaResult, decimalPlaces, showAllDecimalPlaces))
@@ -1553,6 +1555,17 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
         amount: displayAmount(exchange.amount),
         unit: exchange.unit ?? "",
       }))
+      const referenceInputs = details.exchanges.filter((exchange) => exchange.exchange_type === "technosphere").map((exchange) => ({
+        label: exchange.input_name, kind: "background input", color: nodeScopeColors.background,
+        amount: exchange.amount, unit: exchange.unit ?? undefined,
+      }))
+      const referenceOutputs = details.exchanges.filter((exchange) => exchange.exchange_type === "production").map((exchange) => ({
+        label: exchange.input_product ?? exchange.input_name, kind: "reference output", color: nodeScopeColors.background,
+        amount: exchange.amount, unit: exchange.unit ?? details.unit ?? node.data.backgroundDemandUnit,
+      }))
+      const referenceBiosphere = details.exchanges.filter((exchange) => exchange.exchange_type === "biosphere").map((exchange) => ({
+        label: chemicalFlowLabel(exchange.input_name), amount: exchange.amount, unit: exchange.unit ?? "",
+      }))
       setNodes((current) => current.map((candidate) => candidate.id === nodeId && candidate.data.showAmounts === node.data.showAmounts
         ? { ...candidate, data: {
             ...candidate.data,
@@ -1563,6 +1576,9 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
             inputs,
             outputs,
             biosphere,
+            referenceInputs,
+            referenceOutputs,
+            referenceBiosphere,
             backgroundLoading: false,
             backgroundLoaded: true,
           } }
@@ -1669,6 +1685,17 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
       const biosphere = details.exchanges.filter((exchange) => exchange.exchange_type === "biosphere").map((exchange) => ({
         label: chemicalFlowLabel(exchange.input_name), amount: scaled(exchange.amount), unit: exchange.unit ?? "",
       }))
+      const referenceInputs = technosphere.map((exchange) => ({
+        label: exchange.input_name, kind: "background input", color: nodeScopeColors.background,
+        amount: exchange.amount, unit: exchange.unit ?? undefined,
+      }))
+      const referenceOutputs = details.exchanges.filter((exchange) => exchange.exchange_type === "production").map((exchange) => ({
+        label: exchange.input_product ?? exchange.input_name, kind: "reference output", color: nodeScopeColors.background,
+        amount: exchange.amount, unit: exchange.unit ?? details.unit ?? node.data.backgroundDemandUnit,
+      }))
+      const referenceBiosphere = details.exchanges.filter((exchange) => exchange.exchange_type === "biosphere").map((exchange) => ({
+        label: chemicalFlowLabel(exchange.input_name), amount: exchange.amount, unit: exchange.unit ?? "",
+      }))
       const currentNodes = nodesRef.current.filter((candidate) => candidate.id !== nodeId && candidate.data.backgroundParentId !== nodeId)
       const updatedParent: Node<ProcessNodeData> = {
         ...node,
@@ -1681,6 +1708,9 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
           inputs,
           outputs,
           biosphere,
+          referenceInputs,
+          referenceOutputs,
+          referenceBiosphere,
           backgroundLoading: false,
           backgroundExploring: false,
           backgroundLoaded: true,
@@ -2280,7 +2310,29 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
           <div className="inspector-head"><span>NODE DETAILS</span><Button variant="ghost" size="icon" onClick={() => setSelected(null)} aria-label="Close property editor" title="Close property editor"><X size={16} /></Button></div>
           <div className="node-icon" style={{ background: selectedNode?.data.color ?? inspectorSelection.color }}><Box size={22} /></div>
           <h2>{selectedNode?.data.label ?? inspectorSelection.label}</h2><p>{selectedNode?.data.detail ?? inspectorSelection.detail}</p>
-          {selectedNode?.data.scope === "background" ? <>
+          {graphMode === "structure" ? <Button variant="outline" size="sm" className="reference-amounts-toggle" aria-pressed={showReferenceAmounts} onClick={() => setShowReferenceAmounts((current) => !current)}>{showReferenceAmounts ? "Hide reference amounts" : "Reference amounts"}</Button> : null}
+          {graphMode === "structure" && showReferenceAmounts && selectedNode ? <>
+            <div className="property-section">
+              <h3>Technosphere inputs</h3>
+              {selectedNode.data.referenceInputs?.length ? selectedNode.data.referenceInputs.map((item, index) => <div className="property-row" key={`${item.label}-${index}`}><span>{item.label}</span><strong>{formatNumber(item.amount ?? 0)}{item.unit ? ` ${item.unit}` : ""}</strong></div>) : <p>No technosphere inputs</p>}
+            </div>
+            <div className="property-section">
+              <h3>Reference output</h3>
+              {selectedNode.data.referenceOutputs?.length ? selectedNode.data.referenceOutputs.map((item, index) => <div className="property-row" key={`${item.label}-${index}`}><span>{item.label}</span><strong>{formatNumber(item.amount ?? 0)}{item.unit ? ` ${item.unit}` : ""}</strong></div>) : <p>No production exchange</p>}
+            </div>
+            {selectedNode.data.referenceExtractions?.length ? <div className="property-section is-extraction">
+              <h3>Resource extractions</h3>
+              {selectedNode.data.referenceExtractions.map((item, index) => <div className="property-row" key={`${item.label}-${index}`}><span>{item.label}</span><strong>{formatNumber(item.amount ?? 0)} {item.unit}</strong></div>)}
+            </div> : null}
+            {selectedNode.data.referenceEmissions?.length ? <div className="property-section is-emission">
+              <h3>Emissions to air</h3>
+              {selectedNode.data.referenceEmissions.map((item, index) => <div className="property-row" key={`${item.label}-${index}`}><span>{item.label}</span><strong>{formatNumber(item.amount ?? 0)} {item.unit}</strong></div>)}
+            </div> : null}
+            {selectedNode.data.referenceBiosphere?.length ? <div className="property-section is-emission">
+              <h3>Biosphere exchanges</h3>
+              {selectedNode.data.referenceBiosphere.map((item, index) => <div className="property-row" key={`${item.label}-${index}`}><span>{item.label}</span><strong>{formatNumber(item.amount ?? 0)}{item.unit ? ` ${item.unit}` : ""}</strong></div>)}
+            </div> : null}
+          </> : selectedNode?.data.scope === "background" ? <>
             {selectedNode.data.backgroundLoading ? <div className="property-section"><p>Loading unit process…</p></div> : null}
             {selectedNode.data.backgroundError ? <div className="property-section"><p className="property-error">{selectedNode.data.backgroundError}</p></div> : null}
             <div className="property-section">
