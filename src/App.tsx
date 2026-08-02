@@ -1387,6 +1387,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
   const activeCalculationRef = useRef<AbortController | null>(null)
   const initialCalculationStartedRef = useRef(false)
   const contributionRequestsRef = useRef<Map<string, Promise<ContributionGraph[]>>>(new Map())
+  const lastSelectedRef = useRef<(NodeMeta & { id: string }) | null>(null)
   nodesRef.current = nodes
   edgesRef.current = edges
   appliedRevisionRef.current = appliedRevision
@@ -2015,7 +2016,9 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
   const hasCurrentResults = Boolean(lcaResult && calculatedRevision === appliedRevision)
   const primaryView = view === "graph" || view === "yaml" || view === "results" ? view : ""
   const analysisView = isAnalysisView(view) ? view : ""
-  const selectedNode = selected ? nodes.find((node) => node.id === selected.id) : undefined
+  if (selected) lastSelectedRef.current = selected
+  const inspectorSelection = selected ?? lastSelectedRef.current
+  const selectedNode = inspectorSelection ? nodes.find((node) => node.id === inspectorSelection.id) : undefined
   const inputNodes = selectedNode ? edges
     .filter((edge) => edge.target === selectedNode.id)
     .map((edge) => nodes.find((node) => node.id === edge.source))
@@ -2272,11 +2275,11 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
         {view === "graph" ? <div className="graph-meta">{nodes.length} nodes&nbsp;&nbsp;·&nbsp;&nbsp;{connectionCount} connections</div> : null}
       </div>
 
-      {view === "graph" && selected ? <aside className="inspector">
+      {view === "graph" && inspectorSelection ? <aside className={`inspector${selected ? " is-open" : ""}`} aria-hidden={!selected} inert={!selected}>
         <>
           <div className="inspector-head"><span>NODE DETAILS</span><Button variant="ghost" size="icon" onClick={() => setSelected(null)} aria-label="Close property editor" title="Close property editor"><X size={16} /></Button></div>
-          <div className="node-icon" style={{ background: selectedNode?.data.color ?? selected.color }}><Box size={22} /></div>
-          <h2>{selectedNode?.data.label ?? selected.label}</h2><p>{selectedNode?.data.detail ?? selected.detail}</p>
+          <div className="node-icon" style={{ background: selectedNode?.data.color ?? inspectorSelection.color }}><Box size={22} /></div>
+          <h2>{selectedNode?.data.label ?? inspectorSelection.label}</h2><p>{selectedNode?.data.detail ?? inspectorSelection.detail}</p>
           {selectedNode?.data.scope === "background" ? <>
             {selectedNode.data.backgroundLoading ? <div className="property-section"><p>Loading unit process…</p></div> : null}
             {selectedNode.data.backgroundError ? <div className="property-section"><p className="property-error">{selectedNode.data.backgroundError}</p></div> : null}
