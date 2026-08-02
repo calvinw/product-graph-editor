@@ -2125,7 +2125,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
       : []
   })()
   const calculationInProgress = isCalculating || loadingContributionKeys.size > 0
-  const backgroundProcessing = nodes.some((node) => node.data.backgroundExploring)
+  const backgroundProcessing = nodes.some((node) => node.data.backgroundExploring || node.data.backgroundLoading)
 
   const openAnalysisView = (next: AnalysisView) => {
     setView(next)
