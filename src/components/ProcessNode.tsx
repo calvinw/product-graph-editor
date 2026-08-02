@@ -21,9 +21,14 @@ export type ProcessNodeData = {
   expanded?: boolean
   inputs?: FlowItem[]
   outputs?: FlowItem[]
+  referenceInputs?: FlowItem[]
+  referenceOutputs?: FlowItem[]
   emissions?: InventoryItem[]
   extractions?: InventoryItem[]
   biosphere?: InventoryItem[]
+  referenceEmissions?: InventoryItem[]
+  referenceExtractions?: InventoryItem[]
+  referenceBiosphere?: InventoryItem[]
   backgroundLoading?: boolean
   backgroundExploring?: boolean
   backgroundLoaded?: boolean

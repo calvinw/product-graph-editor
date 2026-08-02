@@ -488,6 +488,7 @@ html[data-theme="light"] .pg-node-head, html[data-theme="light"] .pg-flow-sectio
 .inspector { position: absolute; z-index: 4; top: 76px; right: 18px; bottom: 18px; width: 286px; min-width: 0; padding: 22px; overflow-y: auto; border: 1px solid #2b2f36; border-radius: 12px; opacity: 0; background: rgba(16,18,22,.96); box-shadow: 0 18px 48px rgba(0,0,0,.38); backdrop-filter: blur(12px); pointer-events: none; transform: translateX(calc(100% + 36px)); transition: opacity .2s ease, transform .25s cubic-bezier(.22, 1, .36, 1); }
 .inspector.is-open { opacity: 1; pointer-events: auto; transform: translateX(0); }
 .inspector-head { display: flex; align-items: center; justify-content: space-between; height: 30px; margin-bottom: 27px; color: #737985; font-size: 9px; font-weight: 750; letter-spacing: .14em; }
+.reference-amounts-toggle { width: 100%; margin-top: 18px; }
 .node-icon { display: grid; place-items: center; width: 44px; height: 44px; border: 5px solid #191c21; border-radius: 50%; color: #101216; box-shadow: 0 0 0 1px #30343c; }
 .inspector h2 { margin: 13px 0 5px; font-size: 19px; letter-spacing: -.025em; }.inspector > p { margin: 0 0 28px; color: #7f8590; font-size: 12px; }
 .property-section { margin-top: 22px; padding-top: 15px; border-top: 1px solid #272b32; }

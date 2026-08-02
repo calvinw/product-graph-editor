@@ -140,11 +140,31 @@ export function buildGraphFromYaml(
           ? `Scaled contribution: ${displayNumber(outputAmount)} ${outputUnit} ${process.reference_output.flow}`
           : `Output flow: ${process.reference_output.flow}`,
         showAmounts: mode === "scaled",
+        referenceInputs: (process.inputs ?? []).map((input) => ({
+          label: input.flow,
+          kind: input.database ? "background input" : "foreground input",
+          color: input.database ? nodeScopeColors.background : nodeScopeColors.foreground,
+          amount: input.amount,
+          unit: input.unit ?? productUnits.get(input.flow),
+        })),
+        referenceOutputs: [{
+          label: process.reference_output.flow,
+          kind: "reference output",
+          color: nodeScopeColors.foreground,
+          amount: process.reference_output.amount,
+          unit: process.reference_output.unit ?? outputUnit,
+        }],
         emissions: (process.emissions ?? []).map((emission) => ({ label: chemicalFlowLabel(emission.flow), amount: round(emission.amount * scale), unit: "kg" })),
+        referenceEmissions: (process.emissions ?? []).map((emission) => ({
+          label: chemicalFlowLabel(emission.flow), amount: emission.amount, unit: emission.unit ?? "kg",
+        })),
         extractions: (process.extractions ?? process.resources ?? process.resource_inputs ?? []).map((extraction) => ({
           label: chemicalFlowLabel(extraction.flow),
           amount: round(extraction.amount * scale),
           unit: extraction.unit ?? "kg",
+        })),
+        referenceExtractions: (process.extractions ?? process.resources ?? process.resource_inputs ?? []).map((extraction) => ({
+          label: chemicalFlowLabel(extraction.flow), amount: extraction.amount, unit: extraction.unit ?? "kg",
         })),
       },
     }
