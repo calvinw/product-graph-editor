@@ -32,7 +32,7 @@ import { chemicalFlowLabel } from "./lib/flowLabels"
 import { buildGraphFromYaml, buildInventoryRequirements, nodeScopeColors } from "./lib/yamlGraph"
 import {
   calculateContributionGraphs, calculateLca, getBackgroundActivityDetails, getProductGraphCatalog, impactCategoryAbbreviation, impactCategoryDisplayName, lcaResultToMarkdown,
-  type ContributionGraph, type ContributionGraphEdge, type ContributionGraphFlow, type ContributionGraphNode, type LcaResult, type ProductGraphCatalogEntry,
+  type ContributionGraph, type ContributionGraphFlow, type LcaResult, type ProductGraphCatalogEntry,
 } from "./lib/lcaApi"
 import { unitsAreCompatible } from "./lib/units"
 import { DisplaySettingsProvider, useDisplaySettings } from "./lib/displaySettings"
@@ -829,99 +829,57 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
     return isOpen ? [processRow, ...renderContributionRows(upstream, depth + 1)] : [processRow]
   })
 
-  const graphNodesById = new Map(selectedContributionGraph?.nodes.map((node) => [node.id, node]) ?? [])
-  const graphChildren = new Map<string, Array<{ node: ContributionGraphNode; edge: ContributionGraphEdge }>>()
-  selectedContributionGraph?.edges.forEach((edge) => {
-    const node = graphNodesById.get(edge.producer_id)
-    if (!node) return
-    graphChildren.set(edge.consumer_id, [...(graphChildren.get(edge.consumer_id) ?? []), { node, edge }])
-  })
-  const graphFlows = new Map<string, ContributionGraphFlow[]>()
+  const graphActivityByOccurrence = new Map(selectedContributionGraph?.nodes
+    .filter((node) => node.kind === "process" && node.activity_id)
+    .map((node) => [node.id, node.activity_id!]) ?? [])
+  const graphFlowsByActivity = new Map<string, ContributionGraphFlow[]>()
   selectedContributionGraph?.flows.forEach((item) => {
-    graphFlows.set(item.process_occurrence_id, [...(graphFlows.get(item.process_occurrence_id) ?? []), item])
+    const activityId = graphActivityByOccurrence.get(item.process_occurrence_id)
+    if (!activityId) return
+    graphFlowsByActivity.set(activityId, [...(graphFlowsByActivity.get(activityId) ?? []), item])
   })
-  const graphRoot = selectedContributionGraph?.nodes.find((node) => node.kind === "functional_unit")
-  const graphFallbackRoots = selectedContributionGraph?.nodes.filter((node) => (
-    node.kind === "process"
-    && !selectedContributionGraph.edges.some((edge) => edge.producer_id === node.id)
-  )) ?? []
   const graphTolerance = selectedContributionGraph
     ? Math.max(1e-12, Math.abs(selectedContributionGraph.total_score) * 1e-9)
     : 1e-12
   const isMaterial = (value: number) => Math.abs(value) > graphTolerance
-
-  const renderFlowRows = (items: ContributionGraphFlow[], depth: number) => items.map((item) => <tr className={`contribution-flow-row is-${item.kind}`} key={item.id}>
-    <td><span className="rate-value">{item.percentage === null ? "—" : formatPercent(item.percentage)}</span></td>
-    <td style={{ paddingLeft: `${29 + depth * 20}px` }} title={item.categories.join(" · ")}><Leaf size={13} /><span>{inventoryFlowName(item.flow_name)}</span><small>{item.kind}</small></td>
-    <td>{number(item.amount)} <small>{item.unit}</small></td>
-    <td>{number(item.score)} <small>{selectedContributionGraph?.unit}</small></td>
-    <td>—</td>
-  </tr>)
-
-  function renderUnexpandedRow(node: ContributionGraphNode, depth: number) {
-    const percent = selectedContributionGraph?.total_score
-      ? node.unexpanded_score / selectedContributionGraph.total_score * 100
-      : null
-    return <tr className="contribution-unexpanded-row" key={`${node.id}:unexpanded`}>
-      <td><span className="rate-value">{percent === null ? "—" : formatPercent(percent)}</span></td>
-      <td style={{ paddingLeft: `${29 + depth * 20}px` }}><span className="unexpanded-mark">…</span>Unexpanded impact <small>cutoff/depth</small></td>
-      <td>—</td>
-      <td>{number(node.unexpanded_score)} <small>{selectedContributionGraph?.unit}</small></td>
-      <td>—</td>
-    </tr>
+  const activityRows = [...(selectedContributionGraph?.activity_contributions ?? [])]
+    .sort((left, right) => Math.abs(right.direct_score) - Math.abs(left.direct_score))
+  const activityTotal = activityRows.reduce((sum, item) => sum + item.direct_score, 0)
+  const unexpandedActivityScore = (selectedContributionGraph?.total_score ?? 0) - activityTotal
+  const activityPercent = (score: number) => selectedContributionGraph?.total_score
+    ? score / selectedContributionGraph.total_score * 100
+    : null
+  const renderActivityFlowRows = (activityId: string, activityScore: number) => {
+    const grouped = new Map<string, ContributionGraphFlow>()
+    ;(graphFlowsByActivity.get(activityId) ?? []).forEach((item) => {
+      const key = `${item.kind}:${item.flow_name}:${item.unit}:${item.categories.join("/")}`
+      const current = grouped.get(key)
+      grouped.set(key, current
+        ? { ...current, amount: current.amount + item.amount, score: current.score + item.score }
+        : { ...item })
+    })
+    const flows = [...grouped.values()].sort((left, right) => Math.abs(right.score) - Math.abs(left.score))
+    const disclosedScore = flows.reduce((sum, item) => sum + item.score, 0)
+    const undisclosedScore = activityScore - disclosedScore
+    return <>
+      {flows.map((item) => <tr className={`contribution-flow-row is-${item.kind}`} key={`${activityId}:${item.kind}:${item.flow_name}:${item.unit}`}>
+        <td><span className="rate-value">{activityPercent(item.score) === null ? "—" : formatPercent(activityPercent(item.score)!)}</span></td>
+        <td style={{ paddingLeft: "29px" }} title={item.categories.join(" · ")}><Leaf size={13} /><span>{inventoryFlowName(item.flow_name)}</span><small>{item.kind}</small></td>
+        <td>chemical</td><td>{number(item.score)} <small>{selectedContributionGraph?.unit}</small></td><td>{number(item.amount)} <small>{item.unit}</small></td>
+      </tr>)}
+      {isMaterial(undisclosedScore) ? <tr className="contribution-unexpanded-row" key={`${activityId}:other`}>
+        <td><span className="rate-value">{activityPercent(undisclosedScore) === null ? "—" : formatPercent(activityPercent(undisclosedScore)!)}</span></td>
+        <td style={{ paddingLeft: "29px" }}><span className="unexpanded-mark">…</span>Other emissions <small>not itemized</small></td>
+        <td>chemical</td><td>{number(undisclosedScore)} <small>{selectedContributionGraph?.unit}</small></td><td>—</td>
+      </tr> : null}
+    </>
   }
-
-  function renderGraphChildren(parent: ContributionGraphNode, depth: number): React.ReactNode[] {
-    const children = [...(graphChildren.get(parent.id) ?? [])]
-      .sort((left, right) => Math.abs(right.node.cumulative_score) - Math.abs(left.node.cumulative_score))
-      .flatMap(({ node, edge }) => renderGraphNode(node, edge, depth))
-    return isMaterial(parent.unexpanded_score)
-      ? [...children, renderUnexpandedRow(parent, depth)]
-      : children
-  }
-
-  function renderGraphNode(node: ContributionGraphNode, edge: ContributionGraphEdge | null, depth: number): React.ReactNode[] {
-    const children = graphChildren.get(node.id) ?? []
-    const canExpand = children.length > 0 || isMaterial(node.unexpanded_score)
-    const isOpen = expandedProcesses.has(node.id)
-    const attachedFlows = graphFlows.get(node.id) ?? []
-    const extractions = attachedFlows.filter((item) => item.kind === "extraction")
-    const emissions = attachedFlows.filter((item) => item.kind === "emission")
-    const percentage = node.cumulative_percentage
-    const processRow = <tr key={node.id} className={canExpand ? "clickable-process" : ""} onClick={canExpand ? () => toggleProcess(node.id) : undefined}>
-      <td><span className="rate-value">{percentage === null ? "—" : formatPercent(percentage)}</span></td>
-      <td style={{ paddingLeft: `${7 + depth * 20}px` }} title={edge ? `${edge.flow_name}: ${formatNumber(edge.amount)} ${edge.unit}` : undefined}>
-        {canExpand ? <button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-expanded={isOpen} aria-label={`${isOpen ? "Hide" : "Show"} inputs for ${node.process_name}`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}
-        <span className="process-mark">⌘</span><span>{node.process_name}</span>
-        {node.scope ? <small className={`contribution-scope is-${node.scope}`}>{node.scope}</small> : null}
-        {node.location ? <small>{node.location}</small> : null}
-        {node.terminal ? <small>terminal</small> : null}
-      </td>
-      <td>{number(node.supply_amount)} <small>{node.unit}</small></td>
-      <td><span className="result-bar"><i className={node.cumulative_score < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(selectedContributionGraph?.total_score ? node.cumulative_score / selectedContributionGraph.total_score * 100 : 0))}%` }} /></span>{number(node.cumulative_score)} <small>{selectedContributionGraph?.unit}</small></td>
-      <td>{number(node.direct_score)} <small>{selectedContributionGraph?.unit}</small></td>
-    </tr>
-    return [
-      ...renderFlowRows(extractions, depth),
-      processRow,
-      ...renderFlowRows(emissions, depth),
-      ...(isOpen ? renderGraphChildren(node, depth + 1) : []),
-    ]
-  }
-
-  const graphRootPercentage = graphRoot?.cumulative_percentage
-    ?? (selectedContributionGraph?.status === "zero_total" ? null : 100)
-  const graphRootCumulative = graphRoot?.cumulative_score ?? selectedContributionGraph?.total_score ?? total
-  const graphRootDirect = graphRoot?.direct_score ?? 0
-  const graphCanExpand = graphRoot
-    ? (graphChildren.get(graphRoot.id)?.length ?? 0) > 0 || isMaterial(graphRoot.unexpanded_score)
-    : graphFallbackRoots.length > 0
 
   return <div className="contribution-view">
     <div className="contribution-title"><div><strong>{result.name}</strong><span>{result.method} · {result.functional_unit}</span></div>
       {selectedContributionGraph ? <aside className={`contribution-graph-summary is-${selectedContributionGraph.status}`}>
         <strong>{selectedContributionGraph.status.replace("_", " ")}</strong>
-        <span>Coverage {selectedContributionGraph.coverage === null ? "—" : formatPercent(selectedContributionGraph.coverage * 100)} · Unexpanded {formatNumber(selectedContributionGraph.unexpanded_score)} {selectedContributionGraph.unit}</span>
+        <span>Total {formatNumber(selectedContributionGraph.total_score)} {selectedContributionGraph.unit} · Coverage {selectedContributionGraph.coverage === null ? "—" : formatPercent(selectedContributionGraph.coverage * 100)} · Unexpanded {formatNumber(selectedContributionGraph.unexpanded_score)} {selectedContributionGraph.unit}</span>
       </aside> : null}
     </div>
     <div className="contribution-controls">
@@ -939,16 +897,32 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
     </div>
     {mode !== null ? <div className="contribution-table-wrap"><table className="contribution-table" style={{ width: Math.max(1040, columnWidths.reduce((sum, width) => sum + width, 0)) }}><ResizableTableHeader labels={[
       "Contribution rate",
-      "Process",
-      selectedContributionGraph ? "Supply amount" : "Required amount",
-      selectedContributionGraph ? "Cumulative result" : "Total result",
-      "Direct contribution",
+      selectedContributionGraph ? "Activity" : "Process",
+      selectedContributionGraph ? "Type" : "Required amount",
+      selectedContributionGraph ? "Climate change result" : "Total result",
+      selectedContributionGraph ? "Occurrences / amount" : "Direct contribution",
     ]} widths={columnWidths} onWidthsChange={setColumnWidths} /><tbody>
       {selectedContributionGraph ? <>
-        <tr className="contribution-root"><td>{graphRootPercentage === null ? "—" : formatPercent(graphRootPercentage)}</td><td>{graphCanExpand ? <button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} upstream processes`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className="process-mark">⌘</span>{graphRoot?.process_name || result.name}</td><td>{graphRoot ? <>{number(graphRoot.supply_amount)} <small>{graphRoot.unit}</small></> : "—"}</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(graphRootCumulative)} <small>{selectedContributionGraph.unit}</small></td><td>{number(graphRootDirect)} <small>{selectedContributionGraph.unit}</small></td></tr>
-        {expanded && graphRoot ? renderGraphChildren(graphRoot, 0) : null}
-        {expanded && !graphRoot ? graphFallbackRoots.flatMap((node) => renderGraphNode(node, null, 0)) : null}
-        {expanded && !graphCanExpand ? <tr className="empty-row"><td colSpan={5}>{selectedContributionGraph.status === "zero_total" ? "This impact category has a zero total, so contribution percentages are unavailable." : "No contribution graph nodes were returned for this category."}</td></tr> : null}
+        {activityRows.map((activity) => {
+          const activityKey = `activity:${activity.activity_id}`
+          const activityFlows = graphFlowsByActivity.get(activity.activity_id) ?? []
+          const disclosedScore = activityFlows.reduce((sum, item) => sum + item.score, 0)
+          const canExpand = activityFlows.length > 0 || isMaterial(activity.direct_score - disclosedScore)
+          const isOpen = expandedProcesses.has(activityKey)
+          const percent = activityPercent(activity.direct_score)
+          return <Fragment key={activity.activity_id}>
+            <tr className={canExpand ? "clickable-process contribution-activity-row" : "contribution-activity-row"} onClick={canExpand ? () => toggleProcess(activityKey) : undefined}>
+              <td><span className="rate-value">{percent === null ? "—" : formatPercent(percent)}</span></td>
+              <td>{canExpand ? <button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-expanded={isOpen} aria-label={`${isOpen ? "Hide" : "Show"} chemical details for ${activity.process_name}`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className="process-mark">⌘</span>{cleanProcessName(activity.process_name)}{activity.location ? <small>{activity.location}</small> : null}</td>
+              <td><small className={`contribution-scope is-${activity.scope}`}>{activity.scope}</small></td>
+              <td><span className="result-bar"><i className={activity.direct_score < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(percent ?? 0))}%` }} /></span>{number(activity.direct_score)} <small>{selectedContributionGraph.unit}</small></td>
+              <td>{activity.occurrence_count}</td>
+            </tr>
+            {isOpen ? renderActivityFlowRows(activity.activity_id, activity.direct_score) : null}
+          </Fragment>
+        })}
+        {isMaterial(unexpandedActivityScore) ? <tr className="contribution-unexpanded-row"><td><span className="rate-value">{activityPercent(unexpandedActivityScore) === null ? "—" : formatPercent(activityPercent(unexpandedActivityScore)!)}</span></td><td><span className="tree-toggle-spacer" /><span className="unexpanded-mark">…</span>Unexpanded / other</td><td>remainder</td><td>{number(unexpandedActivityScore)} <small>{selectedContributionGraph.unit}</small></td><td>—</td></tr> : null}
+        {!activityRows.length ? <tr className="empty-row"><td colSpan={5}>{selectedContributionGraph.status === "zero_total" ? "This impact category has a zero total, so contribution percentages are unavailable." : "No activity contributions were returned for this category."}</td></tr> : null}
       </> : <>
         <tr className="contribution-root"><td>{formatPercent(100)}</td><td><button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} downstream processes`}><ChevronDown size={14} /></button><span className="process-mark">⌘</span>{result.name}</td><td>{mode === "flow" ? formatNumber(1) : "—"}</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(total)} <small>{unit}</small></td><td>—</td></tr>
         {expanded ? renderContributionRows(rootRows.length ? rootRows : rows) : null}
