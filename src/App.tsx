@@ -842,8 +842,13 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
     ? Math.max(1e-12, Math.abs(selectedContributionGraph.total_score) * 1e-9)
     : 1e-12
   const isMaterial = (value: number) => Math.abs(value) > graphTolerance
-  const activityRows = [...(selectedContributionGraph?.activity_contributions ?? [])]
+  const minimumVisibleActivityPercentage = 0.005
+  const allActivityRows = [...(selectedContributionGraph?.activity_contributions ?? [])]
     .sort((left, right) => Math.abs(right.direct_score) - Math.abs(left.direct_score))
+  const activityRows = allActivityRows.filter((item) => {
+    if (!selectedContributionGraph?.total_score) return false
+    return Math.abs(item.direct_score / selectedContributionGraph.total_score * 100) >= minimumVisibleActivityPercentage
+  })
   const activityTotal = activityRows.reduce((sum, item) => sum + item.direct_score, 0)
   const unexpandedActivityScore = (selectedContributionGraph?.total_score ?? 0) - activityTotal
   const activityPercent = (score: number) => selectedContributionGraph?.total_score

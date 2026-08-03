@@ -1,12 +1,13 @@
 import { expect, test, type Page } from "@playwright/test"
 import { lcaResultFixture } from "../fixtures/lca-result"
 import { productGraphCatalogFixture } from "../fixtures/product-graph-catalog"
+import type { LcaResult } from "../../src/lib/lcaApi"
 
 type Theme = "dark" | "light"
 
 async function mockLcaApi(
   page: Page,
-  result = lcaResultFixture,
+  result: LcaResult = lcaResultFixture,
   onContributionRequest?: (categories: string[]) => void,
   contributionDelayMs = 0,
   baseDelayMs = 0,
@@ -491,7 +492,20 @@ test("contribution table columns support accessible keyboard resizing and horizo
 })
 
 test("impact contributions show an additive activity breakdown with optional chemical details", async ({ page }) => {
-  await mockLcaApi(page)
+  const resultWithZeroActivity = {
+    ...lcaResultFixture,
+    contribution_graphs: lcaResultFixture.contribution_graphs.map((graph) => ({
+      ...graph,
+      activity_contributions: [...graph.activity_contributions, {
+        ...graph.activity_contributions[0],
+        activity_id: "zero-activity",
+        process_name: "Zero impact activity",
+        direct_score: 0,
+        percentage: 0,
+      }],
+    })),
+  }
+  await mockLcaApi(page, resultWithZeroActivity)
   await page.goto("/")
   await calculate(page)
   await page.getByRole("radio", { name: "Contribution", exact: true }).click()
@@ -502,6 +516,7 @@ test("impact contributions show an additive activity breakdown with optional che
   await expect(activityToggle).toHaveAttribute("aria-expanded", "true")
   const activities = page.locator(".contribution-activity-row")
   await expect(activities).toHaveCount(5)
+  await expect(page.getByText("Zero impact activity", { exact: true })).toHaveCount(0)
   const activityRates = await activities.locator(".rate-value").allTextContents()
   const activityTotal = activityRates.reduce((sum, value) => sum + Number(value.replace("%", "")), 0)
   expect(activityTotal).toBeCloseTo(100, 1)
