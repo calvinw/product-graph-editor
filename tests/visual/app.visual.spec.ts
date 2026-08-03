@@ -496,6 +496,10 @@ test("impact contributions show an additive activity breakdown with optional che
   await calculate(page)
   await page.getByRole("radio", { name: "Contribution", exact: true }).click()
 
+  const activityToggle = page.getByRole("button", { name: "Show activity contributions" })
+  await expect(activityToggle).toHaveAttribute("aria-expanded", "false")
+  await activityToggle.click()
+  await expect(activityToggle).toHaveAttribute("aria-expanded", "true")
   const activities = page.locator(".contribution-activity-row")
   await expect(activities).toHaveCount(5)
   const activityRates = await activities.locator(".rate-value").allTextContents()
