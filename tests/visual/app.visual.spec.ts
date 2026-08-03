@@ -490,6 +490,25 @@ test("contribution table columns support accessible keyboard resizing and horizo
   await expect.poll(() => tableWrap.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true)
 })
 
+test("impact contributions show an additive activity breakdown with optional chemical details", async ({ page }) => {
+  await mockLcaApi(page)
+  await page.goto("/")
+  await calculate(page)
+  await page.getByRole("radio", { name: "Contribution", exact: true }).click()
+
+  const activities = page.locator(".contribution-activity-row")
+  await expect(activities).toHaveCount(5)
+  const activityRates = await activities.locator(".rate-value").allTextContents()
+  const activityTotal = activityRates.reduce((sum, value) => sum + Number(value.replace("%", "")), 0)
+  expect(activityTotal).toBeCloseTo(100, 1)
+  await expect(page.getByText("Carbon dioxide (CO2)", { exact: true })).toHaveCount(0)
+
+  const assembly = activities.filter({ hasText: "Jacket assembly" })
+  await assembly.click()
+  await expect(page.getByText("Carbon dioxide (CO2)", { exact: true })).toBeVisible()
+  await expect(page.getByText("Other emissions", { exact: true })).toBeVisible()
+})
+
 test("every analysis table exposes accessible column resize controls", async ({ page }) => {
   await mockLcaApi(page)
   await page.goto("/")
