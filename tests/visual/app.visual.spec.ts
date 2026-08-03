@@ -443,6 +443,30 @@ test("process result sections select processes independently", async ({ page }) 
   await expect(impactProcess).toHaveText(initialImpactProcess ?? "")
 })
 
+test("all result tables expose working column resize handles", async ({ page }) => {
+  await mockLcaApi(page)
+  await page.goto("/")
+  await calculate(page)
+
+  const views = [
+    { name: "Inventory", table: ".inventory-table" },
+    { name: "Impact Analysis", table: ".impact-table" },
+    { name: "Process Results", table: ".process-flow-table, .process-impact-table" },
+    { name: "Contribution", table: ".contribution-table" },
+  ]
+
+  for (const view of views) {
+    await page.getByRole("radio", { name: view.name, exact: true }).click()
+    const table = page.locator(view.table).first()
+    await expect(table).toBeVisible()
+    const handle = table.getByRole("separator").first()
+    const initialWidth = Number(await handle.getAttribute("aria-valuenow"))
+    await handle.focus()
+    await page.keyboard.press("ArrowRight")
+    await expect(handle).toHaveAttribute("aria-valuenow", String(initialWidth + 10))
+  }
+})
+
 test("contribution table columns support accessible keyboard resizing and horizontal scrolling", async ({ page }) => {
   await mockLcaApi(page)
   await page.goto("/")
