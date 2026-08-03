@@ -903,7 +903,8 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
       selectedContributionGraph ? "Occurrences / amount" : "Direct contribution",
     ]} widths={columnWidths} onWidthsChange={setColumnWidths} /><tbody>
       {selectedContributionGraph ? <>
-        {activityRows.map((activity) => {
+        <tr className="contribution-root"><td>{selectedContributionGraph.status === "zero_total" ? "—" : formatPercent(100)}</td><td><button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} activity contributions`}><ChevronDown size={14} /></button><span className="process-mark">⌘</span>Total — {result.name}</td><td>all activities</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(selectedContributionGraph.total_score)} <small>{selectedContributionGraph.unit}</small></td><td>{activityRows.reduce((sum, item) => sum + item.occurrence_count, 0)}</td></tr>
+        {expanded ? activityRows.map((activity) => {
           const activityKey = `activity:${activity.activity_id}`
           const activityFlows = graphFlowsByActivity.get(activity.activity_id) ?? []
           const disclosedScore = activityFlows.reduce((sum, item) => sum + item.score, 0)
@@ -920,9 +921,9 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
             </tr>
             {isOpen ? renderActivityFlowRows(activity.activity_id, activity.direct_score) : null}
           </Fragment>
-        })}
-        {isMaterial(unexpandedActivityScore) ? <tr className="contribution-unexpanded-row"><td><span className="rate-value">{activityPercent(unexpandedActivityScore) === null ? "—" : formatPercent(activityPercent(unexpandedActivityScore)!)}</span></td><td><span className="tree-toggle-spacer" /><span className="unexpanded-mark">…</span>Unexpanded / other</td><td>remainder</td><td>{number(unexpandedActivityScore)} <small>{selectedContributionGraph.unit}</small></td><td>—</td></tr> : null}
-        {!activityRows.length ? <tr className="empty-row"><td colSpan={5}>{selectedContributionGraph.status === "zero_total" ? "This impact category has a zero total, so contribution percentages are unavailable." : "No activity contributions were returned for this category."}</td></tr> : null}
+        }) : null}
+        {expanded && isMaterial(unexpandedActivityScore) ? <tr className="contribution-unexpanded-row"><td><span className="rate-value">{activityPercent(unexpandedActivityScore) === null ? "—" : formatPercent(activityPercent(unexpandedActivityScore)!)}</span></td><td><span className="tree-toggle-spacer" /><span className="unexpanded-mark">…</span>Unexpanded / other</td><td>remainder</td><td>{number(unexpandedActivityScore)} <small>{selectedContributionGraph.unit}</small></td><td>—</td></tr> : null}
+        {expanded && !activityRows.length ? <tr className="empty-row"><td colSpan={5}>{selectedContributionGraph.status === "zero_total" ? "This impact category has a zero total, so contribution percentages are unavailable." : "No activity contributions were returned for this category."}</td></tr> : null}
       </> : <>
         <tr className="contribution-root"><td>{formatPercent(100)}</td><td><button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} downstream processes`}><ChevronDown size={14} /></button><span className="process-mark">⌘</span>{result.name}</td><td>{mode === "flow" ? formatNumber(1) : "—"}</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(total)} <small>{unit}</small></td><td>—</td></tr>
         {expanded ? renderContributionRows(rootRows.length ? rootRows : rows) : null}
