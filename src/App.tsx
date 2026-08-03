@@ -157,7 +157,7 @@ function InventoryView({ result, yaml, isCurrent, error }: {
     })
     return candidates.sort((left, right) => right.length - left.length)[0] ?? []
   }
-  const FlowTable = ({ rows, empty }: { rows: typeof flows; empty: string }) => <div className="inventory-table-wrap"><table className="inventory-table" style={{ width: Math.max(880, flowColumnWidths.reduce((sum, width) => sum + width, 0)) }}>
+  const renderFlowTable = (rows: typeof flows, empty: string) => <div className="inventory-table-wrap"><table className="inventory-table" style={{ width: Math.max(880, flowColumnWidths.reduce((sum, width) => sum + width, 0)) }}>
     <ResizableTableHeader labels={["Name", "Category", "Amount", "Unit"]} widths={flowColumnWidths} onWidthsChange={setFlowColumnWidths} />
     <tbody>{rows.length ? rows.flatMap((flow) => {
       const key = `${flow.type}-${flow.name}`
@@ -201,8 +201,8 @@ function InventoryView({ result, yaml, isCurrent, error }: {
 
   return <div className="inventory-view">
     <div className="inventory-title"><div><strong>{result.name}</strong><span>{result.functional_unit}</span></div></div>
-    <details open><summary>Inputs <span>{inputs.length}</span></summary><FlowTable rows={inputs} empty="No environmental input flows were returned." /></details>
-    <details open><summary>Outputs <span>{outputs.length}</span></summary><FlowTable rows={outputs} empty="No environmental output flows were returned." /></details>
+    <details open><summary>Inputs <span>{inputs.length}</span></summary>{renderFlowTable(inputs, "No environmental input flows were returned.")}</details>
+    <details open><summary>Outputs <span>{outputs.length}</span></summary>{renderFlowTable(outputs, "No environmental output flows were returned.")}</details>
     <details open className="requirements"><summary>Total requirements <span>{requirementGraph?.nodes.filter((node) => node.kind === "process").length ?? fallbackRequirements.length}</span></summary>
       <div className="inventory-table-wrap"><table className="inventory-table" style={{ width: Math.max(880, requirementColumnWidths.reduce((sum, width) => sum + width, 0)) }}><ResizableTableHeader labels={["Process", "Product", "Amount", "Unit"]} widths={requirementColumnWidths} onWidthsChange={setRequirementColumnWidths} /><tbody>
         {requirementRoot ? renderRequirementRows([requirementRoot.id], 0) : fallbackRequirements.map((row) => <tr key={row.process}><td><span className="process-mark">⌘</span>{row.process}</td><td><span className="product-mark">⚙</span>{row.product}</td><td className="number">{formatNumber(row.amount)}</td><td>{row.unit}</td></tr>)}
@@ -610,7 +610,7 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
     return total ? Math.abs(flow.upstream) / total * 100 : 0
   }
   const visibleFlows = [...flowRows.values()].filter((flow) => flowContribution(flow) >= threshold)
-  const FlowResultsTable = ({ input }: { input: boolean }) => {
+  const renderFlowResultsTable = (input: boolean) => {
     const rows = visibleFlows.filter((flow) => flow.input === input)
     return <table className="process-flow-table" style={{ width: Math.max(1000, flowColumnWidths.reduce((sum, width) => sum + width, 0)) }}><ResizableTableHeader labels={["Contribution", "Flow", "Category", "Upstream incl. direct", "Direct", "Unit"]} widths={flowColumnWidths} onWidthsChange={setFlowColumnWidths} />
       <tbody>{rows.length ? rows.map((flow) => <tr key={`${input}:${flow.name}`}>
@@ -639,7 +639,7 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
   return <div className="process-results-view">
     <details open><summary>Flow contributions to process results</summary>
       <div className="process-results-controls"><label>Process <AppSelect value={selectedFlowProcessId} onValueChange={setFlowProcessId} label="Flow contribution process" options={processNodes.map((node) => ({ value: node.id, label: cleanImpactProcessName(node.process_name ?? node.label) }))} /></label><label>Don’t show &lt; <Input type="number" min="0" max="100" step="0.01" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label></div>
-      <div className="process-flow-grids"><section><h3>Inputs</h3><FlowResultsTable input /></section><section><h3>Outputs</h3><FlowResultsTable input={false} /></section></div>
+      <div className="process-flow-grids"><section><h3>Inputs</h3>{renderFlowResultsTable(true)}</section><section><h3>Outputs</h3>{renderFlowResultsTable(false)}</section></div>
     </details>
     <details open><summary>Impact assessment results</summary>
       <div className="process-results-controls"><label>Process <AppSelect value={selectedImpactProcessId} onValueChange={setImpactProcessId} label="Impact assessment process" options={processNodes.map((node) => ({ value: node.id, label: cleanImpactProcessName(node.process_name ?? node.label) }))} /></label><label>Don’t show &lt; <Input type="number" min="0" max="100" step="0.01" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label></div>
