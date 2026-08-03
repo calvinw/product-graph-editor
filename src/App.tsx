@@ -693,7 +693,18 @@ function ResizableTableHeader({ labels, widths, onWidthsChange }: {
   widths: number[]
   onWidthsChange: (widths: number[]) => void
 }) {
-  const resizeColumn = (index: number, width: number) => onWidthsChange(widths.map((value, candidate) => candidate === index ? width : value))
+  const resizeColumn = (index: number, requestedWidth: number) => {
+    const nextWidths = [...widths]
+    const adjacentWidth = widths[index + 1]
+    if (adjacentWidth === undefined) {
+      nextWidths[index] = requestedWidth
+    } else {
+      const delta = Math.min(requestedWidth - widths[index], adjacentWidth - 80)
+      nextWidths[index] = widths[index] + delta
+      nextWidths[index + 1] = adjacentWidth - delta
+    }
+    onWidthsChange(nextWidths)
+  }
   return <>
     <colgroup>{widths.map((width, index) => <col key={`${index}:${labels[index]}`} style={{ width }} />)}</colgroup>
     <thead><tr>{labels.map((label, index) => <th key={`${index}:${label}`}>{label}<ColumnResizeHandle label={label} width={widths[index]} onResize={(width) => resizeColumn(index, width)} /></th>)}</tr></thead>
