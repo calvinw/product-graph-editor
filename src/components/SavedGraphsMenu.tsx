@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { FolderOpen, Pencil, Save, Trash2 } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -32,6 +32,7 @@ export function SavedGraphsMenu({ userId, yaml, suggestedName, activeId, onActiv
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState("")
   const [deleteTarget, setDeleteTarget] = useState<SavedGraph | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   const loadGraphs = async () => {
     if (!supabase) return
@@ -49,6 +50,18 @@ export function SavedGraphsMenu({ userId, yaml, suggestedName, activeId, onActiv
   useEffect(() => {
     if (open) void loadGraphs()
     // Reload each time the menu opens so changes from another tab are visible.
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Node) || panelRef.current?.contains(target)) return
+      if (target instanceof Element && target.closest("[data-saved-graphs-trigger]")) return
+      setOpen(false)
+    }
+    document.addEventListener("pointerdown", closeOnOutsidePointer, true)
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer, true)
   }, [open])
 
   const saveExisting = async () => {
@@ -127,8 +140,8 @@ export function SavedGraphsMenu({ userId, yaml, suggestedName, activeId, onActiv
 
   return <>
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild><Button variant="outline" className="my-files-trigger"><FolderOpen size={15} />My files</Button></PopoverTrigger>
-      <PopoverContent className="saved-graphs-panel" align="start" sideOffset={8} onInteractOutside={() => setOpen(false)}>
+      <PopoverTrigger asChild><Button data-saved-graphs-trigger variant="outline" className="my-files-trigger"><FolderOpen size={15} />My files</Button></PopoverTrigger>
+      <PopoverContent ref={panelRef} className="saved-graphs-panel" align="start" sideOffset={8} onInteractOutside={() => setOpen(false)}>
         <div className="saved-graphs-head"><div><strong>My files</strong><span>Private product graphs saved to your account.</span></div><Button size="sm" onClick={activeId ? () => void saveExisting() : beginSaveAs} disabled={saving || !yaml.trim()}><Save size={14} />{saving ? "Saving…" : activeId ? "Save" : "Save as"}</Button></div>
         <Button variant="outline" size="sm" className="save-as-secondary" onClick={beginSaveAs} disabled={saving || !yaml.trim()}>Save current as a new file</Button>
         {saveAsOpen ? <div className="saved-graph-form"><Input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} placeholder="File name" autoFocus onKeyDown={(event) => { if (event.key === "Enter") void saveAs() }} /><Button size="sm" onClick={() => void saveAs()} disabled={saving || !name.trim()}>Save</Button><Button variant="ghost" size="sm" onClick={() => setSaveAsOpen(false)}>Cancel</Button></div> : null}
