@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react"
+import type { User } from "@supabase/supabase-js"
 import dagre from "@dagrejs/dagre"
 import {
   ReactFlow, ReactFlowProvider, Background, BackgroundVariant,
@@ -26,6 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { NumberStepper } from "@/components/NumberStepper"
+import { AuthGate } from "@/components/AuthGate"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
 import { chemicalFlowLabel } from "./lib/flowLabels"
@@ -2391,7 +2393,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
   )
 }
 
-function AppContent() {
+function AppContent({ user, signOut }: { user: User; signOut: () => Promise<void> }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [workspaceTitle, setWorkspaceTitle] = useState("Loading product graphs…")
   const { decimalPlaces, setDecimalPlaces, showAllDecimalPlaces, setShowAllDecimalPlaces, theme, setTheme } = useDisplaySettings()
@@ -2424,6 +2426,11 @@ function AppContent() {
                 </div>
               </PopoverContent>
             </Popover>
+            <Button variant="ghost" className="logout-trigger" type="button" onClick={() => void signOut()}>Log out</Button>
+            <div className="user-account">
+              {user.user_metadata.avatar_url ? <img src={user.user_metadata.avatar_url} alt="" referrerPolicy="no-referrer" /> : <span>{(user.user_metadata.full_name ?? user.email ?? "?").slice(0, 1).toUpperCase()}</span>}
+              <div><strong>{user.user_metadata.full_name ?? "Signed in"}</strong><small>{user.email}</small></div>
+            </div>
           </div>
         </header>
 
@@ -2438,5 +2445,5 @@ function AppContent() {
 }
 
 export default function App() {
-  return <DisplaySettingsProvider><AppContent /></DisplaySettingsProvider>
+  return <AuthGate>{({ user, signOut }) => <DisplaySettingsProvider><AppContent user={user} signOut={signOut} /></DisplaySettingsProvider>}</AuthGate>
 }
