@@ -2224,7 +2224,10 @@ function GraphEditor({ onTitleChange, userId }: { onTitleChange: (title: string)
             if (node.data.scope === "background") void hydrateBackgroundNode(node.id)
           }}
           onNodeDoubleClick={(_, node) => toggleExpanded(node.id)}
-          onPaneClick={() => setSelected(null)}
+          onPaneClick={() => {
+            setSelected(null)
+            window.dispatchEvent(new Event("prism:close-saved-graphs"))
+          }}
           minZoom={0.05}
           maxZoom={2.4}
           zoomOnScroll={false}

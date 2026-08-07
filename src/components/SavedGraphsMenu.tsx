@@ -64,6 +64,12 @@ export function SavedGraphsMenu({ userId, yaml, suggestedName, activeId, onActiv
     return () => document.removeEventListener("pointerdown", closeOnOutsidePointer, true)
   }, [open])
 
+  useEffect(() => {
+    const closeFromGraph = () => setOpen(false)
+    window.addEventListener("prism:close-saved-graphs", closeFromGraph)
+    return () => window.removeEventListener("prism:close-saved-graphs", closeFromGraph)
+  }, [])
+
   const saveExisting = async () => {
     if (!supabase || !activeId || !yaml.trim()) return
     setSaving(true)
