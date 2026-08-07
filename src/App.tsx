@@ -28,6 +28,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { NumberStepper } from "@/components/NumberStepper"
 import { AuthGate } from "@/components/AuthGate"
+import { SavedGraphsMenu, type SavedGraph } from "@/components/SavedGraphsMenu"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
 import { chemicalFlowLabel } from "./lib/flowLabels"
@@ -1343,7 +1344,7 @@ function AppSelect({
   </Select>
 }
 
-function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void }) {
+function GraphEditor({ onTitleChange, userId }: { onTitleChange: (title: string) => void; userId: string }) {
   const { decimalPlaces, showAllDecimalPlaces, formatNumber, theme } = useDisplaySettings()
   const graphDecimalPlaces = showAllDecimalPlaces ? 20 : decimalPlaces
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<ProcessNodeData>>(layoutNodes(initialNodes, initialEdges))
@@ -1360,6 +1361,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
   const [selectedProductGraph, setSelectedProductGraph] = useState("loading")
   const [yamlError, setYamlError] = useState("")
   const [graphTitle, setGraphTitle] = useState("Loading product graphs…")
+  const [activeSavedGraphId, setActiveSavedGraphId] = useState<string | null>(null)
   const [resultsMarkdown, setResultsMarkdown] = useState("")
   const [resultsError, setResultsError] = useState("")
   const [contributionError, setContributionError] = useState("")
@@ -1981,6 +1983,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
       const source = String(reader.result ?? "")
       setYamlDraft(source)
       setSelectedProductGraph("custom")
+      setActiveSavedGraphId(null)
       setYamlError("")
       applyAndCalculateYaml(source)
     }
@@ -1992,6 +1995,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
     const source = productGraphs.find((item) => item.id === id)?.product_graph
     if (!source) return
     setSelectedProductGraph(id)
+    setActiveSavedGraphId(null)
     setYamlDraft(source)
     setYamlError("")
     applyAndCalculateYaml(source)
@@ -2011,9 +2015,16 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
   })()
   const openBlankYamlEditor = () => {
     setSelectedProductGraph("custom")
+    setActiveSavedGraphId(null)
     setYamlDraft("")
     setYamlError("")
     setView("yaml")
+  }
+  const openSavedGraph = (graph: SavedGraph) => {
+    setSelectedProductGraph("custom")
+    setYamlDraft(graph.yaml_content)
+    setYamlError("")
+    applyAndCalculateYaml(graph.yaml_content)
   }
   const startPastedYaml = () => {
     if (isDirty) {
@@ -2180,6 +2191,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
                   disabled: true,
                 }]}
               /></label>
+              <SavedGraphsMenu userId={userId} yaml={yamlDraft} suggestedName={customYamlLabel} activeId={activeSavedGraphId} onActiveIdChange={setActiveSavedGraphId} onOpen={openSavedGraph} />
               {calculationInProgress ? <span className="calculation-message" role="status" aria-label="LCA calculation in progress">Calculating…</span>
                 : backgroundProcessing ? <span className="calculation-message" role="status" aria-label="Background graph processing">Processing…</span> : null}
               <div className="view-tab-groups">
@@ -2436,7 +2448,7 @@ function AppContent({ user, signOut }: { user: User; signOut: () => Promise<void
 
         <section className="workspace">
           <ReactFlowProvider>
-            <GraphEditor onTitleChange={setWorkspaceTitle} />
+            <GraphEditor onTitleChange={setWorkspaceTitle} userId={user.id} />
           </ReactFlowProvider>
         </section>
       </main>
