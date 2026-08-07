@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
+import type { User } from "@supabase/supabase-js"
 import {
   ReactFlowProvider,
   type Node,
@@ -23,6 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { NumberStepper } from "@/components/NumberStepper"
+import { AuthGate } from "@/components/AuthGate"
 import { AiChatPanel } from "@/components/AiChatPanel"
 import { RealtimeView } from "@/components/RealtimeView"
 import type { AppToolRuntime } from "@/ai/viewTools"
@@ -652,7 +654,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
   )
 }
 
-function AppContent() {
+function AppContent({ user, signOut }: { user: User; signOut: () => Promise<void> }) {
   const [welcomeOpen, setWelcomeOpen] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
@@ -692,6 +694,11 @@ function AppContent() {
                 </div>
               </PopoverContent>
             </Popover>
+            <Button variant="ghost" className="logout-trigger" type="button" onClick={() => void signOut()}>Log out</Button>
+            <div className="user-account">
+              {user.user_metadata.avatar_url ? <img src={user.user_metadata.avatar_url} alt="" referrerPolicy="no-referrer" /> : <span>{(user.user_metadata.full_name ?? user.email ?? "?").slice(0, 1).toUpperCase()}</span>}
+              <div><strong>{user.user_metadata.full_name ?? "Signed in"}</strong><small>{user.email}</small></div>
+            </div>
           </div>
           </header>
           {!welcomeOpen && !chatOpen ? (
@@ -713,5 +720,5 @@ function AppContent() {
 }
 
 export default function App() {
-  return <DisplaySettingsProvider><AppContent /></DisplaySettingsProvider>
+  return <AuthGate>{({ user, signOut }) => <DisplaySettingsProvider><AppContent user={user} signOut={signOut} /></DisplaySettingsProvider>}</AuthGate>
 }
