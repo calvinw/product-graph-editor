@@ -128,7 +128,7 @@ export function SavedGraphsMenu({ userId, yaml, suggestedName, activeId, onActiv
   return <>
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild><Button variant="outline" className="my-files-trigger"><FolderOpen size={15} />My files</Button></PopoverTrigger>
-      <PopoverContent className="saved-graphs-panel" align="start" sideOffset={8}>
+      <PopoverContent className="saved-graphs-panel" align="start" sideOffset={8} onInteractOutside={() => setOpen(false)}>
         <div className="saved-graphs-head"><div><strong>My files</strong><span>Private product graphs saved to your account.</span></div><Button size="sm" onClick={activeId ? () => void saveExisting() : beginSaveAs} disabled={saving || !yaml.trim()}><Save size={14} />{saving ? "Saving…" : activeId ? "Save" : "Save as"}</Button></div>
         <Button variant="outline" size="sm" className="save-as-secondary" onClick={beginSaveAs} disabled={saving || !yaml.trim()}>Save current as a new file</Button>
         {saveAsOpen ? <div className="saved-graph-form"><Input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} placeholder="File name" autoFocus onKeyDown={(event) => { if (event.key === "Enter") void saveAs() }} /><Button size="sm" onClick={() => void saveAs()} disabled={saving || !name.trim()}>Save</Button><Button variant="ghost" size="sm" onClick={() => setSaveAsOpen(false)}>Cancel</Button></div> : null}
