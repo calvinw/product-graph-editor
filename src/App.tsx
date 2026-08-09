@@ -124,16 +124,47 @@ const downloadCsv = (filename: string, contents: string) => {
 
 function DataCatalogView({ yaml, onOpenProcess }: { yaml: string; onOpenProcess: (name: string) => void }) {
   const [query, setQuery] = useState("")
+  const [stage, setStage] = useState("all")
+  const [materialFamily, setMaterialFamily] = useState("all")
+  const [geography, setGeography] = useState("all")
+  const [confidence, setConfidence] = useState("all")
+  const [completeness, setCompleteness] = useState("all")
   let catalog: ReturnType<typeof buildProductGraphDataCatalog>
   try {
     catalog = buildProductGraphDataCatalog(yaml)
   } catch (error) {
     return <div className="data-catalog"><div className="data-catalog-error">{error instanceof Error ? error.message : "Could not read product-graph data."}</div></div>
   }
+  const options = (values: string[]) => [...new Set(values.filter((value) => value !== "—"))].sort((left, right) => left.localeCompare(right))
+  const stageOptions = options(catalog.processes.map((row) => row.stage))
+  const familyOptions = options(catalog.materials.map((row) => row.materialFamily))
+  const geographyOptions = options([...catalog.materials.map((row) => row.geography), ...catalog.processes.map((row) => row.location)])
+  const confidenceOptions = options(catalog.materials.map((row) => row.confidence))
   const normalized = query.trim().toLowerCase()
   const includesQuery = (values: Array<string | number | null>) => !normalized || values.some((value) => String(value ?? "").toLowerCase().includes(normalized))
-  const materials = catalog.materials.filter((row) => includesQuery([row.name, row.category, row.materialFamily, row.composition, row.geography, row.dataYear, row.source, row.datasetCode, row.confidence]))
-  const processes = catalog.processes.filter((row) => includesQuery([row.name, row.stage, row.location, row.output, row.source, row.datasetCode]))
+  const matchesCompleteness = (missingFields: string[]) => completeness === "all" || (completeness === "complete" ? !missingFields.length : Boolean(missingFields.length))
+  const materials = catalog.materials.filter((row) => (
+    includesQuery([row.name, row.category, row.materialFamily, row.composition, row.geography, row.dataYear, row.source, row.datasetCode, row.confidence])
+    && (materialFamily === "all" || row.materialFamily === materialFamily)
+    && (geography === "all" || row.geography === geography)
+    && (confidence === "all" || row.confidence === confidence)
+    && matchesCompleteness(row.missingFields)
+  ))
+  const processes = catalog.processes.filter((row) => (
+    includesQuery([row.name, row.stage, row.location, row.output, row.source, row.datasetCode])
+    && (stage === "all" || row.stage === stage)
+    && (geography === "all" || row.location === geography)
+    && matchesCompleteness(row.missingFields)
+  ))
+  const filtersActive = Boolean(normalized) || [stage, materialFamily, geography, confidence, completeness].some((value) => value !== "all")
+  const resetFilters = () => {
+    setQuery("")
+    setStage("all")
+    setMaterialFamily("all")
+    setGeography("all")
+    setConfidence("all")
+    setCompleteness("all")
+  }
   const incompleteMaterials = catalog.materials.filter((row) => row.missingFields.length).length
   const incompleteProcesses = catalog.processes.filter((row) => row.missingFields.length).length
   const warning = (fields: string[]) => fields.length
@@ -150,9 +181,17 @@ function DataCatalogView({ yaml, onOpenProcess }: { yaml: string; onOpenProcess:
       <span><strong>{catalog.processes.length}</strong> processes</span>
       <span className={incompleteMaterials + incompleteProcesses ? "has-warning" : ""}><strong>{incompleteMaterials + incompleteProcesses}</strong> incomplete records</span>
     </div>
+    <div className="data-catalog-filters">
+      <label><span>Lifecycle stage</span><select aria-label="Filter by lifecycle stage" value={stage} onChange={(event) => setStage(event.target.value)}><option value="all">All stages</option>{stageOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+      <label><span>Material family</span><select aria-label="Filter by material family" value={materialFamily} onChange={(event) => setMaterialFamily(event.target.value)}><option value="all">All families</option>{familyOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+      <label><span>Geography</span><select aria-label="Filter by geography" value={geography} onChange={(event) => setGeography(event.target.value)}><option value="all">All geographies</option>{geographyOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+      <label><span>Confidence</span><select aria-label="Filter by confidence" value={confidence} onChange={(event) => setConfidence(event.target.value)}><option value="all">All confidence</option>{confidenceOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+      <label><span>Completeness</span><select aria-label="Filter by completeness" value={completeness} onChange={(event) => setCompleteness(event.target.value)}><option value="all">All records</option><option value="complete">Complete</option><option value="incomplete">Missing data</option></select></label>
+      <Button variant="ghost" size="sm" disabled={!filtersActive} onClick={resetFilters}>Reset filters</Button>
+    </div>
     <div className="data-catalog-body">
       <section>
-        <div className="data-section-head"><h2>Materials <small>{materials.length}</small></h2><Button variant="outline" size="sm" onClick={() => downloadCsv("materials.csv", materialCatalogToCsv(catalog.materials))}><Download size={13} />Download materials CSV</Button></div>
+        <div className="data-section-head"><h2>Materials <small>{materials.length}</small></h2><Button variant="outline" size="sm" onClick={() => downloadCsv("materials.csv", materialCatalogToCsv(materials))}><Download size={13} />Download{filtersActive ? " filtered" : ""} materials CSV</Button></div>
         <div className="data-table-wrap"><table className="data-table materials-table">
           <thead><tr><th>Material</th><th>Category / family</th><th>Composition</th><th>Recycled</th><th>Geography / year</th><th>Source</th><th>Quality</th></tr></thead>
           <tbody>{materials.length ? materials.map((row) => <tr key={row.name}>
@@ -163,17 +202,17 @@ function DataCatalogView({ yaml, onOpenProcess }: { yaml: string; onOpenProcess:
             <td>{row.geography}<small>{row.dataYear ?? "—"}</small></td>
             <td>{row.source}<small>{row.datasetCode}</small></td>
             <td>{warning(row.missingFields)}<small>{row.confidence}</small></td>
-          </tr>) : <tr><td colSpan={7} className="data-empty">No materials match this search.</td></tr>}</tbody>
+          </tr>) : <tr><td colSpan={7} className="data-empty">No materials match the current filters.</td></tr>}</tbody>
         </table></div>
       </section>
       <section>
-        <div className="data-section-head"><h2>Processes <small>{processes.length}</small></h2><Button variant="outline" size="sm" onClick={() => downloadCsv("processes.csv", processCatalogToCsv(catalog.processes))}><Download size={13} />Download processes CSV</Button></div>
+        <div className="data-section-head"><h2>Processes <small>{processes.length}</small></h2><Button variant="outline" size="sm" onClick={() => downloadCsv("processes.csv", processCatalogToCsv(processes))}><Download size={13} />Download{filtersActive ? " filtered" : ""} processes CSV</Button></div>
         <div className="data-table-wrap"><table className="data-table processes-table">
           <thead><tr><th>Process</th><th>Lifecycle stage</th><th>Location</th><th>Inputs</th><th>Reference output</th><th>Source</th><th>Completeness</th></tr></thead>
           <tbody>{processes.length ? processes.map((row) => <tr key={row.name}>
             <td><button type="button" onClick={() => onOpenProcess(row.name)}>{row.name}</button></td>
             <td>{row.stage}</td><td>{row.location}</td><td className="number">{row.inputCount}</td><td>{row.output}</td><td>{row.source}<small>{row.datasetCode}</small></td><td>{warning(row.missingFields)}</td>
-          </tr>) : <tr><td colSpan={7} className="data-empty">No processes match this search.</td></tr>}</tbody>
+          </tr>) : <tr><td colSpan={7} className="data-empty">No processes match the current filters.</td></tr>}</tbody>
         </table></div>
       </section>
     </div>
