@@ -29,7 +29,7 @@ import { NumberStepper } from "@/components/NumberStepper"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
 import { chemicalFlowLabel } from "./lib/flowLabels"
-import { buildGraphFromYaml, buildInventoryRequirements, nodeScopeColors } from "./lib/yamlGraph"
+import { buildGraphFromYaml, buildInventoryRequirements, buildProductGraphDataCatalog, nodeScopeColors } from "./lib/yamlGraph"
 import {
   calculateContributionGraphs, calculateLca, getBackgroundActivityDetails, getProductGraphCatalog, impactCategoryAbbreviation, impactCategoryDisplayName, lcaResultToMarkdown,
   type ContributionGraph, type ContributionGraphFlow, type LcaResult, type ProductGraphCatalogEntry,
@@ -38,7 +38,7 @@ import { unitsAreCompatible } from "./lib/units"
 import { DisplaySettingsProvider, useDisplaySettings } from "./lib/displaySettings"
 
 type NodeMeta = { label: string; kind: string; detail: string; color: string; scope?: "foreground" | "background" }
-type View = "graph" | "yaml" | "inventory" | "impact" | "process" | "contribution" | "sankey" | "results"
+type View = "graph" | "yaml" | "data" | "inventory" | "impact" | "process" | "contribution" | "sankey" | "results"
 type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribution" | "sankey">
 const analysisViews: AnalysisView[] = ["inventory", "impact", "process", "contribution", "sankey"]
 const isAnalysisView = (view: View): view is AnalysisView => analysisViews.includes(view as AnalysisView)
@@ -111,6 +111,64 @@ const inventoryFlowName = (name: string) => {
     .replaceAll("₄", "4")
     .replaceAll("ₓ", "x")
   return symbol === base ? name : `${name} (${symbol})`
+}
+
+function DataCatalogView({ yaml, onOpenProcess }: { yaml: string; onOpenProcess: (name: string) => void }) {
+  const [query, setQuery] = useState("")
+  let catalog: ReturnType<typeof buildProductGraphDataCatalog>
+  try {
+    catalog = buildProductGraphDataCatalog(yaml)
+  } catch (error) {
+    return <div className="data-catalog"><div className="data-catalog-error">{error instanceof Error ? error.message : "Could not read product-graph data."}</div></div>
+  }
+  const normalized = query.trim().toLowerCase()
+  const includesQuery = (values: Array<string | number | null>) => !normalized || values.some((value) => String(value ?? "").toLowerCase().includes(normalized))
+  const materials = catalog.materials.filter((row) => includesQuery([row.name, row.category, row.materialFamily, row.composition, row.geography, row.dataYear, row.source, row.datasetCode, row.confidence]))
+  const processes = catalog.processes.filter((row) => includesQuery([row.name, row.stage, row.location, row.output, row.source, row.datasetCode]))
+  const incompleteMaterials = catalog.materials.filter((row) => row.missingFields.length).length
+  const incompleteProcesses = catalog.processes.filter((row) => row.missingFields.length).length
+  const warning = (fields: string[]) => fields.length
+    ? <span className="data-quality-flag" title={`Missing: ${fields.join(", ")}`}>{fields.length} missing</span>
+    : <span className="data-quality-flag is-complete">Complete</span>
+
+  return <div className="data-catalog">
+    <div className="data-catalog-head">
+      <div><strong>Supply-chain data catalog</strong><span>Search materials, processes, provenance, and completeness.</span></div>
+      <label className="data-catalog-search"><Search size={15} /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search all data…" aria-label="Search supply-chain data" /></label>
+    </div>
+    <div className="data-catalog-summary">
+      <span><strong>{catalog.materials.length}</strong> materials</span>
+      <span><strong>{catalog.processes.length}</strong> processes</span>
+      <span className={incompleteMaterials + incompleteProcesses ? "has-warning" : ""}><strong>{incompleteMaterials + incompleteProcesses}</strong> incomplete records</span>
+    </div>
+    <div className="data-catalog-body">
+      <section>
+        <h2>Materials <small>{materials.length}</small></h2>
+        <div className="data-table-wrap"><table className="data-table materials-table">
+          <thead><tr><th>Material</th><th>Category / family</th><th>Composition</th><th>Recycled</th><th>Geography / year</th><th>Source</th><th>Quality</th></tr></thead>
+          <tbody>{materials.length ? materials.map((row) => <tr key={row.name}>
+            <td><strong>{row.name}</strong><small>{row.unit}</small></td>
+            <td>{row.category}<small>{row.materialFamily}</small></td>
+            <td title={row.composition}>{row.composition}</td>
+            <td className="number">{row.recycledContent === null ? "—" : `${row.recycledContent}%`}</td>
+            <td>{row.geography}<small>{row.dataYear ?? "—"}</small></td>
+            <td>{row.source}<small>{row.datasetCode}</small></td>
+            <td>{warning(row.missingFields)}<small>{row.confidence}</small></td>
+          </tr>) : <tr><td colSpan={7} className="data-empty">No materials match this search.</td></tr>}</tbody>
+        </table></div>
+      </section>
+      <section>
+        <h2>Processes <small>{processes.length}</small></h2>
+        <div className="data-table-wrap"><table className="data-table processes-table">
+          <thead><tr><th>Process</th><th>Lifecycle stage</th><th>Location</th><th>Inputs</th><th>Reference output</th><th>Source</th><th>Completeness</th></tr></thead>
+          <tbody>{processes.length ? processes.map((row) => <tr key={row.name}>
+            <td><button type="button" onClick={() => onOpenProcess(row.name)}>{row.name}</button></td>
+            <td>{row.stage}</td><td>{row.location}</td><td className="number">{row.inputCount}</td><td>{row.output}</td><td>{row.source}<small>{row.datasetCode}</small></td><td>{warning(row.missingFields)}</td>
+          </tr>) : <tr><td colSpan={7} className="data-empty">No processes match this search.</td></tr>}</tbody>
+        </table></div>
+      </section>
+    </div>
+  </div>
 }
 
 function InventoryView({ result, yaml, isCurrent, error }: {
@@ -2035,7 +2093,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
     return () => window.removeEventListener("beforeunload", confirmDiscard)
   }, [isDirty])
   const hasCurrentResults = Boolean(lcaResult && calculatedRevision === appliedRevision)
-  const primaryView = view === "graph" || view === "yaml" || view === "results" ? view : ""
+  const primaryView = view === "graph" || view === "yaml" || view === "data" || view === "results" ? view : ""
   const analysisView = isAnalysisView(view) ? view : ""
   if (selected) lastSelectedRef.current = selected
   const inspectorSelection = selected ?? lastSelectedRef.current
@@ -2048,6 +2106,12 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
     .filter((edge) => edge.source === selectedNode.id)
     .map((edge) => nodes.find((node) => node.id === edge.target))
     .filter((node): node is Node<ProcessNodeData> => Boolean(node)) : []
+  const openCatalogProcess = (name: string) => {
+    const node = nodes.find((candidate) => candidate.data.label === name)
+    if (!node) return
+    setSelected({ id: node.id, label: node.data.label, kind: node.data.kind, detail: node.data.detail, color: node.data.color, scope: node.data.scope })
+    setView("graph")
+  }
 
   const loadContributionGraphs = async (requestedCategories: string[]): Promise<ContributionGraph[]> => {
     const current = lcaResult
@@ -2181,9 +2245,10 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
               {calculationInProgress ? <span className="calculation-message" role="status" aria-label="LCA calculation in progress">Calculating…</span>
                 : backgroundProcessing ? <span className="calculation-message" role="status" aria-label="Background graph processing">Processing…</span> : null}
               <div className="view-tab-groups">
-                <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && requestView(next as "graph" | "yaml" | "results")} className="inline-flex items-center" aria-label="Primary views">
+                <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && requestView(next as "graph" | "yaml" | "data" | "results")} className="inline-flex items-center" aria-label="Primary views">
                   <ToggleGroupItem value="graph">Graph</ToggleGroupItem>
                   <ToggleGroupItem value="yaml">Editor</ToggleGroupItem>
+                  <ToggleGroupItem value="data">Data</ToggleGroupItem>
                   <ToggleGroupItem value="results" aria-label="Results">Results</ToggleGroupItem>
                 </ToggleGroup>
                 <ToggleGroup type="single" value={analysisView} onValueChange={(next) => next && requestView(next as AnalysisView)} className="inline-flex items-center" aria-label="Result analysis views">
@@ -2283,7 +2348,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
             <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (!yamlDraft.trim() ? "Paste YAML to create a new LCA." : isDirty ? "Unapplied changes. Calculate the LCA or discard changes before leaving this view." : isCalculating ? "Calculating the selected YAML…" : "Catalog YAML is loaded from the LCA server and parsed locally.")}</span>
             <Button size="sm" disabled={!isDirty || isCalculating || !yamlDraft.trim()} onClick={() => applyAndCalculateYaml(yamlDraft)}>Calculate</Button>
           </div>
-        </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} loadContributionGraphs={loadContributionGraphs} /> : <div className="results-panel">
+        </div> : view === "data" ? <DataCatalogView yaml={appliedYaml} onOpenProcess={openCatalogProcess} /> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} loadContributionGraphs={loadContributionGraphs} /> : <div className="results-panel">
           <div className="results-panel-head">
             <div><strong>LCA Results</strong>{isCalculating ? <span className="calculation-message">Calculating…</span> : null}</div>
           </div>

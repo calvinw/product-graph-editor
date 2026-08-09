@@ -193,6 +193,11 @@ products:
       notes: Supplier-specific measurements are not yet available.
 processes:
   - name: Material production
+    stage: manufacturing
+    location: US
+    source:
+      name: Process survey
+      dataset_code: process-001
     reference_output: { flow: Recycled blend, amount: 1 }
 reference_process: Material production
 `
@@ -208,6 +213,21 @@ reference_process: Material production
   await expect(inspector).toContainText("Example material database")
   await expect(inspector).toContainText("textile-001")
   await expect(inspector).toContainText("medium")
+
+  await page.getByRole("radio", { name: "Data", exact: true }).click()
+  await expect(page.getByRole("heading", { name: "Materials", exact: false })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Processes", exact: false })).toBeVisible()
+  await expect(page.locator(".materials-table tbody tr")).toHaveCount(1)
+  await expect(page.locator(".processes-table tbody tr")).toHaveCount(1)
+  await expect(page.getByText("0 incomplete records", { exact: true })).toBeVisible()
+  const dataSearch = page.getByRole("textbox", { name: "Search supply-chain data" })
+  await dataSearch.fill("textile-001")
+  await expect(page.locator(".materials-table tbody tr")).toContainText("Recycled blend")
+  await expect(page.locator(".processes-table")).toContainText("No processes match this search")
+  await dataSearch.fill("")
+  await page.getByRole("button", { name: "Material production", exact: true }).click()
+  await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
+  await expect(page.locator(".inspector")).toHaveClass(/is-open/)
 
   await page.getByRole("radio", { name: "Editor", exact: true }).click()
   await editor.fill(source.replace("recycled_content: 65", "recycled_content: 165"))

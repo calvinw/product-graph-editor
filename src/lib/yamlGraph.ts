@@ -13,6 +13,9 @@ type FlowAmount = {
 }
 type YamlProcess = {
   name: string
+  stage?: string
+  location?: string
+  source?: { name?: string; dataset_code?: string }
   reference_output: FlowAmount
   inputs?: FlowAmount[]
   emissions?: FlowAmount[]
@@ -46,6 +49,41 @@ export type InventoryRequirement = {
   amount: number
   unit: string
 }
+
+export type MaterialCatalogRow = {
+  name: string
+  unit: string
+  category: string
+  materialFamily: string
+  composition: string
+  recycledContent: number | null
+  geography: string
+  dataYear: number | null
+  source: string
+  datasetCode: string
+  confidence: string
+  producedBy: string[]
+  usedBy: string[]
+  missingFields: string[]
+}
+
+export type ProcessCatalogRow = {
+  name: string
+  stage: string
+  location: string
+  inputCount: number
+  output: string
+  source: string
+  datasetCode: string
+  missingFields: string[]
+}
+
+export type ProductGraphDataCatalog = {
+  materials: MaterialCatalogRow[]
+  processes: ProcessCatalogRow[]
+}
+
+export const lifecycleStages = ["raw-material", "manufacturing", "transport", "assembly", "use", "end-of-life"] as const
 
 export function buildInventoryRequirements(source: string, scalingVector: Record<string, number>): InventoryRequirement[] {
   const graph = parse(source) as ProductGraph
@@ -146,6 +184,77 @@ function validateProducts(products: YamlProduct[]) {
   })
 }
 
+function validateProcessMetadata(process: YamlProcess, index: number) {
+  const path = `processes[${index}]`
+  optionalNonEmptyString(process.stage, `${path}.stage`)
+  optionalNonEmptyString(process.location, `${path}.location`)
+  if (process.stage && !lifecycleStages.includes(process.stage as (typeof lifecycleStages)[number])) {
+    throw new Error(`${path}.stage must be one of: ${lifecycleStages.join(", ")}.`)
+  }
+  if (process.source !== undefined) {
+    if (!process.source || typeof process.source !== "object" || Array.isArray(process.source)) throw new Error(`${path}.source must be a mapping.`)
+    optionalNonEmptyString(process.source.name, `${path}.source.name`)
+    optionalNonEmptyString(process.source.dataset_code, `${path}.source.dataset_code`)
+    if (!process.source.name) throw new Error(`${path}.source.name is required when source is provided.`)
+  }
+}
+
+export function buildProductGraphDataCatalog(source: string): ProductGraphDataCatalog {
+  const graph = parse(source) as ProductGraph
+  if (!graph || !Array.isArray(graph.processes)) throw new Error("YAML must include a processes list.")
+  if (graph.products !== undefined && !Array.isArray(graph.products)) throw new Error("YAML products must be a list.")
+  const products = graph.products ?? []
+  validateProducts(products)
+  graph.processes.forEach(validateProcessMetadata)
+
+  const materials = products.map((product): MaterialCatalogRow => {
+    const missingFields = [
+      !product.category && "category",
+      !product.material_family && "material family",
+      !product.geography && "geography",
+      product.data_year === undefined && "data year",
+      !product.source?.name && "source",
+      !product.data_quality?.confidence && "quality",
+    ].filter((field): field is string => Boolean(field))
+    return {
+      name: product.name,
+      unit: product.unit,
+      category: product.category ?? "—",
+      materialFamily: product.material_family ?? "—",
+      composition: product.composition
+        ? Object.entries(product.composition).map(([name, percentage]) => `${percentage}% ${name}`).join(", ")
+        : "—",
+      recycledContent: product.recycled_content ?? null,
+      geography: product.geography ?? "—",
+      dataYear: product.data_year ?? null,
+      source: product.source?.name ?? "—",
+      datasetCode: product.source?.dataset_code ?? "—",
+      confidence: product.data_quality?.confidence ?? "—",
+      producedBy: graph.processes.filter((process) => process.reference_output?.flow === product.name).map((process) => process.name),
+      usedBy: graph.processes.filter((process) => process.inputs?.some((input) => input.flow === product.name)).map((process) => process.name),
+      missingFields,
+    }
+  })
+  const processes = graph.processes.map((process): ProcessCatalogRow => {
+    const missingFields = [
+      !process.stage && "lifecycle stage",
+      !process.location && "location",
+      !process.source?.name && "source",
+    ].filter((field): field is string => Boolean(field))
+    return {
+      name: process.name,
+      stage: process.stage ?? "—",
+      location: process.location ?? "—",
+      inputCount: process.inputs?.length ?? 0,
+      output: process.reference_output?.flow ?? "—",
+      source: process.source?.name ?? "—",
+      datasetCode: process.source?.dataset_code ?? "—",
+      missingFields,
+    }
+  })
+  return { materials, processes }
+}
+
 export function buildGraphFromYaml(
   source: string,
   mode: "scaled" | "structure" = "structure",
@@ -159,7 +268,8 @@ export function buildGraphFromYaml(
   if (graph.products !== undefined && !Array.isArray(graph.products)) throw new Error("YAML products must be a list.")
   validateProducts(graph.products ?? [])
 
-  graph.processes.forEach((process) => {
+  graph.processes.forEach((process, index) => {
+    validateProcessMetadata(process, index)
     if (!process.name || !process.reference_output?.flow || !(process.reference_output.amount > 0)) {
       throw new Error("Every process needs a name and a positive reference_output.")
     }
