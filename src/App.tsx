@@ -10,7 +10,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import {
   BarChart3, Box, Component, Scan, LayoutGrid, ChevronDown, Factory, Leaf,
-  ChevronsDownUp, ChevronsUpDown, ClipboardPaste, FileUp, Minus, Moon, MousePointer2, Plus, Search, Settings2, Share2, Sun, X,
+  ChevronsDownUp, ChevronsUpDown, ClipboardPaste, Download, FileUp, Minus, Moon, MousePointer2, Plus, Search, Settings2, Share2, Sun, X,
 } from "lucide-react"
 import { parse } from "yaml"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -29,7 +29,7 @@ import { NumberStepper } from "@/components/NumberStepper"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
 import { chemicalFlowLabel } from "./lib/flowLabels"
-import { buildGraphFromYaml, buildInventoryRequirements, buildProductGraphDataCatalog, nodeScopeColors } from "./lib/yamlGraph"
+import { buildGraphFromYaml, buildInventoryRequirements, buildProductGraphDataCatalog, materialCatalogToCsv, nodeScopeColors, processCatalogToCsv } from "./lib/yamlGraph"
 import {
   calculateContributionGraphs, calculateLca, getBackgroundActivityDetails, getProductGraphCatalog, impactCategoryAbbreviation, impactCategoryDisplayName, lcaResultToMarkdown,
   type ContributionGraph, type ContributionGraphFlow, type LcaResult, type ProductGraphCatalogEntry,
@@ -113,6 +113,15 @@ const inventoryFlowName = (name: string) => {
   return symbol === base ? name : `${name} (${symbol})`
 }
 
+const downloadCsv = (filename: string, contents: string) => {
+  const url = URL.createObjectURL(new Blob([contents], { type: "text/csv;charset=utf-8" }))
+  const link = document.createElement("a")
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
 function DataCatalogView({ yaml, onOpenProcess }: { yaml: string; onOpenProcess: (name: string) => void }) {
   const [query, setQuery] = useState("")
   let catalog: ReturnType<typeof buildProductGraphDataCatalog>
@@ -143,7 +152,7 @@ function DataCatalogView({ yaml, onOpenProcess }: { yaml: string; onOpenProcess:
     </div>
     <div className="data-catalog-body">
       <section>
-        <h2>Materials <small>{materials.length}</small></h2>
+        <div className="data-section-head"><h2>Materials <small>{materials.length}</small></h2><Button variant="outline" size="sm" onClick={() => downloadCsv("materials.csv", materialCatalogToCsv(catalog.materials))}><Download size={13} />Download materials CSV</Button></div>
         <div className="data-table-wrap"><table className="data-table materials-table">
           <thead><tr><th>Material</th><th>Category / family</th><th>Composition</th><th>Recycled</th><th>Geography / year</th><th>Source</th><th>Quality</th></tr></thead>
           <tbody>{materials.length ? materials.map((row) => <tr key={row.name}>
@@ -158,7 +167,7 @@ function DataCatalogView({ yaml, onOpenProcess }: { yaml: string; onOpenProcess:
         </table></div>
       </section>
       <section>
-        <h2>Processes <small>{processes.length}</small></h2>
+        <div className="data-section-head"><h2>Processes <small>{processes.length}</small></h2><Button variant="outline" size="sm" onClick={() => downloadCsv("processes.csv", processCatalogToCsv(catalog.processes))}><Download size={13} />Download processes CSV</Button></div>
         <div className="data-table-wrap"><table className="data-table processes-table">
           <thead><tr><th>Process</th><th>Lifecycle stage</th><th>Location</th><th>Inputs</th><th>Reference output</th><th>Source</th><th>Completeness</th></tr></thead>
           <tbody>{processes.length ? processes.map((row) => <tr key={row.name}>

@@ -83,6 +83,36 @@ export type ProductGraphDataCatalog = {
   processes: ProcessCatalogRow[]
 }
 
+const csvCell = (value: string | number | null) => {
+  const text = value === null ? "" : String(value)
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
+}
+
+const rowsToCsv = (rows: Array<Array<string | number | null>>) => (
+  `${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}\r\n`
+)
+
+export function materialCatalogToCsv(rows: MaterialCatalogRow[]) {
+  return rowsToCsv([
+    ["Material", "Unit", "Category", "Material family", "Composition", "Recycled content (%)", "Geography", "Data year", "Source", "Dataset code", "Confidence", "Produced by", "Used by", "Missing fields"],
+    ...rows.map((row) => [
+      row.name, row.unit, row.category, row.materialFamily, row.composition,
+      row.recycledContent, row.geography, row.dataYear, row.source, row.datasetCode,
+      row.confidence, row.producedBy.join("; "), row.usedBy.join("; "), row.missingFields.join("; "),
+    ]),
+  ])
+}
+
+export function processCatalogToCsv(rows: ProcessCatalogRow[]) {
+  return rowsToCsv([
+    ["Process", "Lifecycle stage", "Location", "Input count", "Reference output", "Source", "Dataset code", "Missing fields"],
+    ...rows.map((row) => [
+      row.name, row.stage, row.location, row.inputCount, row.output,
+      row.source, row.datasetCode, row.missingFields.join("; "),
+    ]),
+  ])
+}
+
 export const lifecycleStages = ["raw-material", "manufacturing", "transport", "assembly", "use", "end-of-life"] as const
 
 export function buildInventoryRequirements(source: string, scalingVector: Record<string, number>): InventoryRequirement[] {

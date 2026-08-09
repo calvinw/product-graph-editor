@@ -220,6 +220,21 @@ reference_process: Material production
   await expect(page.locator(".materials-table tbody tr")).toHaveCount(1)
   await expect(page.locator(".processes-table tbody tr")).toHaveCount(1)
   await expect(page.getByText("0 incomplete records", { exact: true })).toBeVisible()
+  const materialDownload = page.waitForEvent("download")
+  await page.getByRole("button", { name: "Download materials CSV" }).click()
+  const materialCsv = await (await materialDownload).createReadStream()
+  let materialContents = ""
+  for await (const chunk of materialCsv) materialContents += chunk.toString()
+  expect(materialContents).toContain("Material,Unit,Category")
+  expect(materialContents).toContain('Recycled blend,kg,textile fiber,polymer,"65% recycled polyester, 35% virgin polyester",65,US,2025,Example material database,textile-001,medium,Material production')
+
+  const processDownload = page.waitForEvent("download")
+  await page.getByRole("button", { name: "Download processes CSV" }).click()
+  const processCsv = await (await processDownload).createReadStream()
+  let processContents = ""
+  for await (const chunk of processCsv) processContents += chunk.toString()
+  expect(processContents).toContain("Process,Lifecycle stage,Location")
+  expect(processContents).toContain("Material production,manufacturing,US,0,Recycled blend,Process survey,process-001")
   const dataSearch = page.getByRole("textbox", { name: "Search supply-chain data" })
   await dataSearch.fill("textile-001")
   await expect(page.locator(".materials-table tbody tr")).toContainText("Recycled blend")
