@@ -166,6 +166,48 @@ test("Paste YAML opens a blank custom editor and calculates the pasted source", 
   await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
 })
 
+test("stable process IDs select a supplier and ambiguous legacy suppliers are rejected", async ({ page }) => {
+  await mockLcaApi(page)
+  await page.goto("/")
+  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  const editor = page.getByRole("textbox", { name: "Product graph YAML" })
+  const source = `
+name: Supplier choice
+functional_unit: { amount: 1, unit: unit }
+products:
+  - { id: material, name: Material, unit: kg }
+  - { id: finished-product, name: Finished product, unit: unit }
+processes:
+  - id: supplier-a
+    name: Supplier A
+    reference_output: { flow: Material, product_id: material, amount: 1 }
+  - id: supplier-b
+    name: Supplier B
+    reference_output: { flow: Material, product_id: material, amount: 1 }
+  - id: assembly
+    name: Assembly
+    reference_output: { flow: Finished product, product_id: finished-product, amount: 1 }
+    inputs:
+      - { flow: Material, product_id: material, provider_id: supplier-b, amount: 2 }
+reference_process_id: assembly
+reference_process: Assembly
+`
+
+  await editor.fill(source)
+  await page.getByRole("button", { name: "Calculate" }).click()
+  await expect(page.getByRole("heading", { name: "Supplier choice" })).toBeVisible()
+  await expect(page.locator('.react-flow__node[data-id="supplier-a"]')).toHaveCount(1)
+  await expect(page.locator('.react-flow__node[data-id="supplier-b"]')).toHaveCount(1)
+  await expect(page.locator('.react-flow__node[data-id="assembly"]')).toHaveCount(1)
+  await expect(page.locator(".react-flow__edge")).toHaveCount(1)
+
+  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  await editor.fill(source.replace("provider_id: supplier-b, ", ""))
+  await page.getByRole("button", { name: "Calculate" }).click()
+  await expect(page.locator(".yaml-error")).toContainText("is ambiguous because 2 processes produce this flow")
+  await expect(page.locator(".yaml-error")).toContainText("Add provider_id")
+})
+
 test("a calculation for an older applied revision cannot populate results", async ({ page }) => {
   let releaseCalculation: (() => void) | undefined
   let calculationCount = 0
