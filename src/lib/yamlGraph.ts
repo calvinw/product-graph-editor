@@ -1,6 +1,6 @@
 import { MarkerType, type Edge, type Node } from "@xyflow/react"
 import { parse } from "yaml"
-import type { ProcessNodeData } from "../components/ProcessNode"
+import type { MaterialMetadata, ProcessNodeData } from "../components/ProcessNode"
 import { chemicalFlowLabel } from "./flowLabels"
 
 type FlowAmount = {
@@ -20,10 +20,22 @@ type YamlProcess = {
   resources?: Array<FlowAmount & { unit?: string }>
   resource_inputs?: Array<FlowAmount & { unit?: string }>
 }
+type YamlProduct = {
+  name: string
+  unit: string
+  category?: string
+  material_family?: string
+  composition?: Record<string, number>
+  geography?: string
+  data_year?: number
+  source?: { name?: string; dataset_code?: string }
+  recycled_content?: number
+  data_quality?: { confidence?: string; notes?: string }
+}
 type ProductGraph = {
   name?: string
   functional_unit?: { amount?: number; unit?: string }
-  products?: Array<{ name: string; unit: string }>
+  products?: YamlProduct[]
   processes: YamlProcess[]
   reference_process: string
 }
@@ -63,6 +75,77 @@ const backgroundIdFor = (input: FlowAmount) => {
   return `background-${slug}-${stableHash(backgroundKeyFor(input))}`
 }
 
+const optionalNonEmptyString = (value: unknown, path: string) => {
+  if (value !== undefined && (typeof value !== "string" || !value.trim())) throw new Error(`${path} must be a non-empty string.`)
+}
+
+const materialMetadataFor = (product: YamlProduct | undefined): MaterialMetadata | undefined => {
+  if (!product) return undefined
+  const metadata: MaterialMetadata = {
+    category: product.category,
+    materialFamily: product.material_family,
+    composition: product.composition
+      ? Object.entries(product.composition).map(([material, percentage]) => ({ material, percentage }))
+      : undefined,
+    geography: product.geography,
+    dataYear: product.data_year,
+    sourceName: product.source?.name,
+    datasetCode: product.source?.dataset_code,
+    recycledContent: product.recycled_content,
+    confidence: product.data_quality?.confidence as MaterialMetadata["confidence"],
+    qualityNotes: product.data_quality?.notes,
+  }
+  return Object.values(metadata).some((value) => value !== undefined) ? metadata : undefined
+}
+
+function validateProducts(products: YamlProduct[]) {
+  const names = new Set<string>()
+  products.forEach((product, index) => {
+    const path = `products[${index}]`
+    if (!product || typeof product !== "object") throw new Error(`${path} must be a mapping.`)
+    if (typeof product.name !== "string" || !product.name.trim()) throw new Error(`${path}.name must be a non-empty string.`)
+    if (names.has(product.name)) throw new Error(`Duplicate product name “${product.name}”.`)
+    names.add(product.name)
+    if (typeof product.unit !== "string" || !product.unit.trim()) throw new Error(`${path}.unit must be a non-empty string.`)
+    optionalNonEmptyString(product.category, `${path}.category`)
+    optionalNonEmptyString(product.material_family, `${path}.material_family`)
+    optionalNonEmptyString(product.geography, `${path}.geography`)
+
+    if (product.data_year !== undefined && (!Number.isInteger(product.data_year) || product.data_year < 1900 || product.data_year > new Date().getFullYear() + 1)) {
+      throw new Error(`${path}.data_year must be a four-digit year between 1900 and ${new Date().getFullYear() + 1}.`)
+    }
+    if (product.recycled_content !== undefined && (!Number.isFinite(product.recycled_content) || product.recycled_content < 0 || product.recycled_content > 100)) {
+      throw new Error(`${path}.recycled_content must be a percentage between 0 and 100.`)
+    }
+    if (product.composition !== undefined) {
+      if (!product.composition || typeof product.composition !== "object" || Array.isArray(product.composition) || !Object.keys(product.composition).length) {
+        throw new Error(`${path}.composition must be a non-empty mapping of material names to percentages.`)
+      }
+      let total = 0
+      for (const [material, percentage] of Object.entries(product.composition)) {
+        if (!material.trim() || !Number.isFinite(percentage) || percentage < 0 || percentage > 100) {
+          throw new Error(`${path}.composition entries must use non-empty material names and percentages between 0 and 100.`)
+        }
+        total += percentage
+      }
+      if (Math.abs(total - 100) > 0.001) throw new Error(`${path}.composition percentages must total 100; received ${total}.`)
+    }
+    if (product.source !== undefined) {
+      if (!product.source || typeof product.source !== "object" || Array.isArray(product.source)) throw new Error(`${path}.source must be a mapping.`)
+      optionalNonEmptyString(product.source.name, `${path}.source.name`)
+      optionalNonEmptyString(product.source.dataset_code, `${path}.source.dataset_code`)
+      if (!product.source.name) throw new Error(`${path}.source.name is required when source is provided.`)
+    }
+    if (product.data_quality !== undefined) {
+      if (!product.data_quality || typeof product.data_quality !== "object" || Array.isArray(product.data_quality)) throw new Error(`${path}.data_quality must be a mapping.`)
+      if (product.data_quality.confidence !== undefined && !["low", "medium", "high"].includes(product.data_quality.confidence)) {
+        throw new Error(`${path}.data_quality.confidence must be low, medium, or high.`)
+      }
+      optionalNonEmptyString(product.data_quality.notes, `${path}.data_quality.notes`)
+    }
+  })
+}
+
 export function buildGraphFromYaml(
   source: string,
   mode: "scaled" | "structure" = "structure",
@@ -73,6 +156,8 @@ export function buildGraphFromYaml(
   const graph = parse(source) as ProductGraph
   if (!graph || !Array.isArray(graph.processes) || !graph.processes.length) throw new Error("YAML must include a non-empty processes list.")
   if (!graph.reference_process) throw new Error("YAML must define reference_process.")
+  if (graph.products !== undefined && !Array.isArray(graph.products)) throw new Error("YAML products must be a list.")
+  validateProducts(graph.products ?? [])
 
   graph.processes.forEach((process) => {
     if (!process.name || !process.reference_output?.flow || !(process.reference_output.amount > 0)) {
@@ -87,6 +172,7 @@ export function buildGraphFromYaml(
     if (input.database) backgroundInputs.set(backgroundKeyFor(input), input)
   }))
   const productUnits = new Map((graph.products ?? []).map((product) => [product.name, product.unit]))
+  const productsByName = new Map((graph.products ?? []).map((product) => [product.name, product]))
   const reference = graph.processes.find((process) => process.name === graph.reference_process)
   if (!reference) throw new Error(`Reference process “${graph.reference_process}” was not found.`)
 
@@ -154,6 +240,7 @@ export function buildGraphFromYaml(
           amount: process.reference_output.amount,
           unit: process.reference_output.unit ?? outputUnit,
         }],
+        materialMetadata: materialMetadataFor(productsByName.get(process.reference_output.flow)),
         emissions: (process.emissions ?? []).map((emission) => ({ label: chemicalFlowLabel(emission.flow), amount: round(emission.amount * scale), unit: "kg" })),
         referenceEmissions: (process.emissions ?? []).map((emission) => ({
           label: chemicalFlowLabel(emission.flow), amount: emission.amount, unit: emission.unit ?? "kg",

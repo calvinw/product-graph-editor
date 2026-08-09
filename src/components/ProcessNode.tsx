@@ -5,6 +5,18 @@ import { useDisplaySettings } from "../lib/displaySettings"
 
 type FlowItem = { label: string; kind: string; color: string; amount?: number; unit?: string; handleId?: string }
 type InventoryItem = { label: string; amount?: number; unit?: string }
+export type MaterialMetadata = {
+  category?: string
+  materialFamily?: string
+  composition?: Array<{ material: string; percentage: number }>
+  geography?: string
+  dataYear?: number
+  sourceName?: string
+  datasetCode?: string
+  recycledContent?: number
+  confidence?: "low" | "medium" | "high"
+  qualityNotes?: string
+}
 
 export type ProcessNodeData = {
   label: string
@@ -29,6 +41,7 @@ export type ProcessNodeData = {
   referenceEmissions?: InventoryItem[]
   referenceExtractions?: InventoryItem[]
   referenceBiosphere?: InventoryItem[]
+  materialMetadata?: MaterialMetadata
   backgroundLoading?: boolean
   backgroundExploring?: boolean
   backgroundLoaded?: boolean

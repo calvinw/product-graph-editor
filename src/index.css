@@ -498,6 +498,7 @@ html[data-theme="light"] .pg-node-head, html[data-theme="light"] .pg-flow-sectio
 .property-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .property-row small { flex: none; color: #707784; font-size: 9px; text-transform: capitalize; }
 .property-row strong { flex: none; color: #c4b5fd; font-size: 9.5px; font-weight: 650; }
+.material-metadata { padding: 10px 0; border-top: 1px solid #2b2f36; border-bottom: 1px solid #2b2f36; }.material-metadata .property-row strong { max-width: 145px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: capitalize; }.material-quality-notes { margin: 7px 0 0; color: #8f96a1; font-size: 10px; line-height: 1.45; }
 .property-section.is-extraction h3 { color: #38bdf8; }
 .property-section.is-extraction .property-row strong { color: #7dd3fc; }
 .property-section.is-emission h3 { color: #fb7185; }
@@ -539,6 +540,7 @@ html[data-theme="light"] .property-section p { color: #6b7280; }
 html[data-theme="light"] .property-row { color: #111827; }
 html[data-theme="light"] .property-row small { color: #4b5563; }
 html[data-theme="light"] .property-row strong { color: #5b21b6; }
+html[data-theme="light"] .material-metadata { border-color: #d5dae2; }html[data-theme="light"] .material-quality-notes { color: #4b5563; }
 html[data-theme="light"] .property-section.is-emission h3 { color: #dc2626; }
 html[data-theme="light"] .property-section.is-emission .property-row strong { color: #111827; }
 html[data-theme="light"] .results-panel-body { color: #111827; background: #fff; }

@@ -2301,6 +2301,19 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
           <div className="inspector-head"><span>NODE DETAILS</span><Button variant="ghost" size="icon" onClick={() => setSelected(null)} aria-label="Close property editor" title="Close property editor"><X size={16} /></Button></div>
           <div className="node-icon" style={{ background: selectedNode?.data.color ?? inspectorSelection.color }}><Box size={22} /></div>
           <h2>{selectedNode?.data.label ?? inspectorSelection.label}</h2><p>{selectedNode?.data.detail ?? inspectorSelection.detail}</p>
+          {selectedNode?.data.materialMetadata ? <div className="property-section material-metadata">
+            <h3>Material data</h3>
+            {selectedNode.data.materialMetadata.category ? <div className="property-row"><span>Category</span><strong>{selectedNode.data.materialMetadata.category}</strong></div> : null}
+            {selectedNode.data.materialMetadata.materialFamily ? <div className="property-row"><span>Material family</span><strong>{selectedNode.data.materialMetadata.materialFamily}</strong></div> : null}
+            {selectedNode.data.materialMetadata.composition?.map((item) => <div className="property-row" key={item.material}><span>{item.material}</span><strong>{item.percentage}%</strong></div>)}
+            {selectedNode.data.materialMetadata.recycledContent !== undefined ? <div className="property-row"><span>Recycled content</span><strong>{selectedNode.data.materialMetadata.recycledContent}%</strong></div> : null}
+            {selectedNode.data.materialMetadata.geography ? <div className="property-row"><span>Geography</span><strong>{selectedNode.data.materialMetadata.geography}</strong></div> : null}
+            {selectedNode.data.materialMetadata.dataYear ? <div className="property-row"><span>Data year</span><strong>{selectedNode.data.materialMetadata.dataYear}</strong></div> : null}
+            {selectedNode.data.materialMetadata.sourceName ? <div className="property-row"><span>Source</span><strong>{selectedNode.data.materialMetadata.sourceName}</strong></div> : null}
+            {selectedNode.data.materialMetadata.datasetCode ? <div className="property-row"><span>Dataset code</span><strong>{selectedNode.data.materialMetadata.datasetCode}</strong></div> : null}
+            {selectedNode.data.materialMetadata.confidence ? <div className="property-row"><span>Confidence</span><strong>{selectedNode.data.materialMetadata.confidence}</strong></div> : null}
+            {selectedNode.data.materialMetadata.qualityNotes ? <p className="material-quality-notes">{selectedNode.data.materialMetadata.qualityNotes}</p> : null}
+          </div> : null}
           {graphMode === "structure" ? <Button variant="outline" size="sm" className="reference-amounts-toggle" aria-pressed={showReferenceAmounts} onClick={() => setShowReferenceAmounts((current) => !current)}>{showReferenceAmounts ? "Hide reference amounts" : "Reference amounts"}</Button> : null}
           {graphMode === "structure" && showReferenceAmounts && selectedNode ? <>
             <div className="property-section">

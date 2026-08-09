@@ -166,6 +166,55 @@ test("Paste YAML opens a blank custom editor and calculates the pasted source", 
   await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
 })
 
+test("material metadata is validated and shown in the node inspector", async ({ page }) => {
+  await mockLcaApi(page)
+  await page.goto("/")
+  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  const editor = page.getByRole("textbox", { name: "Product graph YAML" })
+  const source = `
+name: Material metadata example
+functional_unit: { amount: 1, unit: kg }
+products:
+  - name: Recycled blend
+    unit: kg
+    category: textile fiber
+    material_family: polymer
+    composition:
+      recycled polyester: 65
+      virgin polyester: 35
+    recycled_content: 65
+    geography: US
+    data_year: 2025
+    source:
+      name: Example material database
+      dataset_code: textile-001
+    data_quality:
+      confidence: medium
+      notes: Supplier-specific measurements are not yet available.
+processes:
+  - name: Material production
+    reference_output: { flow: Recycled blend, amount: 1 }
+reference_process: Material production
+`
+
+  await editor.fill(source)
+  await page.getByRole("button", { name: "Calculate" }).click()
+  await page.locator(".react-flow__node").filter({ hasText: "Material production" }).click()
+  const inspector = page.locator(".inspector")
+  await expect(inspector.getByRole("heading", { name: "Material data" })).toBeVisible()
+  await expect(inspector).toContainText("textile fiber")
+  await expect(inspector).toContainText("recycled polyester")
+  await expect(inspector).toContainText("65%")
+  await expect(inspector).toContainText("Example material database")
+  await expect(inspector).toContainText("textile-001")
+  await expect(inspector).toContainText("medium")
+
+  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  await editor.fill(source.replace("recycled_content: 65", "recycled_content: 165"))
+  await page.getByRole("button", { name: "Calculate" }).click()
+  await expect(page.locator(".yaml-error")).toContainText("recycled_content must be a percentage between 0 and 100")
+})
+
 test("a calculation for an older applied revision cannot populate results", async ({ page }) => {
   let releaseCalculation: (() => void) | undefined
   let calculationCount = 0
