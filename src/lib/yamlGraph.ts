@@ -83,6 +83,16 @@ export type ProductGraphDataCatalog = {
   processes: ProcessCatalogRow[]
 }
 
+export type DataQualityReportRow = {
+  recordType: "Material" | "Process"
+  name: string
+  completeness: number
+  confidence: string
+  dataAge: string
+  missingFields: string[]
+  recommendation: string
+}
+
 const csvCell = (value: string | number | null) => {
   const text = value === null ? "" : String(value)
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
@@ -110,6 +120,55 @@ export function processCatalogToCsv(rows: ProcessCatalogRow[]) {
       row.name, row.stage, row.location, row.inputCount, row.output,
       row.source, row.datasetCode, row.missingFields.join("; "),
     ]),
+  ])
+}
+
+const fieldRecommendation: Record<string, string> = {
+  category: "Classify the material so similar records can be compared.",
+  "material family": "Add a broad family such as natural fiber, polymer, or metal.",
+  geography: "Add the country or region represented by the dataset.",
+  "data year": "Add the year the measurements or dataset represent.",
+  source: "Add the dataset, survey, or supplier used for this record.",
+  quality: "Assign low, medium, or high confidence and document assumptions.",
+  "lifecycle stage": "Assign raw-material, manufacturing, transport, assembly, use, or end-of-life.",
+  location: "Add the country or region where this process occurs.",
+}
+
+export function buildDataQualityReport(catalog: ProductGraphDataCatalog, currentYear = new Date().getFullYear()): DataQualityReportRow[] {
+  const recommendationFor = (fields: string[]) => fields.length
+    ? fields.map((field) => fieldRecommendation[field] ?? `Add ${field}.`).join(" ")
+    : "No required catalog fields are missing."
+  const ageFor = (year: number | null) => {
+    if (year === null) return "Unknown"
+    const age = Math.max(0, currentYear - year)
+    return `${age} ${age === 1 ? "year" : "years"}`
+  }
+  return [
+    ...catalog.materials.map((row): DataQualityReportRow => ({
+      recordType: "Material",
+      name: row.name,
+      completeness: Math.round(((6 - row.missingFields.length) / 6) * 100),
+      confidence: row.confidence,
+      dataAge: ageFor(row.dataYear),
+      missingFields: row.missingFields,
+      recommendation: recommendationFor(row.missingFields),
+    })),
+    ...catalog.processes.map((row): DataQualityReportRow => ({
+      recordType: "Process",
+      name: row.name,
+      completeness: Math.round(((3 - row.missingFields.length) / 3) * 100),
+      confidence: "—",
+      dataAge: "—",
+      missingFields: row.missingFields,
+      recommendation: recommendationFor(row.missingFields),
+    })),
+  ]
+}
+
+export function dataQualityReportToCsv(rows: DataQualityReportRow[]) {
+  return rowsToCsv([
+    ["Record type", "Record", "Completeness (%)", "Confidence", "Data age", "Missing fields", "Recommended action"],
+    ...rows.map((row) => [row.recordType, row.name, row.completeness, row.confidence, row.dataAge, row.missingFields.join("; "), row.recommendation]),
   ])
 }
 

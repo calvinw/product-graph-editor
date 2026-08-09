@@ -29,7 +29,7 @@ import { NumberStepper } from "@/components/NumberStepper"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
 import { chemicalFlowLabel } from "./lib/flowLabels"
-import { buildGraphFromYaml, buildInventoryRequirements, buildProductGraphDataCatalog, materialCatalogToCsv, nodeScopeColors, processCatalogToCsv } from "./lib/yamlGraph"
+import { buildDataQualityReport, buildGraphFromYaml, buildInventoryRequirements, buildProductGraphDataCatalog, dataQualityReportToCsv, materialCatalogToCsv, nodeScopeColors, processCatalogToCsv } from "./lib/yamlGraph"
 import {
   calculateContributionGraphs, calculateLca, getBackgroundActivityDetails, getProductGraphCatalog, impactCategoryAbbreviation, impactCategoryDisplayName, lcaResultToMarkdown,
   type ContributionGraph, type ContributionGraphFlow, type LcaResult, type ProductGraphCatalogEntry,
@@ -157,6 +157,9 @@ function DataCatalogView({ yaml, onOpenProcess }: { yaml: string; onOpenProcess:
     && matchesCompleteness(row.missingFields)
   ))
   const filtersActive = Boolean(normalized) || [stage, materialFamily, geography, confidence, completeness].some((value) => value !== "all")
+  const qualityRows = buildDataQualityReport({ materials, processes })
+  const averageCompleteness = qualityRows.length ? Math.round(qualityRows.reduce((sum, row) => sum + row.completeness, 0) / qualityRows.length) : 0
+  const recordsNeedingWork = qualityRows.filter((row) => row.missingFields.length)
   const resetFilters = () => {
     setQuery("")
     setStage("all")
@@ -190,6 +193,24 @@ function DataCatalogView({ yaml, onOpenProcess }: { yaml: string; onOpenProcess:
       <Button variant="ghost" size="sm" disabled={!filtersActive} onClick={resetFilters}>Reset filters</Button>
     </div>
     <div className="data-catalog-body">
+      <section className="data-quality-report">
+        <div className="data-section-head"><h2>Data quality report <small>{qualityRows.length}</small></h2><Button variant="outline" size="sm" onClick={() => downloadCsv("data-quality-report.csv", dataQualityReportToCsv(qualityRows))}><Download size={13} />Download cleanup report</Button></div>
+        <div className="data-quality-overview">
+          <div><strong>{averageCompleteness}%</strong><span>average completeness</span></div>
+          <div className={recordsNeedingWork.length ? "has-warning" : ""}><strong>{recordsNeedingWork.length}</strong><span>records need attention</span></div>
+          <p>Scores cover classification, geography, year, provenance, confidence, and process context—not environmental performance.</p>
+        </div>
+        <div className="data-table-wrap"><table className="data-table quality-table">
+          <thead><tr><th>Record</th><th>Complete</th><th>Confidence / age</th><th>Missing fields</th><th>Recommended action</th></tr></thead>
+          <tbody>{qualityRows.length ? qualityRows.map((row) => <tr key={`${row.recordType}-${row.name}`}>
+            <td><strong>{row.name}</strong><small>{row.recordType}</small></td>
+            <td><span className={`quality-score${row.completeness === 100 ? " is-complete" : ""}`}>{row.completeness}%</span></td>
+            <td>{row.confidence}<small>{row.dataAge === "—" ? "Age not tracked" : `${row.dataAge} old`}</small></td>
+            <td>{row.missingFields.length ? row.missingFields.join(", ") : "None"}</td>
+            <td title={row.recommendation}>{row.recommendation}</td>
+          </tr>) : <tr><td colSpan={5} className="data-empty">No records match the current filters.</td></tr>}</tbody>
+        </table></div>
+      </section>
       <section>
         <div className="data-section-head"><h2>Materials <small>{materials.length}</small></h2><Button variant="outline" size="sm" onClick={() => downloadCsv("materials.csv", materialCatalogToCsv(materials))}><Download size={13} />Download{filtersActive ? " filtered" : ""} materials CSV</Button></div>
         <div className="data-table-wrap"><table className="data-table materials-table">
