@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint . --max-warnings 0",
+    "test:responsive": "tsc -p tsconfig.visual.json && playwright test --config=playwright.responsive.config.ts",
     "test:visual": "tsc -p tsconfig.visual.json && playwright test",
     "test:visual:update": "tsc -p tsconfig.visual.json && playwright test --update-snapshots",
     "preview": "vite preview"
@@ -39,6 +40,7 @@
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.16",
     "globals": "^15.14.0",
+    "react-grab": "^0.1.50",
     "tailwindcss": "^4.0.0",
     "typescript": "~5.7.2",
     "typescript-eslint": "^8.18.2",

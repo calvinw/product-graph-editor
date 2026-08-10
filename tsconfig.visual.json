@@ -5,7 +5,9 @@
   },
   "include": [
     "src/vite-env.d.ts",
+    "playwright.base.config.ts",
     "playwright.config.ts",
+    "playwright.responsive.config.ts",
     "tests"
   ]
 }

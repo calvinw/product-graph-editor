@@ -1,21 +1,12 @@
 import { defineConfig } from "@playwright/test"
+import baseConfig from "./playwright.base.config"
 
-export default defineConfig({
+export default defineConfig(baseConfig, {
   testDir: "./tests/visual",
-  fullyParallel: false,
-  workers: 1,
-  reporter: "list",
   snapshotPathTemplate: "{testDir}/__screenshots__/{arg}{ext}",
   use: {
-    baseURL: "http://127.0.0.1:5178",
     viewport: { width: 1440, height: 900 },
-    deviceScaleFactor: 1,
     colorScheme: "dark",
-    contextOptions: {
-      reducedMotion: "reduce",
-    },
-    screenshot: "only-on-failure",
-    trace: "retain-on-failure",
   },
   expect: {
     toHaveScreenshot: {
@@ -23,15 +14,5 @@ export default defineConfig({
       caret: "hide",
       maxDiffPixelRatio: 0.001,
     },
-  },
-  webServer: {
-    command: "npm run dev -- --host 127.0.0.1 --port 5178 --strictPort",
-    env: {
-      // The visual-result fixtures describe Jacket; production uses the app's Cotton Fiber default.
-      VITE_DEFAULT_PRODUCT_GRAPH_ID: "jacket",
-    },
-    url: "http://127.0.0.1:5178",
-    reuseExistingServer: false,
-    timeout: 30_000,
   },
 })
