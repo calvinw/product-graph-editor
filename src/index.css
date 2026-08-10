@@ -368,6 +368,9 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
 .sankey-process-metrics { display: grid; gap: 2px; padding: 10px 12px 11px; color: #8bdcf3; text-align: center; font-size: 12px; font-weight: 650; line-height: 1.5; }
 .sankey-process-node .react-flow__handle { width: 1px; height: 1px; min-width: 0; min-height: 0; border: 0; background: transparent; }
 .sankey-canvas .react-flow__edge-path { stroke-linecap: round; }
+.sankey-canvas .react-flow__edge.sankey-path-edge.is-path-highlighted .react-flow__edge-path { stroke: #facc15 !important; stroke-linecap: butt; stroke-dasharray: var(--sankey-dash-length) var(--sankey-dash-gap); animation: sankey-path-march .8s linear infinite; }
+.sankey-canvas .react-flow__edge.sankey-path-edge.is-path-dimmed .react-flow__edge-path { stroke: var(--graph-edge) !important; }
+@keyframes sankey-path-march { to { stroke-dashoffset: var(--sankey-dash-offset); } }
 .sankey-canvas .react-flow__edge-text { fill: #fff !important; }
 .sankey-canvas .react-flow__edge-textbg { fill: #1d4ed8 !important; fill-opacity: .92 !important; }
 .sankey-empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #90959e; text-align: center; }.sankey-empty p { margin: 7px 0 0; color: #686e78; font-size: 11px; }

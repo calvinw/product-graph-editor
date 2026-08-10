@@ -1104,20 +1104,31 @@ function SankeyView({ result, loadContributionGraphs }: {
   const highlightConnectedEdges = (edges: Edge[], nodeId: string | null) => {
     if (!nodeId) return edges
     const { edgeIds } = downstreamSelection(edges, nodeId)
-    return edges.map((edge) => edgeIds.has(edge.id)
-      ? {
+    return edges.map((edge) => {
+      const baseWidth = Number(edge.style?.strokeWidth ?? 2)
+      return edgeIds.has(edge.id)
+        ? {
           ...edge,
-          zIndex: 10,
-          animated: true,
-          style: { ...edge.style, stroke: "#facc15", strokeWidth: Math.max(4, Number(edge.style?.strokeWidth ?? 2) + 2), opacity: 1 },
+          className: "sankey-path-edge is-path-highlighted",
+          zIndex: 0,
+          animated: false,
+          style: {
+            ...edge.style,
+            "--sankey-dash-length": Math.max(12, baseWidth * 1.5),
+            "--sankey-dash-gap": Math.max(10, baseWidth * .9),
+            "--sankey-dash-offset": -(Math.max(12, baseWidth * 1.5) + Math.max(10, baseWidth * .9)),
+            opacity: 1,
+          } as React.CSSProperties,
           labelStyle: { ...edge.labelStyle, fill: "#fde68a", fontWeight: 700 },
         }
-      : {
+        : {
           ...edge,
+          className: "sankey-path-edge is-path-dimmed",
           animated: false,
           style: { ...edge.style, opacity: .16 },
           labelStyle: { ...edge.labelStyle, opacity: .2 },
-        })
+        }
+    })
   }
   const highlightConnectedNodes = (nodes: Node<SankeyProcessNodeData>[], edges: Edge[], nodeId: string | null) => {
     const { nodeIds } = downstreamSelection(edges, nodeId)
