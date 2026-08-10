@@ -1,6 +1,9 @@
 {
   "image": "ghcr.io/calvinw/ai-course-devcontainer:latest",
-  "postCreateCommand": "setup-env.sh && install-mcps.sh && setup-skills.sh && sync-skills.sh || true",
+  "postCreateCommand": {
+    "agent-tooling": "setup-env.sh && install-mcps.sh && setup-skills.sh && sync-skills.sh",
+    "application": "npm install && npx playwright install --with-deps chromium"
+  },
   "secrets": {
     "STITCH_API_KEY": "STITCH_API_KEY"
   },

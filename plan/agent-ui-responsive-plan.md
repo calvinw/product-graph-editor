@@ -1,9 +1,9 @@
 # Product Graph Editor — Agent Tooling and Responsive Design Implementation Plan
 
-**Repository:** `calvinw/product-graph-editor`  
-**Intended implementation agent:** GPT-5.6 running inside the project Codespace  
-**Baseline branch:** `main` at `3d11438` (verified against `origin/main` on August 8, 2026)  
-**Recommended implementation branch:** create `agent-ui-responsive` from the current `main`  
+**Repository:** `calvinw/product-graph-editor`
+**Intended implementation environment:** any capable coding agent running inside the project Codespace
+**Current `main`:** `57343da` (verified against `origin/main` on August 9, 2026)
+**Implementation branch:** `agent-ui-responsive`; synchronize it with current `main` before implementation
 **Purpose:** Add agent-oriented React/shadcn development tooling and then use it to improve responsive behavior without destabilizing the existing desktop application.
 
 ---
@@ -18,21 +18,21 @@ This project has two related goals:
 The target development loop is:
 
 ```text
-GPT-5.6 / Claude / other coding agent
+Any coding agent
         |
         +-- shadcn Skill
         |      understands shadcn conventions
         |
-        +-- shadcn MCP
+        +-- shadcn MCP (optional)
         |      searches/discovers components and registries
         |
         +-- shadcn CLI
         |      deterministic component/project operations
         |
-        +-- React Grab
+        +-- React Grab (optional)
         |      maps rendered UI elements back to React source
         |
-        +-- Chrome DevTools
+        +-- Chrome DevTools MCP (optional)
         |      inspects DOM, CSS, console, network, viewport behavior
         |
         +-- Playwright
@@ -41,11 +41,46 @@ GPT-5.6 / Claude / other coding agent
 
 The shadcn CLI remains the deterministic project tool. The MCP server is an agent-facing discovery layer rather than a replacement for the CLI.
 
+## Agent portability contract
+
+The implementation must not depend on a particular model, coding-agent product, IDE, or MCP client.
+
+Repository-owned, required foundations:
+
+- source code and project documentation
+- the project-specific Skillshare skill, synchronized to the targets in `.skillshare/config.yaml`
+- shadcn CLI commands that any agent can run in the shell
+- Playwright tests and npm scripts that run without an agent integration
+- a written audit and baseline-failure ledger
+
+Optional accelerators:
+
+- shadcn MCP
+- Chrome DevTools MCP
+- React Grab
+- Playwright CLI skills
+- client-specific generated agent definitions
+
+Every instruction that mentions an optional accelerator must have a shell, source-inspection, or standard Playwright fallback. Failure to configure an optional integration must not block the responsive implementation.
+
+## Tool references
+
+The commands in this plan were checked on August 9, 2026. Re-check the primary documentation before installing a `@latest` tool:
+
+- [shadcn Skills](https://ui.shadcn.com/docs/skills)
+- [shadcn MCP](https://ui.shadcn.com/docs/mcp)
+- [React Grab](https://www.react-grab.com/)
+- [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp)
+- [Playwright CLI](https://playwright.dev/agent-cli/introduction)
+- [Playwright Test agents](https://playwright.dev/docs/test-agents)
+
 ---
 
 # 2. Current `main` Baseline
 
-This plan was refreshed against local `main` and `origin/main` at `3d11438` on August 8, 2026. Before implementation, fast-forward `main`, create the implementation branch from it, and verify that newer changes have not invalidated this snapshot.
+The application baseline was inspected at `3d11438` on August 8, 2026. Local and remote `main` are now at `57343da`; the only intervening change removes three obsolete plan documents and does not change application code.
+
+The implementation branch was created from `3d11438`. Before implementation, merge or rebase current `main` into `agent-ui-responsive`, confirm that the responsive planning documents are the only branch-specific changes, and preserve any unrelated local files.
 
 Verified baseline:
 
@@ -66,14 +101,25 @@ Verified baseline:
 Run:
 
 ```bash
-git status
+git status --short
 npm install
+npx playwright install --with-deps chromium
 npm run build
 npm run lint
 npm run test:visual
 ```
 
-At the time of this refresh, `npm run build` and `npm run lint` pass. The visual suite reports 18 passing and 7 failing tests in existing table-resizing, contribution-detail, inspector, and screenshot assertions. Record and resolve or explicitly quarantine that baseline before responsive changes so new failures can be attributed correctly.
+The baseline was reproduced on August 9 after repairing the npm optional dependency and installing the Playwright Chromium runtime. `npm run build` and `npm run lint` pass. The visual suite reports 18 passing and 7 failing tests in existing table-resizing, contribution-detail, inspector, and screenshot assertions. The exact results and dispositions are recorded in `plan/responsive-baseline.md`.
+
+Re-run and record the baseline after a clean dependency install. If Rollup reports a missing platform-specific optional package, repair the dependency installation before interpreting build or Playwright results.
+
+Maintain `plan/responsive-baseline.md` with every pre-existing failure by full test title, command, and disposition:
+
+- **fix now** — repair before responsive implementation
+- **quarantine with an issue/reference** — skip explicitly and retain an owner/reason
+- **accepted baseline** — temporarily allowed, but the exact failure must not expand or change
+
+Responsive work must introduce no failures beyond that ledger. By the final cleanup PR, all accepted-baseline failures must either be fixed or explicitly quarantined with a follow-up reference.
 
 Do not begin responsive refactoring until the current baseline is understood.
 
@@ -117,6 +163,8 @@ npx skills add shadcn/ui
 ```
 
 Before relying on the command, confirm the currently installed CLI syntax.
+
+Install it for every agent target supported by the installer that is actually used in the Codespace. Inspect and commit only repository-scoped generated files; never commit user-home configuration. The project-specific Skillshare skill remains the portable fallback for agents that do not consume the official skill format.
 
 Verify shadcn can correctly understand the repository:
 
@@ -179,7 +227,7 @@ description: UI development and responsive-design rules for the Product Graph Ed
 1. Inspect existing `src/components/ui` components before adding anything.
 2. Prefer an existing shadcn component over a custom primitive.
 3. Use the shadcn CLI for deterministic component operations.
-4. Use shadcn MCP when discovering or comparing components.
+4. Use shadcn MCP when available, or shadcn CLI discovery commands otherwise.
 5. Do not replace React Flow.
 6. Preserve existing graph/LCA behavior.
 7. Preserve semantic HTML for LCA result tables.
@@ -237,9 +285,9 @@ sync-skills.sh
 
 ## Objective
 
-Allow the coding agent to search/discover shadcn components and registries using MCP.
+Allow coding agents with MCP support to search/discover shadcn components and registries.
 
-The MCP should complement the CLI.
+The MCP complements the CLI. It is optional: an agent without MCP must use `shadcn search`, `shadcn view`, `shadcn docs`, and the component documentation instead.
 
 Use MCP for questions such as:
 
@@ -259,9 +307,9 @@ npx shadcn@latest docs sheet
 npx shadcn@latest add sheet
 ```
 
-## Configuration
+## Portable server definition
 
-The shadcn MCP server is a local command/stdio MCP.
+The shadcn MCP server is a local command/stdio MCP. Its client-neutral definition is:
 
 Expected command:
 
@@ -269,17 +317,7 @@ Expected command:
 npx shadcn@latest mcp
 ```
 
-Configure it for the agents actually used in the Codespace.
-
-For Codex, the conceptual configuration is:
-
-```toml
-[mcp_servers.shadcn]
-command = "npx"
-args = ["shadcn@latest", "mcp"]
-```
-
-For Claude-style MCP configuration:
+Equivalent JSON-shaped MCP clients use:
 
 ```json
 {
@@ -292,15 +330,17 @@ For Claude-style MCP configuration:
 }
 ```
 
+Other clients should translate the same `command` and `args` into their supported project or user configuration. Do not make any one client's generated configuration the source of truth.
+
 ## Existing MCP installer
 
-The current repository MCP configuration is primarily URL/HTTP/SSE oriented.
+The repository's current `configs/mcp-servers.conf` and `install-mcps.sh` support remote URL/HTTP/SSE servers only. They do not support local stdio commands.
 
-Do not force a local stdio MCP into that format unless the shared `ai-agentic-tools` installer explicitly supports it.
+Do not put shadcn or Chrome DevTools MCP entries into `configs/mcp-servers.conf`.
 
-A later improvement to the common tooling could add a second local-command MCP configuration format.
+Document the client-neutral stdio definitions in a repository-owned `docs/agent-tooling.md`. Client-specific configuration is optional local setup and must not be required by build, lint, tests, or responsive implementation.
 
-That improvement should be treated as separate infrastructure work unless it is trivial.
+If the shared `ai-agentic-tools` project later gains a local-command MCP manifest, migrate the definitions there as separate infrastructure work.
 
 ---
 
@@ -345,7 +385,7 @@ React Grab is especially useful while substantial UI still lives in or flows thr
 
 ## Objective
 
-Allow the coding agent to inspect the real running application instead of reasoning solely from source code.
+Allow agents with a compatible browser integration to inspect the real running application instead of reasoning solely from source code.
 
 Capabilities should include:
 
@@ -358,29 +398,63 @@ Capabilities should include:
 - layout/overflow diagnosis
 - performance inspection where useful
 
-Configure the Chrome DevTools MCP/agent tooling for the coding agent used in the Codespace.
+The client-neutral local stdio server command is:
 
-For Codex, verify the current syntax and configure the Chrome DevTools MCP as a local command.
+```bash
+npx -y chrome-devtools-mcp@latest
+```
 
-Do not assume that the shared `configs/mcp-servers.conf` supports local command MCPs until its installer has been checked.
+Record that definition in `docs/agent-tooling.md`. An agent may configure it in any compatible MCP client, but client-specific configuration is optional and local.
+
+Fallback when Chrome DevTools MCP is unavailable:
+
+1. use Playwright CLI or a temporary Playwright test to reproduce the workflow
+2. inspect DOM state with locators and `page.evaluate`
+3. capture console errors, screenshots, and traces with Playwright
+4. inspect source and computed layout values through browser evaluation
+
+Chrome DevTools MCP must not be a prerequisite for the audit or implementation.
 
 ---
 
-# 9. Phase 6 — Playwright Agent Tooling
+# 9. Phase 6 — Agent-Neutral Browser Tooling
 
 ## Important
 
-The repository already has Playwright tests.
+The repository already has `@playwright/test` 1.62 and a visual suite. This is the required browser-testing foundation.
 
 Do **not** reinstall or replace Playwright unnecessarily.
 
 Keep the existing visual-regression suite.
 
-Add agent-oriented Playwright support so GPT-5.6 can interactively explore the running application and turn discoveries into tests.
+Keep executable Playwright tests as the source of truth so every agent can run the same checks.
 
-Where supported, install Playwright CLI agent skills.
+Playwright CLI is an optional, client-neutral shell interface for interactive exploration. Its current supported global installation is:
 
-Verify the current supported command before committing it.
+```bash
+npm install -g @playwright/cli
+playwright-cli install --skills
+```
+
+The CLI skill installation is optional. Agents that do not consume its skill format can use `playwright-cli --help`, standard Playwright tests, or temporary diagnostic specs.
+
+Playwright Test can also generate client-specific planner/generator/healer definitions with:
+
+```bash
+npx playwright init-agents --loop=<supported-client>
+```
+
+Do not run that command as part of the shared foundation. Generated definitions are client-specific and are unnecessary for the responsive test harness. A contributor may generate them locally for their active client.
+
+## Codespace browser reproducibility
+
+Do not rely on a pre-existing browser cache. PR 2 must ensure a fresh Codespace can run the required suite by either baking the matching Playwright Chromium runtime and Linux dependencies into the image or running:
+
+```bash
+npx playwright install --with-deps chromium
+```
+
+as an explicit setup step. Setup failures must remain visible; do not hide a failed browser installation behind a blanket `|| true`.
 
 The purpose is to let the agent do:
 
@@ -397,7 +471,7 @@ verify controls
 check overflow
 ```
 
-instead of merely inspecting screenshots.
+instead of merely inspecting screenshots. Any useful discovery must be converted into a normal repository-owned Playwright assertion or documented audit finding.
 
 ---
 
@@ -422,6 +496,35 @@ tests/
     ├── editor.responsive.spec.ts
     ├── analysis.responsive.spec.ts
     └── sankey.responsive.spec.ts
+```
+
+## Test discovery and npm scripts
+
+The existing `playwright.config.ts` sets `testDir: "./tests/visual"`. Tests placed in `tests/responsive/` will not be discovered by that configuration.
+
+Keep the desktop visual suite isolated and add `playwright.responsive.config.ts` with:
+
+- `testDir: "./tests/responsive"`
+- the same base URL, web server, fixture environment, reduced-motion setting, trace policy, and deterministic browser settings as the visual config
+- named projects for the required viewport matrix
+- no screenshot baselines unless a specific responsive regression genuinely benefits from one
+
+Avoid copying shared web-server and browser settings indefinitely. Extract a small shared Playwright configuration helper if that keeps both configs clear.
+
+Add explicit scripts to `package.json`:
+
+```json
+{
+  "test:responsive": "tsc -p tsconfig.visual.json && playwright test --config=playwright.responsive.config.ts"
+}
+```
+
+Run visual and responsive suites as separate CI jobs or commands while accepted baseline failures remain. Do not join them with `&&`, because a known visual failure would prevent the responsive suite from running. Add a combined `test:all` script only after the visual suite is green or the quarantine mechanism makes its exit status reliable.
+
+Add `playwright.responsive.config.ts` to `tsconfig.visual.json` so both configurations and all tests are type-checked. Verify test discovery with:
+
+```bash
+npm run test:responsive -- --list
 ```
 
 Use representative viewports:
@@ -455,11 +558,13 @@ Create tests for:
 
 Prefer behavioral assertions over an explosion of pixel snapshots.
 
+Each viewport project does not need to execute every scenario. Use the smallest matrix that covers each surface while ensuring the shell and primary navigation smoke tests run at all five target sizes.
+
 ---
 
 # 11. Responsive UI Audit — Before Refactoring
 
-Before changing responsive behavior, use Chrome DevTools and Playwright to audit:
+Before changing responsive behavior, use Playwright plus any available browser inspection tooling to audit:
 
 ```text
 375 × 812
@@ -574,7 +679,7 @@ node selected
 
 The graph canvas should use nearly the full available width on a phone.
 
-Use shadcn MCP to compare `Sheet` and `Drawer`, then use the CLI to add the selected component if it is not already in `src/components/ui`.
+Compare shadcn `Sheet` and `Drawer` using MCP when available, or `shadcn docs`/`shadcn view` otherwise. Use the CLI to add the selected component if it is not already in `src/components/ui`.
 
 ---
 
@@ -826,7 +931,7 @@ When making UI changes:
 
 1. Inspect `src/components/ui` first.
 2. Use `npx shadcn@latest info` when repository configuration is uncertain.
-3. Use shadcn MCP for discovery.
+3. Use shadcn MCP for discovery when available; otherwise use CLI search/docs/view commands.
 4. Use the shadcn CLI for actual deterministic component operations.
 5. Read component docs before using unfamiliar APIs.
 6. Preview CLI changes where supported.
@@ -843,10 +948,10 @@ When investigating a responsive issue:
 
 ```text
 1. Reproduce it in the actual browser.
-2. Use Chrome DevTools to inspect layout/computed CSS.
-3. Use React Grab if identifying the source component is ambiguous.
+2. Use Chrome DevTools MCP when available, or Playwright evaluation/traces, to inspect layout and computed CSS.
+3. Use React Grab when available if identifying the source component is ambiguous; otherwise search the rendered text, roles, and class names in source.
 4. Fix the smallest appropriate surface.
-5. Exercise the workflow with Playwright.
+5. Exercise the workflow with standard Playwright tests.
 6. Re-test the supported viewport set.
 ```
 
@@ -880,7 +985,8 @@ A responsive change is not complete until relevant items below pass.
 □ browser console has no new errors
 □ npm run build passes
 □ npm run lint passes
-□ existing Playwright tests pass
+□ no unrecorded regression from `plan/responsive-baseline.md`
+□ all baseline failures are fixed or explicitly quarantined by final cleanup
 □ new responsive tests pass
 ```
 
@@ -894,7 +1000,7 @@ Scope:
 
 - official shadcn Skill
 - project-specific Product Graph Editor skill
-- shadcn MCP configuration
+- agent-neutral tooling documentation, including optional stdio MCP definitions
 - React Grab setup
 - documentation
 
@@ -906,8 +1012,9 @@ No responsive UI changes.
 
 Scope:
 
-- Chrome DevTools agent integration
-- Playwright agent skills/CLI
+- optional Chrome DevTools MCP instructions
+- optional Playwright CLI and skills instructions
+- reproducible Playwright Chromium setup for a fresh Codespace
 - responsive Playwright projects/helpers
 - initial responsive smoke tests
 
@@ -983,7 +1090,7 @@ Scope:
 
 ---
 
-# 25. First Task for GPT-5.6 in the Codespace
+# 25. First Task for Any Coding Agent in the Codespace
 
 Give the coding agent this instruction before allowing it to modify the responsive UI:
 
@@ -995,8 +1102,13 @@ MCP installer, Playwright configuration, and current UI structure.
 
 Do not modify responsive UI yet.
 
-Implement only the agent-tooling foundation described in Phases 1–6 where it
-can be done safely and without changing production application behavior.
+Implement only the agent-tooling foundation and responsive test harness described
+in Phases 1–7 where they can be completed safely and without changing production
+application behavior.
+
+Keep the result agent-neutral. Do not require Codex, Claude, a particular IDE,
+or any client-specific MCP configuration. Treat MCP, React Grab, Chrome DevTools,
+and Playwright CLI skills as optional accelerators with documented fallbacks.
 
 For every external tool, verify its currently supported installation/configuration
 syntax rather than blindly following commands in the plan.
@@ -1007,8 +1119,9 @@ Do not replace the existing shadcn setup.
 
 Do not introduce another component library.
 
-After the tooling foundation is working, use Chrome DevTools and Playwright to
-perform the responsive audit described in Phase 11.
+After the repository-owned tooling foundation is working, use standard Playwright
+plus any available optional browser tooling to perform the responsive audit
+described in Phase 11.
 
 Produce the responsive audit as a markdown document before changing application
 layout.
@@ -1026,7 +1139,7 @@ This deliberately separates **tool installation/audit** from **UI modification**
 
 ---
 
-# 26. Second Task for GPT-5.6
+# 26. Second Task for Any Coding Agent
 
 After reviewing the audit:
 
@@ -1042,11 +1155,12 @@ For tablet/phone layouts, prioritize the graph viewport. Do not keep a fixed
 desktop side inspector if it materially reduces graph space; use an appropriate
 shadcn Sheet or Drawer instead.
 
-Use shadcn MCP for component discovery and the shadcn CLI for deterministic
-component operations.
+Use shadcn MCP for component discovery when available; otherwise use shadcn CLI
+search/docs/view commands. Use the shadcn CLI for deterministic component
+operations.
 
-Use Chrome DevTools to diagnose layout issues and Playwright to verify each
-affected workflow.
+Use any available browser inspection tooling to diagnose layout issues and
+standard Playwright tests to verify each affected workflow.
 
 Do not perform unrelated refactors.
 
@@ -1066,11 +1180,11 @@ The following decisions should remain stable unless the implementation reveals a
 
 ### CLI vs MCP
 
-Use both.
+Always support the CLI path. Use MCP as an optional accelerator when the active agent supports it.
 
 ```text
 shadcn Skill -> teaches conventions
-shadcn MCP   -> component/registry discovery
+shadcn MCP   -> optional component/registry discovery
 shadcn CLI   -> deterministic project operations
 ```
 
@@ -1115,7 +1229,7 @@ The desired end state is:
                          |
        +-----------------+-----------------+
        |                 |                 |
- shadcn Skill       shadcn MCP        shadcn CLI
+ shadcn Skill    shadcn MCP (opt.)    shadcn CLI
        |                 |                 |
        +-----------------+-----------------+
                          |
@@ -1123,7 +1237,7 @@ The desired end state is:
                          |
        +-----------------+-----------------+
        |                 |                 |
-   React Grab      Chrome DevTools      Playwright
+ React Grab (opt.)  DevTools (opt.)     Playwright
        |                 |                 |
        +-----------------+-----------------+
                          |
