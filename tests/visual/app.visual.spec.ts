@@ -293,14 +293,6 @@ test("theme, analysis, and Sankey selection groups support keyboard navigation",
   await page.keyboard.press("Space")
   await expect(page.getByRole("radio", { name: "Flows", exact: true })).toBeChecked()
 
-  await page.getByRole("radio", { name: "Contribution", exact: true }).click()
-  const impact = page.getByRole("radio", { name: "Impact category", exact: true })
-  await impact.focus()
-  await page.keyboard.press("ArrowLeft")
-  await expect(page.getByRole("radio", { name: "Flow", exact: true })).toBeFocused()
-  await page.keyboard.press("Space")
-  await expect(page.getByRole("radio", { name: "Flow", exact: true })).toBeChecked()
-
   await page.getByRole("radio", { name: "Sankey Graph", exact: true }).click()
   await page.getByRole("button", { name: "Chart settings" }).click()
   await page.getByRole("radio", { name: "Flow", exact: true }).focus()
@@ -501,7 +493,7 @@ test("impact contributions show process direct and accumulated results without e
   await expect(page.getByRole("columnheader", { name: /Accumulated contribution/ })).toBeVisible()
   await expect(page.locator(".contribution-process-row")).toHaveCount(5)
   const assembly = page.locator(".contribution-process-row").filter({ hasText: "Jacket assembly" })
-  await expect(assembly.locator("td").nth(2)).toHaveText("0.8")
+  await expect(assembly.locator("td").nth(2)).toHaveText("1.28")
   await expect(assembly.locator("td").nth(3)).toContainText("5.6")
   await expect(page.getByText("Carbon dioxide (CO2)", { exact: true })).toHaveCount(0)
   await expect(page.getByText("Other emissions", { exact: true })).toHaveCount(0)

@@ -54,6 +54,14 @@ const processScores = [
   },
 ]
 
+const cumulativeScores: Record<(typeof processScores)[number]["process_id"], number> = {
+  [processIds.extraction]: 1.54,
+  [processIds.spinning]: 2.56,
+  [processIds.weaving]: 3.74,
+  [processIds.zipper]: 0.58,
+  [processIds.assembly]: 5.6,
+}
+
 export const lcaResultFixture = {
   result_id: "fixture-result",
   name: "Jacket — 1 unit (3-tier)",
@@ -173,12 +181,8 @@ export const lcaResultFixture = {
           supply_amount: [1, 1, 0.6, 0.66, 0.792][index],
           unit: index === 0 || index === 1 ? "unit" : "kg",
           direct_score: process.direct_score,
-          cumulative_score: processScores
-            .slice(index)
-            .reduce((sum, item) => sum + item.direct_score, 0),
-          cumulative_percentage: processScores
-            .slice(index)
-            .reduce((sum, item) => sum + item.percentage!, 0),
+          cumulative_score: cumulativeScores[process.process_id],
+          cumulative_percentage: cumulativeScores[process.process_id] / 5.6 * 100,
           unexpanded_score: 0,
           terminal: index === processScores.length - 1,
         })),

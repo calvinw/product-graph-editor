@@ -2,8 +2,8 @@
 
 **Repository:** `calvinw/product-graph-editor`
 **Intended implementation environment:** any capable coding agent running inside the project Codespace
-**Current `main`:** `57343da` (verified against `origin/main` on August 9, 2026)
-**Implementation branch:** `agent-ui-responsive`; synchronize it with current `main` before implementation
+**Current `main`:** `48de6be` (verified against `origin/main` on August 10, 2026)
+**Implementation branch:** `agent-ui-responsive`; synchronized with `48de6be` before responsive UI implementation
 **Purpose:** Add agent-oriented React/shadcn development tooling and then use it to improve responsive behavior without destabilizing the existing desktop application.
 
 ---
@@ -78,9 +78,9 @@ The commands in this plan were checked on August 9, 2026. Re-check the primary d
 
 # 2. Current `main` Baseline
 
-The application baseline was inspected at `3d11438` on August 8, 2026. Local and remote `main` are now at `57343da`; the only intervening change removes three obsolete plan documents and does not change application code.
+The application baseline was initially inspected at `3d11438` on August 8, 2026. The implementation branch was synchronized with `origin/main` at `48de6be` on August 10, incorporating the contribution-analysis simplification and Sankey path-highlighting updates before responsive UI work.
 
-The implementation branch was created from `3d11438`. Before implementation, merge or rebase current `main` into `agent-ui-responsive`, confirm that the responsive planning documents are the only branch-specific changes, and preserve any unrelated local files.
+The implementation branch was created from `3d11438` and now contains a merge of `48de6be`. Re-check `origin/main` before each responsive UI phase and preserve unrelated local files when synchronizing.
 
 Verified baseline:
 
@@ -109,7 +109,7 @@ npm run lint
 npm run test:visual
 ```
 
-The baseline was reproduced on August 9 after repairing the npm optional dependency and installing the Playwright Chromium runtime. `npm run build` and `npm run lint` pass. The visual suite reports 18 passing and 7 failing tests in existing table-resizing, contribution-detail, inspector, and screenshot assertions. The exact results and dispositions are recorded in `plan/responsive-baseline.md`.
+The baseline was refreshed on August 10 after merging `origin/main`. `npm run build` and `npm run lint` pass. The visual suite reports 20 passing and 5 failing tests in existing table-resizing, inspector, and screenshot assertions. The exact results and dispositions are recorded in `plan/responsive-baseline.md`.
 
 Re-run and record the baseline after a clean dependency install. If Rollup reports a missing platform-specific optional package, repair the dependency installation before interpreting build or Playwright results.
 

@@ -79,6 +79,6 @@ The 1024, 1440, and 1920 workflow contracts pass for the audited surfaces. Respo
 
 - `npm run build` and `npm run lint` pass.
 - `npm run test:responsive` passes with no responsive `fixme` entries remaining.
-- The 18 previously passing visual tests continue to pass.
-- The seven failures in `plan/responsive-baseline.md` do not expand and are fixed or explicitly tracked.
+- The 20 previously passing visual tests continue to pass.
+- The five failures in `plan/responsive-baseline.md` do not expand and are fixed or explicitly tracked.
 - No screenshot baseline is updated without human visual review.
