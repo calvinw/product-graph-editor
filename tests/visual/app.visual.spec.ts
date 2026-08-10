@@ -491,41 +491,20 @@ test("contribution table columns support accessible keyboard resizing and horizo
   await expect.poll(() => tableWrap.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true)
 })
 
-test("impact contributions show an additive activity breakdown with optional chemical details", async ({ page }) => {
-  const resultWithZeroActivity = {
-    ...lcaResultFixture,
-    contribution_graphs: lcaResultFixture.contribution_graphs.map((graph) => ({
-      ...graph,
-      activity_contributions: [...graph.activity_contributions, {
-        ...graph.activity_contributions[0],
-        activity_id: "zero-activity",
-        process_name: "Zero impact activity",
-        direct_score: 0,
-        percentage: 0,
-      }],
-    })),
-  }
-  await mockLcaApi(page, resultWithZeroActivity)
+test("impact contributions show process direct and accumulated results without emission details", async ({ page }) => {
+  await mockLcaApi(page)
   await page.goto("/")
   await calculate(page)
   await page.getByRole("radio", { name: "Contribution", exact: true }).click()
 
-  const activityToggle = page.getByRole("button", { name: "Show activity contributions" })
-  await expect(activityToggle).toHaveAttribute("aria-expanded", "false")
-  await activityToggle.click()
-  await expect(activityToggle).toHaveAttribute("aria-expanded", "true")
-  const activities = page.locator(".contribution-activity-row")
-  await expect(activities).toHaveCount(5)
-  await expect(page.getByText("Zero impact activity", { exact: true })).toHaveCount(0)
-  const activityRates = await activities.locator(".rate-value").allTextContents()
-  const activityTotal = activityRates.reduce((sum, value) => sum + Number(value.replace("%", "")), 0)
-  expect(activityTotal).toBeCloseTo(100, 1)
+  await expect(page.getByRole("columnheader", { name: /Direct contribution/ })).toBeVisible()
+  await expect(page.getByRole("columnheader", { name: /Accumulated contribution/ })).toBeVisible()
+  await expect(page.locator(".contribution-process-row")).toHaveCount(5)
+  const assembly = page.locator(".contribution-process-row").filter({ hasText: "Jacket assembly" })
+  await expect(assembly.locator("td").nth(2)).toHaveText("0.8")
+  await expect(assembly.locator("td").nth(3)).toContainText("5.6")
   await expect(page.getByText("Carbon dioxide (CO2)", { exact: true })).toHaveCount(0)
-
-  const assembly = activities.filter({ hasText: "Jacket assembly" })
-  await assembly.click()
-  await expect(page.getByText("Carbon dioxide (CO2)", { exact: true })).toBeVisible()
-  await expect(page.getByText("Other emissions", { exact: true })).toBeVisible()
+  await expect(page.getByText("Other emissions", { exact: true })).toHaveCount(0)
 })
 
 test("every analysis table exposes accessible column resize controls", async ({ page }) => {
