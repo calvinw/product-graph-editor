@@ -32,7 +32,7 @@ import { chemicalFlowLabel } from "./lib/flowLabels"
 import { buildGraphFromYaml, buildInventoryRequirements, nodeScopeColors } from "./lib/yamlGraph"
 import {
   calculateContributionGraphs, calculateLca, getBackgroundActivityDetails, getProductGraphCatalog, impactCategoryAbbreviation, impactCategoryDisplayName, lcaResultToMarkdown,
-  type ContributionGraph, type ContributionGraphFlow, type LcaResult, type ProductGraphCatalogEntry,
+  type ContributionGraph, type ContributionGraphNode, type LcaResult, type ProductGraphCatalogEntry,
 } from "./lib/lcaApi"
 import { unitsAreCompatible } from "./lib/units"
 import { DisplaySettingsProvider, useDisplaySettings } from "./lib/displaySettings"
@@ -719,43 +719,27 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
   loadContributionGraphs: (categories: string[]) => Promise<ContributionGraph[]>
 }) {
   const { formatNumber, formatPercent } = useDisplaySettings()
-  const [mode, setMode] = useState<"flow" | "impact" | null>("impact")
-  const [flow, setFlow] = useState("")
   const [impact, setImpact] = useState("")
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
   const [expandedProcesses, setExpandedProcesses] = useState<Set<string>>(() => new Set())
   const [columnWidths, setColumnWidths] = useState([140, 320, 180, 220, 180])
 
-  const flowNames = result ? Object.keys(result.lci) : []
   const impactNames = result ? Object.keys(result.lcia) : []
-  const selectedFlow = flowNames.includes(flow) ? flow : (flowNames[0] ?? "")
   const defaultImpact = impactNames.find((name) => impactCategoryAbbreviation(name).replaceAll(/\s+/g, "").toUpperCase() === "GWP100")
     ?? impactNames.find((name) => /global warming|climate change/i.test(name))
     ?? impactNames[0]
     ?? ""
   const selectedImpact = impactNames.includes(impact) ? impact : defaultImpact
-  const contributionFlowLabel = (name: string) => {
-    const abbreviation = chemicalFlowLabel(name.split(/[|,]/)[0].trim())
-      .replaceAll("₂", "2")
-      .replaceAll("₃", "3")
-      .replaceAll("₄", "4")
-      .replaceAll("ₓ", "x")
-    return `${abbreviation} - elementary flows/air`
-  }
-
   if (!result || !isCurrent) return <div className="results-panel contribution-panel">
-    <div className="results-panel-head"><div><strong>Contribution analysis</strong><span>Compare process contributions by inventory flow or impact category.</span></div></div>
+    <div className="results-panel-head"><div><strong>Contribution analysis</strong><span>Compare direct and accumulated process impacts.</span></div></div>
     <div className="results-placeholder"><div className="results-empty-icon"><BarChart3 size={22} /></div><strong>No current contribution results</strong><p>Calculate the LCA to populate this view.</p>{error ? <div className="results-error"><strong>Calculation failed</strong><p>{error}</p></div> : null}</div>
   </div>
 
   const category = result.process_contributions.categories.find((item) => item.label === selectedImpact || item.id === selectedImpact)
-  const selectedContributionGraph = mode === "impact"
-    ? result.contribution_graphs.find((item) => item.label === selectedImpact)
-    : undefined
+  const selectedContributionGraph = result.contribution_graphs.find((item) => item.label === selectedImpact)
   let requirements: ReturnType<typeof buildInventoryRequirements> = []
   try { requirements = buildInventoryRequirements(yaml, result.scaling_vector) } catch { requirements = [] }
   const impactTotal = result.lcia[selectedImpact]
-  const flowTotal = result.lci[selectedFlow]
   const cleanProcessName = (name: string) => name
     .replace(/^(?:p?\d+)\s*[:.\-–—]\s*/i, "")
     .trim()
@@ -772,17 +756,12 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
       ?? matchingRequirement?.amount
       ?? requirements[index]?.amount
   }
-  const rows = (mode === "impact"
-    ? (category?.processes ?? []).map((item, index) => ({ name: processName(item.process_name, index), required: requiredAmount(item.process_id, item.process_name, index), total: item.direct_score, percentage: item.percentage }))
-    : requirements.map((item) => ({ name: cleanProcessName(item.process), required: item.amount, total: 0, percentage: null as number | null })))
+  const rows = (category?.processes ?? []).map((item, index) => ({ name: processName(item.process_name, index), required: requiredAmount(item.process_id, item.process_name, index), total: item.direct_score, percentage: item.percentage }))
     .filter((row) => row.name && !/^(?:p?\d+)$/i.test(row.name))
-    .sort((left, right) => mode === "impact"
-      ? Math.abs(right.total) - Math.abs(left.total)
-      : Math.abs(right.required ?? 0) - Math.abs(left.required ?? 0))
-  const total = mode === "impact" ? (category?.total_score ?? impactTotal?.score ?? 0) : (flowTotal?.amount ?? 0)
-  const unit = mode === "impact" ? (category?.unit ?? impactTotal?.unit ?? "") : (flowTotal?.unit ?? "")
+    .sort((left, right) => Math.abs(right.total) - Math.abs(left.total))
+  const total = category?.total_score ?? impactTotal?.score ?? 0
+  const unit = category?.unit ?? impactTotal?.unit ?? ""
   const maxMagnitude = Math.max(Math.abs(total), ...rows.map((row) => Math.abs(row.total)), 1e-30)
-  const requiredTotal = rows.reduce((sum, row) => sum + Math.abs(row.required ?? 0), 0)
   const number = (value: number | undefined) => value === undefined ? "—" : formatNumber(value)
   let legacyGraph: ReturnType<typeof buildGraphFromYaml> | null = null
   try { legacyGraph = buildGraphFromYaml(yaml, "structure") } catch { legacyGraph = null }
@@ -802,7 +781,7 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
     if (next.has(key)) next.delete(key); else next.add(key)
     return next
   })
-  const ownValue = (row: (typeof rows)[number]) => mode === "impact" ? row.total : Math.abs(row.required ?? 0)
+  const ownValue = (row: (typeof rows)[number]) => row.total
   const rolledUpValue = (row: (typeof rows)[number], visited = new Set<string>()): number => {
     const key = row.name.toLowerCase()
     if (visited.has(key)) return 0
@@ -816,69 +795,40 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
     const upstream = (upstreamByName.get(row.name) ?? [])
       .map((name) => rowByName.get(name.toLowerCase()))
       .filter((item): item is (typeof rows)[number] => Boolean(item))
-      .sort((left, right) => mode === "impact" ? Math.abs(right.total) - Math.abs(left.total) : Math.abs(right.required ?? 0) - Math.abs(left.required ?? 0))
+      .sort((left, right) => Math.abs(rolledUpValue(right)) - Math.abs(rolledUpValue(left)))
     const canExpand = upstream.length > 0
     const isOpen = expandedProcesses.has(row.name)
     const displayedValue = canExpand && !isOpen ? rolledUpValue(row) : ownValue(row)
-    const percent = mode === "flow" ? (requiredTotal ? displayedValue / requiredTotal * 100 : 0) : (total ? displayedValue / total * 100 : 0)
+    const percent = total ? displayedValue / total * 100 : 0
     const processRow = <tr key={`${row.name}-${depth}-${index}`} className={canExpand ? "clickable-process" : ""} onClick={canExpand ? () => toggleProcess(row.name) : undefined}>
       <td><span className="rate-value">{formatPercent(percent)}</span></td>
       <td style={{ paddingLeft: `${7 + depth * 20}px` }}>{canExpand ? <button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-expanded={isOpen} aria-label={`${isOpen ? "Hide" : "Show"} inputs for ${row.name}`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className="process-mark">⌘</span>{row.name}</td>
-      <td>{number(row.required)}</td><td><span className="result-bar"><i className={displayedValue < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(displayedValue) / maxMagnitude * 100)}%` }} /></span>{mode === "impact" ? number(displayedValue) : "—"}</td><td>{mode === "impact" ? <>{number(row.total)} <small>({formatPercent(total ? row.total / total * 100 : 0)} direct)</small></> : "—"}</td>
+      <td>{number(row.total)}</td><td><span className="result-bar"><i className={displayedValue < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(displayedValue) / maxMagnitude * 100)}%` }} /></span>{number(displayedValue)}</td><td>{unit}</td>
     </tr>
     return isOpen ? [processRow, ...renderContributionRows(upstream, depth + 1)] : [processRow]
   })
 
-  const graphActivityByOccurrence = new Map(selectedContributionGraph?.nodes
-    .filter((node) => node.kind === "process" && node.activity_id)
-    .map((node) => [node.id, node.activity_id!]) ?? [])
-  const graphFlowsByActivity = new Map<string, ContributionGraphFlow[]>()
-  selectedContributionGraph?.flows.forEach((item) => {
-    const activityId = graphActivityByOccurrence.get(item.process_occurrence_id)
-    if (!activityId) return
-    graphFlowsByActivity.set(activityId, [...(graphFlowsByActivity.get(activityId) ?? []), item])
+  const graphNodesById = new Map(selectedContributionGraph?.nodes.map((node) => [node.id, node]) ?? [])
+  const graphChildren = new Map<string, ContributionGraphNode[]>()
+  selectedContributionGraph?.edges.forEach((edge) => {
+    const producer = graphNodesById.get(edge.producer_id)
+    if (producer?.kind !== "process") return
+    graphChildren.set(edge.consumer_id, [...(graphChildren.get(edge.consumer_id) ?? []), producer])
   })
-  const graphTolerance = selectedContributionGraph
-    ? Math.max(1e-12, Math.abs(selectedContributionGraph.total_score) * 1e-9)
-    : 1e-12
-  const isMaterial = (value: number) => Math.abs(value) > graphTolerance
-  const minimumVisibleActivityPercentage = 0.005
-  const allActivityRows = [...(selectedContributionGraph?.activity_contributions ?? [])]
-    .sort((left, right) => Math.abs(right.direct_score) - Math.abs(left.direct_score))
-  const activityRows = allActivityRows.filter((item) => {
-    if (!selectedContributionGraph?.total_score) return false
-    return Math.abs(item.direct_score / selectedContributionGraph.total_score * 100) >= minimumVisibleActivityPercentage
+  graphChildren.forEach((children) => children.sort((left, right) => Math.abs(right.cumulative_score) - Math.abs(left.cumulative_score)))
+  const renderGraphProcesses = (items: ContributionGraphNode[], depth = 0): React.ReactNode[] => items.flatMap((node) => {
+    const children = graphChildren.get(node.id) ?? []
+    const isOpen = !expandedProcesses.has(node.id)
+    const percent = selectedContributionGraph?.total_score ? node.cumulative_score / selectedContributionGraph.total_score * 100 : null
+    const row = <tr key={node.id} className={children.length ? "clickable-process contribution-process-row" : "contribution-process-row"} onClick={children.length ? () => toggleProcess(node.id) : undefined}>
+      <td><span className="rate-value">{percent === null ? "—" : formatPercent(percent)}</span></td>
+      <td style={{ paddingLeft: `${7 + depth * 20}px` }}>{children.length ? <button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-expanded={isOpen} aria-label={`${isOpen ? "Hide" : "Show"} upstream processes for ${node.process_name}`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className="process-mark">⌘</span>{cleanProcessName(node.process_name)}{node.location ? <small>{node.location}</small> : null}</td>
+      <td>{number(node.direct_score)}</td>
+      <td><span className="result-bar"><i className={node.cumulative_score < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(percent ?? 0))}%` }} /></span>{number(node.cumulative_score)}</td>
+      <td>{selectedContributionGraph?.unit}</td>
+    </tr>
+    return isOpen ? [row, ...renderGraphProcesses(children, depth + 1)] : [row]
   })
-  const activityTotal = activityRows.reduce((sum, item) => sum + item.direct_score, 0)
-  const unexpandedActivityScore = (selectedContributionGraph?.total_score ?? 0) - activityTotal
-  const activityPercent = (score: number) => selectedContributionGraph?.total_score
-    ? score / selectedContributionGraph.total_score * 100
-    : null
-  const renderActivityFlowRows = (activityId: string, activityScore: number) => {
-    const grouped = new Map<string, ContributionGraphFlow>()
-    ;(graphFlowsByActivity.get(activityId) ?? []).forEach((item) => {
-      const key = `${item.kind}:${item.flow_name}:${item.unit}:${item.categories.join("/")}`
-      const current = grouped.get(key)
-      grouped.set(key, current
-        ? { ...current, amount: current.amount + item.amount, score: current.score + item.score }
-        : { ...item })
-    })
-    const flows = [...grouped.values()].sort((left, right) => Math.abs(right.score) - Math.abs(left.score))
-    const disclosedScore = flows.reduce((sum, item) => sum + item.score, 0)
-    const undisclosedScore = activityScore - disclosedScore
-    return <>
-      {flows.map((item) => <tr className={`contribution-flow-row is-${item.kind}`} key={`${activityId}:${item.kind}:${item.flow_name}:${item.unit}`}>
-        <td><span className="rate-value">{activityPercent(item.score) === null ? "—" : formatPercent(activityPercent(item.score)!)}</span></td>
-        <td style={{ paddingLeft: "29px" }} title={item.categories.join(" · ")}><Leaf size={13} /><span>{inventoryFlowName(item.flow_name)}</span><small>{item.kind}</small></td>
-        <td>chemical</td><td>{number(item.score)} <small>{selectedContributionGraph?.unit}</small></td><td>{number(item.amount)} <small>{item.unit}</small></td>
-      </tr>)}
-      {isMaterial(undisclosedScore) ? <tr className="contribution-unexpanded-row" key={`${activityId}:other`}>
-        <td><span className="rate-value">{activityPercent(undisclosedScore) === null ? "—" : formatPercent(activityPercent(undisclosedScore)!)}</span></td>
-        <td style={{ paddingLeft: "29px" }}><span className="unexpanded-mark">…</span>Other emissions <small>not itemized</small></td>
-        <td>chemical</td><td>{number(undisclosedScore)} <small>{selectedContributionGraph?.unit}</small></td><td>—</td>
-      </tr> : null}
-    </>
-  }
 
   return <div className="contribution-view">
     <div className="contribution-title"><div><strong>{result.name}</strong><span>{result.method} · {result.functional_unit}</span></div>
@@ -888,53 +838,27 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
       </aside> : null}
     </div>
     <div className="contribution-controls">
-      <RadioGroup className="contribution-mode-group" value={mode ?? undefined} onValueChange={(value) => {
-        const nextMode = value as "flow" | "impact"
-        setMode(nextMode)
-        if (nextMode === "impact") void loadContributionGraphs([selectedImpact])
-      }} aria-label="Contribution result type">
-        <label className={mode === "flow" ? "active" : ""}><RadioGroupItem className="app-radio" value="flow" />Flow</label>
-        <div className="contribution-control-slot">{mode === null || mode === "flow" ? <div className="contribution-select is-flow"><span className="flow-dot output" /><AppSelect value={selectedFlow} onValueChange={(value) => { setFlow(value); setMode("flow") }} label="Flow category" options={flowNames.map((value) => ({ value, label: contributionFlowLabel(value) }))} /></div> : null}</div>
-        <label className={mode === "impact" ? "active" : ""}><RadioGroupItem className="app-radio" value="impact" />Impact category</label>
-        <div className="contribution-control-slot">{mode === null || mode === "impact" ? <div className="contribution-select is-impact"><BarChart3 size={16} /><AppSelect value={selectedImpact} onValueChange={(value) => { setImpact(value); setMode("impact"); void loadContributionGraphs([value]) }} label="Impact category" options={impactNames.map((value) => ({ value, label: impactCategoryDisplayName(value) }))} /></div> : null}</div>
-        {mode === "impact" && !selectedContributionGraph ? <p className="contribution-fallback-note">Recursive contributions were not requested for this category. Showing the available process-contribution results.</p> : null}
-      </RadioGroup>
+      <label className="active">Impact category</label>
+      <div className="contribution-control-slot"><div className="contribution-select is-impact"><BarChart3 size={16} /><AppSelect value={selectedImpact} onValueChange={(value) => { setImpact(value); void loadContributionGraphs([value]) }} label="Impact category" options={impactNames.map((value) => ({ value, label: impactCategoryDisplayName(value) }))} /></div></div>
+      {!selectedContributionGraph ? <p className="contribution-fallback-note">Recursive contributions were not requested for this category. Showing the available process-contribution results.</p> : null}
     </div>
-    {mode !== null ? <div className="contribution-table-wrap"><table className="contribution-table" style={{ width: Math.max(1040, columnWidths.reduce((sum, width) => sum + width, 0)) }}><ResizableTableHeader labels={[
+    <div className="contribution-table-wrap"><table className="contribution-table" style={{ width: Math.max(1040, columnWidths.reduce((sum, width) => sum + width, 0)) }}><ResizableTableHeader labels={[
       "Contribution rate",
-      selectedContributionGraph ? "Activity" : "Process",
-      selectedContributionGraph ? "Type" : "Required amount",
-      selectedContributionGraph ? "Climate change result" : "Total result",
-      selectedContributionGraph ? "Occurrences / amount" : "Direct contribution",
+      "Process",
+      "Direct contribution",
+      "Accumulated contribution",
+      "Unit",
     ]} widths={columnWidths} onWidthsChange={setColumnWidths} /><tbody>
       {selectedContributionGraph ? <>
-        <tr className="contribution-root"><td>{selectedContributionGraph.status === "zero_total" ? "—" : formatPercent(100)}</td><td><button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} activity contributions`}><ChevronDown size={14} /></button><span className="process-mark">⌘</span>Total — {result.name}</td><td>all activities</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(selectedContributionGraph.total_score)} <small>{selectedContributionGraph.unit}</small></td><td>{activityRows.reduce((sum, item) => sum + item.occurrence_count, 0)}</td></tr>
-        {expanded ? activityRows.map((activity) => {
-          const activityKey = `activity:${activity.activity_id}`
-          const activityFlows = graphFlowsByActivity.get(activity.activity_id) ?? []
-          const disclosedScore = activityFlows.reduce((sum, item) => sum + item.score, 0)
-          const canExpand = activityFlows.length > 0 || isMaterial(activity.direct_score - disclosedScore)
-          const isOpen = expandedProcesses.has(activityKey)
-          const percent = activityPercent(activity.direct_score)
-          return <Fragment key={activity.activity_id}>
-            <tr className={canExpand ? "clickable-process contribution-activity-row" : "contribution-activity-row"} onClick={canExpand ? () => toggleProcess(activityKey) : undefined}>
-              <td><span className="rate-value">{percent === null ? "—" : formatPercent(percent)}</span></td>
-              <td>{canExpand ? <button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-expanded={isOpen} aria-label={`${isOpen ? "Hide" : "Show"} chemical details for ${activity.process_name}`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className="process-mark">⌘</span>{cleanProcessName(activity.process_name)}{activity.location ? <small>{activity.location}</small> : null}</td>
-              <td><small className={`contribution-scope is-${activity.scope}`}>{activity.scope}</small></td>
-              <td><span className="result-bar"><i className={activity.direct_score < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(percent ?? 0))}%` }} /></span>{number(activity.direct_score)} <small>{selectedContributionGraph.unit}</small></td>
-              <td>{activity.occurrence_count}</td>
-            </tr>
-            {isOpen ? renderActivityFlowRows(activity.activity_id, activity.direct_score) : null}
-          </Fragment>
-        }) : null}
-        {expanded && isMaterial(unexpandedActivityScore) ? <tr className="contribution-unexpanded-row"><td><span className="rate-value">{activityPercent(unexpandedActivityScore) === null ? "—" : formatPercent(activityPercent(unexpandedActivityScore)!)}</span></td><td><span className="tree-toggle-spacer" /><span className="unexpanded-mark">…</span>Unexpanded / other</td><td>remainder</td><td>{number(unexpandedActivityScore)} <small>{selectedContributionGraph.unit}</small></td><td>—</td></tr> : null}
-        {expanded && !activityRows.length ? <tr className="empty-row"><td colSpan={5}>{selectedContributionGraph.status === "zero_total" ? "This impact category has a zero total, so contribution percentages are unavailable." : "No activity contributions were returned for this category."}</td></tr> : null}
+        <tr className="contribution-root"><td>{selectedContributionGraph.status === "zero_total" ? "—" : formatPercent(100)}</td><td><button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} process contributions`}><ChevronDown size={14} /></button><span className="process-mark">⌘</span>Total — {result.name}</td><td>—</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(selectedContributionGraph.total_score)}</td><td>{selectedContributionGraph.unit}</td></tr>
+        {expanded ? renderGraphProcesses(graphChildren.get(selectedContributionGraph.nodes.find((node) => node.kind === "functional_unit")?.id ?? "") ?? []) : null}
+        {expanded && !selectedContributionGraph.nodes.some((node) => node.kind === "process") ? <tr className="empty-row"><td colSpan={5}>{selectedContributionGraph.status === "zero_total" ? "This impact category has a zero total, so contribution percentages are unavailable." : "No process contributions were returned for this category."}</td></tr> : null}
       </> : <>
-        <tr className="contribution-root"><td>{formatPercent(100)}</td><td><button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} downstream processes`}><ChevronDown size={14} /></button><span className="process-mark">⌘</span>{result.name}</td><td>{mode === "flow" ? formatNumber(1) : "—"}</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(total)} <small>{unit}</small></td><td>—</td></tr>
+        <tr className="contribution-root"><td>{formatPercent(100)}</td><td><button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} process contributions`}><ChevronDown size={14} /></button><span className="process-mark">⌘</span>{result.name}</td><td>—</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(total)}</td><td>{unit}</td></tr>
         {expanded ? renderContributionRows(rootRows.length ? rootRows : rows) : null}
-        {expanded && !rows.length ? <tr className="empty-row"><td colSpan={5}>{mode === "impact" ? "No process contribution rows were returned for this category." : "No process requirements are available."}</td></tr> : null}
+        {expanded && !rows.length ? <tr className="empty-row"><td colSpan={5}>No process contribution rows were returned for this category.</td></tr> : null}
       </>}
-    </tbody></table></div> : null}
+    </tbody></table></div>
   </div>
 }
 
