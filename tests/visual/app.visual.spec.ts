@@ -497,14 +497,30 @@ test("impact contributions show process direct and accumulated results without e
   await calculate(page)
   await page.getByRole("radio", { name: "Contribution", exact: true }).click()
 
-  await expect(page.getByRole("columnheader", { name: /Direct contribution/ })).toBeVisible()
+  await expect(page.getByRole("columnheader", { name: "Direct contribution", exact: true })).toBeVisible()
+  await expect(page.getByRole("columnheader", { name: "Direct Contribution %", exact: true })).toBeVisible()
   await expect(page.getByRole("columnheader", { name: /Accumulated contribution/ })).toBeVisible()
   await expect(page.locator(".contribution-process-row")).toHaveCount(5)
   const assembly = page.locator(".contribution-process-row").filter({ hasText: "Jacket assembly" })
-  await expect(assembly.locator("td").nth(2)).toHaveText("0.8")
-  await expect(assembly.locator("td").nth(3)).toContainText("5.6")
+  await expect(assembly.locator("td").nth(1)).toContainText("14.3")
+  await expect(assembly.locator("td").nth(3)).toHaveText("0.8")
+  await expect(assembly.locator("td").nth(4)).toContainText("5.6")
+  await expect(page.locator(".contribution-table").getByText(/Total —/)).toHaveCount(0)
   await expect(page.getByText("Carbon dioxide (CO2)", { exact: true })).toHaveCount(0)
   await expect(page.getByText("Other emissions", { exact: true })).toHaveCount(0)
+})
+
+test("contribution tree can show elementary flow contributions", async ({ page }) => {
+  await mockLcaApi(page)
+  await page.goto("/")
+  await calculate(page)
+  await page.getByRole("radio", { name: "Contribution", exact: true }).click()
+
+  await page.getByRole("radio", { name: "Flows", exact: true }).click()
+  await expect(page.getByRole("combobox", { name: "Flow" })).toBeVisible()
+  const assembly = page.locator(".contribution-process-row").filter({ hasText: "Jacket assembly" })
+  await expect(assembly.locator("td").nth(3)).toHaveText("0.8")
+  await expect(assembly.locator("td").nth(5)).toHaveText("kg")
 })
 
 test("every analysis table exposes accessible column resize controls", async ({ page }) => {
@@ -523,7 +539,7 @@ test("every analysis table exposes accessible column resize controls", async ({ 
   await expect(page.locator(".process-impact-table").getByRole("separator")).toHaveCount(5)
 
   await page.getByRole("radio", { name: "Contribution", exact: true }).click()
-  await expect(page.locator(".contribution-table").getByRole("separator")).toHaveCount(5)
+  await expect(page.locator(".contribution-table").getByRole("separator")).toHaveCount(6)
 })
 
 test("Flow and Impact Sankey process limits hide nodes from the bottom-right end", async ({ page }) => {

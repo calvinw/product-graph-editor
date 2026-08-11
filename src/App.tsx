@@ -719,10 +719,11 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
   loadContributionGraphs: (categories: string[]) => Promise<ContributionGraph[]>
 }) {
   const { formatNumber, formatPercent } = useDisplaySettings()
+  const [contributionMode, setContributionMode] = useState<"flow" | "impact">("impact")
   const [impact, setImpact] = useState("")
-  const [expanded, setExpanded] = useState(true)
+  const [flow, setFlow] = useState("")
   const [expandedProcesses, setExpandedProcesses] = useState<Set<string>>(() => new Set())
-  const [columnWidths, setColumnWidths] = useState([140, 320, 180, 220, 180])
+  const [columnWidths, setColumnWidths] = useState([130, 150, 320, 180, 220, 150])
 
   const impactNames = result ? Object.keys(result.lcia) : []
   const defaultImpact = impactNames.find((name) => impactCategoryAbbreviation(name).replaceAll(/\s+/g, "").toUpperCase() === "GWP100")
@@ -737,6 +738,12 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
 
   const category = result.process_contributions.categories.find((item) => item.label === selectedImpact || item.id === selectedImpact)
   const selectedContributionGraph = result.contribution_graphs.find((item) => item.label === selectedImpact)
+  const availableFlows = [...new Map(result.contribution_graphs.flatMap((graph) => graph.flows).map((item) => [
+    `${item.flow_name}\u0000${item.unit}`,
+    { value: `${item.flow_name}\u0000${item.unit}`, label: `${chemicalFlowLabel(item.flow_name)} (${item.unit})` },
+  ])).values()].sort((left, right) => left.label.localeCompare(right.label))
+  const selectedFlow = availableFlows.some((item) => item.value === flow) ? flow : (availableFlows[0]?.value ?? "")
+  const [selectedFlowName, selectedFlowUnit = ""] = selectedFlow.split("\u0000")
   let requirements: ReturnType<typeof buildInventoryRequirements> = []
   try { requirements = buildInventoryRequirements(yaml, result.scaling_vector) } catch { requirements = [] }
   const impactTotal = result.lcia[selectedImpact]
@@ -799,9 +806,11 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
     const canExpand = upstream.length > 0
     const isOpen = expandedProcesses.has(row.name)
     const displayedValue = canExpand && !isOpen ? rolledUpValue(row) : ownValue(row)
-    const percent = total ? displayedValue / total * 100 : 0
+    const contributionRate = total ? displayedValue / total * 100 : 0
+    const directPercent = total ? row.total / total * 100 : 0
     const processRow = <tr key={`${row.name}-${depth}-${index}`} className={canExpand ? "clickable-process" : ""} onClick={canExpand ? () => toggleProcess(row.name) : undefined}>
-      <td><span className="rate-value">{formatPercent(percent)}</span></td>
+      <td><span className="result-bar contribution-rate-bar"><i className={contributionRate < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(contributionRate))}%` }} /></span><span className="rate-value">{formatPercent(contributionRate)}</span></td>
+      <td><span className="rate-value">{formatPercent(directPercent)}</span></td>
       <td style={{ paddingLeft: `${7 + depth * 20}px` }}>{canExpand ? <button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-expanded={isOpen} aria-label={`${isOpen ? "Hide" : "Show"} inputs for ${row.name}`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className="process-mark">⌘</span>{row.name}</td>
       <td>{number(row.total)}</td><td><span className="result-bar"><i className={displayedValue < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(displayedValue) / maxMagnitude * 100)}%` }} /></span>{number(displayedValue)}</td><td>{unit}</td>
     </tr>
@@ -816,16 +825,37 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
     graphChildren.set(edge.consumer_id, [...(graphChildren.get(edge.consumer_id) ?? []), producer])
   })
   graphChildren.forEach((children) => children.sort((left, right) => Math.abs(right.cumulative_score) - Math.abs(left.cumulative_score)))
+  const flowDirectScore = (nodeId: string) => selectedContributionGraph?.flows
+    .filter((item) => item.process_occurrence_id === nodeId && item.flow_name === selectedFlowName && item.unit === selectedFlowUnit)
+    .reduce((sum, item) => sum + item.amount, 0) ?? 0
+  const flowCumulativeScore = (nodeId: string, visited = new Set<string>()): number => {
+    if (visited.has(nodeId)) return 0
+    const nextVisited = new Set(visited).add(nodeId)
+    return flowDirectScore(nodeId) + (graphChildren.get(nodeId) ?? []).reduce((sum, child) => sum + flowCumulativeScore(child.id, nextVisited), 0)
+  }
+  const graphRootId = selectedContributionGraph?.nodes.find((node) => node.kind === "functional_unit")?.id ?? ""
+  const graphRootProcesses = graphChildren.get(graphRootId) ?? []
+  const flowTotal = graphRootProcesses.reduce((sum, node) => sum + flowCumulativeScore(node.id), 0)
+  const displayedTotal = contributionMode === "flow" ? flowTotal : (selectedContributionGraph?.total_score ?? total)
+  const displayedUnit = contributionMode === "flow" ? selectedFlowUnit : (selectedContributionGraph?.unit ?? unit)
+  const graphNodeCumulativeScore = (node: ContributionGraphNode) => contributionMode === "flow" ? flowCumulativeScore(node.id) : node.cumulative_score
   const renderGraphProcesses = (items: ContributionGraphNode[], depth = 0): React.ReactNode[] => items.flatMap((node) => {
     const children = graphChildren.get(node.id) ?? []
     const isOpen = !expandedProcesses.has(node.id)
-    const percent = selectedContributionGraph?.total_score ? node.cumulative_score / selectedContributionGraph.total_score * 100 : null
+    const directScore = contributionMode === "flow" ? flowDirectScore(node.id) : node.direct_score
+    const cumulativeScore = graphNodeCumulativeScore(node)
+    const childCumulativeScore = children.reduce((sum, child) => sum + graphNodeCumulativeScore(child), 0)
+    const displayedScore = children.length && isOpen ? cumulativeScore - childCumulativeScore : cumulativeScore
+    const contributionRate = displayedTotal ? displayedScore / displayedTotal * 100 : null
+    const percent = displayedTotal ? cumulativeScore / displayedTotal * 100 : null
+    const directPercent = displayedTotal ? directScore / displayedTotal * 100 : null
     const row = <tr key={node.id} className={children.length ? "clickable-process contribution-process-row" : "contribution-process-row"} onClick={children.length ? () => toggleProcess(node.id) : undefined}>
-      <td><span className="rate-value">{percent === null ? "—" : formatPercent(percent)}</span></td>
+      <td>{contributionRate === null ? "—" : <><span className="result-bar contribution-rate-bar"><i className={contributionRate < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(contributionRate))}%` }} /></span><span className="rate-value">{formatPercent(contributionRate)}</span></>}</td>
+      <td><span className="rate-value">{directPercent === null ? "—" : formatPercent(directPercent)}</span></td>
       <td style={{ paddingLeft: `${7 + depth * 20}px` }}>{children.length ? <button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-expanded={isOpen} aria-label={`${isOpen ? "Hide" : "Show"} upstream processes for ${node.process_name}`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className="process-mark">⌘</span>{cleanProcessName(node.process_name)}{node.location ? <small>{node.location}</small> : null}</td>
-      <td>{number(node.direct_score)}</td>
-      <td><span className="result-bar"><i className={node.cumulative_score < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(percent ?? 0))}%` }} /></span>{number(node.cumulative_score)}</td>
-      <td>{selectedContributionGraph?.unit}</td>
+      <td>{number(directScore)}</td>
+      <td><span className="result-bar"><i className={cumulativeScore < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(percent ?? 0))}%` }} /></span>{number(cumulativeScore)}</td>
+      <td>{displayedUnit}</td>
     </tr>
     return isOpen ? [row, ...renderGraphProcesses(children, depth + 1)] : [row]
   })
@@ -838,25 +868,26 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
       </aside> : null}
     </div>
     <div className="contribution-controls">
-      <label className="active">Impact category</label>
-      <div className="contribution-control-slot"><div className="contribution-select is-impact"><BarChart3 size={16} /><AppSelect value={selectedImpact} onValueChange={(value) => { setImpact(value); void loadContributionGraphs([value]) }} label="Impact category" options={impactNames.map((value) => ({ value, label: impactCategoryDisplayName(value) }))} /></div></div>
+      <div className="contribution-mode-group"><label className={contributionMode === "flow" ? "active" : ""}><input className="app-radio" type="radio" name="contribution-mode" checked={contributionMode === "flow"} onChange={() => setContributionMode("flow")} />Flows</label><label className={contributionMode === "impact" ? "active" : ""}><input className="app-radio" type="radio" name="contribution-mode" checked={contributionMode === "impact"} onChange={() => setContributionMode("impact")} />Impact category</label></div>
+      <div className="contribution-control-slot">{contributionMode === "flow"
+        ? <div className="contribution-select is-flow"><Leaf size={16} /><AppSelect value={selectedFlow} onValueChange={setFlow} label="Flow" options={availableFlows} /></div>
+        : <div className="contribution-select is-impact"><BarChart3 size={16} /><AppSelect value={selectedImpact} onValueChange={(value) => { setImpact(value); void loadContributionGraphs([value]) }} label="Impact category" options={impactNames.map((value) => ({ value, label: impactCategoryDisplayName(value) }))} /></div>}</div>
       {!selectedContributionGraph ? <p className="contribution-fallback-note">Recursive contributions were not requested for this category. Showing the available process-contribution results.</p> : null}
     </div>
-    <div className="contribution-table-wrap"><table className="contribution-table" style={{ width: Math.max(1040, columnWidths.reduce((sum, width) => sum + width, 0)) }}><ResizableTableHeader labels={[
-      "Contribution rate",
+    <div className="contribution-table-wrap"><table className="contribution-table" style={{ width: Math.max(1180, columnWidths.reduce((sum, width) => sum + width, 0)) }}><ResizableTableHeader labels={[
+      "Contribution",
+      "Direct Contribution %",
       "Process",
       "Direct contribution",
       "Accumulated contribution",
       "Unit",
     ]} widths={columnWidths} onWidthsChange={setColumnWidths} /><tbody>
       {selectedContributionGraph ? <>
-        <tr className="contribution-root"><td>{selectedContributionGraph.status === "zero_total" ? "—" : formatPercent(100)}</td><td><button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} process contributions`}><ChevronDown size={14} /></button><span className="process-mark">⌘</span>Total — {result.name}</td><td>—</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(selectedContributionGraph.total_score)}</td><td>{selectedContributionGraph.unit}</td></tr>
-        {expanded ? renderGraphProcesses(graphChildren.get(selectedContributionGraph.nodes.find((node) => node.kind === "functional_unit")?.id ?? "") ?? []) : null}
-        {expanded && !selectedContributionGraph.nodes.some((node) => node.kind === "process") ? <tr className="empty-row"><td colSpan={5}>{selectedContributionGraph.status === "zero_total" ? "This impact category has a zero total, so contribution percentages are unavailable." : "No process contributions were returned for this category."}</td></tr> : null}
+        {renderGraphProcesses(graphRootProcesses)}
+        {!selectedContributionGraph.nodes.some((node) => node.kind === "process") ? <tr className="empty-row"><td colSpan={6}>{selectedContributionGraph.status === "zero_total" ? "This selection has a zero total, so contribution percentages are unavailable." : "No process contributions were returned for this selection."}</td></tr> : null}
       </> : <>
-        <tr className="contribution-root"><td>{formatPercent(100)}</td><td><button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} process contributions`}><ChevronDown size={14} /></button><span className="process-mark">⌘</span>{result.name}</td><td>—</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(total)}</td><td>{unit}</td></tr>
-        {expanded ? renderContributionRows(rootRows.length ? rootRows : rows) : null}
-        {expanded && !rows.length ? <tr className="empty-row"><td colSpan={5}>No process contribution rows were returned for this category.</td></tr> : null}
+        {renderContributionRows(rootRows.length ? rootRows : rows)}
+        {!rows.length ? <tr className="empty-row"><td colSpan={6}>No process contribution rows were returned for this category.</td></tr> : null}
       </>}
     </tbody></table></div>
   </div>
