@@ -417,7 +417,7 @@ test("process results show calculated upstream outputs", async ({ page }) => {
   const outputs = page.locator(".process-flow-grids section").filter({ has: page.getByRole("heading", { name: "Outputs" }) })
 
   await expect(outputs.getByText("Sulfur dioxide, air (SO2)")).toBeVisible()
-  await expect(outputs.getByText("0.12")).toBeVisible()
+  await expect(outputs.getByText("0.123000")).toBeVisible()
   await expect(outputs.getByText("No output flows for this process.")).toHaveCount(0)
 
   const process = page.getByRole("combobox", { name: "Flow contribution process" })
@@ -425,7 +425,35 @@ test("process results show calculated upstream outputs", async ({ page }) => {
   await page.getByRole("option", { name: "Raw material extraction", exact: true }).click()
   const methane = outputs.getByRole("row").filter({ hasText: "Methane" })
   await expect(methane).toBeVisible()
-  await expect(methane.getByRole("cell").nth(4)).toHaveText("0.02")
+  await expect(methane.getByRole("cell").nth(4)).toHaveText("0.016000")
+})
+
+test("process results merge unambiguous YAML and engine flow aliases", async ({ page }) => {
+  const canonicalMethaneResult = {
+    ...lcaResultFixture,
+    lci: {
+      ...Object.fromEntries(Object.entries(lcaResultFixture.lci).filter(([name]) => name !== "Methane, air")),
+      "Methane, fossil": { amount: 0.023, unit: "kg", type: "emission" },
+    },
+    contribution_graphs: lcaResultFixture.contribution_graphs.map((graph) => ({
+      ...graph,
+      flows: graph.flows.map((flow) => flow.flow_name === "Methane" ? {
+        ...flow,
+        flow_name: "Methane, fossil",
+        categories: ["air", "low population density, long-term"],
+      } : flow),
+    })),
+  }
+  await mockLcaApi(page, canonicalMethaneResult)
+  await page.goto("/")
+  await calculate(page)
+  await page.getByRole("radio", { name: "Process Results", exact: true }).click()
+
+  const outputs = page.locator(".process-flow-grids section").filter({ has: page.getByRole("heading", { name: "Outputs" }) })
+  const methane = outputs.getByRole("row").filter({ hasText: "Methane, fossil" })
+  await expect(methane).toHaveCount(1)
+  await expect(methane.getByRole("cell").nth(2)).toHaveText("elementary flows/air/low population density, long-term")
+  await expect(methane.getByRole("cell").nth(3)).toHaveText("0.023000")
 })
 
 test("process result sections select processes independently", async ({ page }) => {
