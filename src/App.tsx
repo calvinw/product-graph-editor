@@ -52,20 +52,27 @@ type SankeyProcessNodeData = {
   label: string
   direct: string
   upstream: string
+  mode: "flow" | "impact"
   orientation: "vertical" | "horizontal"
   scope: "foreground" | "background"
   pathHighlighted?: boolean
   pathDimmed?: boolean
 }
 function SankeyProcessNode({ data }: NodeProps<Node<SankeyProcessNodeData>>) {
+  const targetPosition = data.orientation === "vertical"
+    ? data.mode === "impact" ? Position.Top : Position.Bottom
+    : data.mode === "impact" ? Position.Left : Position.Right
+  const sourcePosition = data.orientation === "vertical"
+    ? data.mode === "impact" ? Position.Bottom : Position.Top
+    : data.mode === "impact" ? Position.Right : Position.Left
   return <div className={`pg-node is-expanded sankey-process-node${data.pathHighlighted ? " is-path-highlighted" : ""}${data.pathDimmed ? " is-path-dimmed" : ""}`} style={{ "--node-color": nodeScopeColors[data.scope] } as React.CSSProperties}>
-    <Handle type="target" position={data.orientation === "vertical" ? Position.Bottom : Position.Right} />
+    <Handle type="target" position={targetPosition} />
     <div className="pg-node-head"><Component size={14} /><span className="pg-node-label">{data.label}</span><small className={`pg-node-scope is-${data.scope}`}>{data.scope}</small></div>
     <div className="sankey-process-metrics">
       <div>{data.direct}</div>
       <div>{data.upstream}</div>
     </div>
-    <Handle type="source" position={data.orientation === "vertical" ? Position.Top : Position.Left} />
+    <Handle type="source" position={sourcePosition} />
   </div>
 }
 const sankeyNodeTypes = { sankeyProcess: SankeyProcessNode }
@@ -925,7 +932,7 @@ function SankeyView({ result, loadContributionGraphs }: {
   const selectedContributionGraph = result.contribution_graphs.find((graph) => graph.label === selectedImpact)
   const impactGraphPending = mode === "impact" && !selectedContributionGraph
   const processNodes = mode === "impact" && selectedContributionGraph
-    ? selectedContributionGraph.nodes.map((node) => ({
+    ? selectedContributionGraph.nodes.filter((node) => node.kind === "process").map((node) => ({
         id: node.id,
         label: node.process_name,
         process_name: node.process_name,
@@ -935,12 +942,17 @@ function SankeyView({ result, loadContributionGraphs }: {
     : result.sankey.nodes.filter((node) => node.kind === "process").map((node) => ({ ...node, kind: node.kind }))
   useEffect(() => setMaxProcesses(processNodes.length), [mode, processNodes.length, selectedContributionGraph?.id, selectedFlow, selectedImpact])
   const processIds = new Set(processNodes.map((node) => node.id))
+  const contributionDepths = new Map(selectedContributionGraph?.nodes.map((node) => [node.id, node.depth]) ?? [])
   const links = mode === "impact" && selectedContributionGraph
-    ? selectedContributionGraph.edges.map((edge) => ({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-      }))
+    ? selectedContributionGraph.edges.filter((edge) => processIds.has(edge.source) && processIds.has(edge.target)).map((edge) => {
+        const sourceDepth = contributionDepths.get(edge.source) ?? 0
+        const targetDepth = contributionDepths.get(edge.target) ?? 0
+        return {
+          id: edge.id,
+          source: sourceDepth <= targetDepth ? edge.source : edge.target,
+          target: sourceDepth <= targetDepth ? edge.target : edge.source,
+        }
+      })
     : result.sankey.links.filter((link) => processIds.has(link.source) && processIds.has(link.target))
   const incoming = new Map<string, typeof links>()
   const outgoing = new Map<string, typeof links>()
@@ -1013,10 +1025,14 @@ function SankeyView({ result, loadContributionGraphs }: {
   }
   const selectedTotal = mode === "impact" ? (category?.total_score ?? result.lcia[selectedImpact]?.score ?? 0) : (result.lci[selectedFlow]?.amount ?? 0)
   const totalMagnitude = Math.abs(selectedTotal)
-  const rootIds = new Set(processNodes.filter((node) => !(outgoing.get(node.id)?.length)).map((node) => node.id))
+  const rootIds = new Set(processNodes.filter((node) => mode === "impact" && selectedContributionGraph
+    ? !(incoming.get(node.id)?.length)
+    : !(outgoing.get(node.id)?.length)).map((node) => node.id))
   const eligibleNodes = processNodes.filter((node) => rootIds.has(node.id) || !totalMagnitude || Math.abs(upstreamTotal(node.id) / selectedTotal * 100) >= minContribution)
   const visibleNodes = [...eligibleNodes]
-    .sort((left, right) => depth(left.id) - depth(right.id))
+    .sort((left, right) => mode === "impact" && selectedContributionGraph
+      ? depth(right.id) - depth(left.id)
+      : depth(left.id) - depth(right.id))
     .slice(0, Math.max(1, maxProcesses))
   const visibleIds = new Set(visibleNodes.map((node) => node.id))
   const visibleLinks = links.filter((link) => visibleIds.has(link.source) && visibleIds.has(link.target))
@@ -1039,8 +1055,8 @@ function SankeyView({ result, loadContributionGraphs }: {
     adjacency.set(link.source, [...(adjacency.get(link.source) ?? []), link.target])
     adjacency.set(link.target, [...(adjacency.get(link.target) ?? []), link.source])
   })
-  const productRoot = selectedContributionGraph
-    ? visibleNodes.find((node) => node.kind === "functional_unit")
+  const productRoot = mode === "impact" && selectedContributionGraph
+    ? visibleNodes.find((node) => !(incoming.get(node.id)?.length))
     : visibleNodes.find((node) => !(outgoing.get(node.id)?.length))
   const laidOut = new Set<string>()
   const queue = productRoot ? [productRoot.id] : []
@@ -1063,6 +1079,42 @@ function SankeyView({ result, loadContributionGraphs }: {
     const position = layoutGraph.node(node.id)
     positions.set(node.id, { x: position.x - nodeWidth / 2, y: position.y - nodeHeight / 2 })
   })
+  if (orientation === "vertical" && mode === "impact" && selectedContributionGraph && productRoot) {
+    const rankById = new Map<string, number>([[productRoot.id, 0]])
+    const rankQueue = [productRoot.id]
+    while (rankQueue.length) {
+      const parentId = rankQueue.shift()!
+      const childRank = rankById.get(parentId)! + 1
+      ;(outgoing.get(parentId) ?? []).forEach((link) => {
+        const currentRank = rankById.get(link.target)
+        if (currentRank !== undefined && currentRank <= childRank) return
+        rankById.set(link.target, childRank)
+        rankQueue.push(link.target)
+      })
+    }
+    const rootY = positions.get(productRoot.id)?.y ?? 0
+    const fallbackRank = Math.max(1, ...rankById.values()) + 1
+    visibleNodes.forEach((node) => {
+      const position = positions.get(node.id)
+      if (!position) return
+      positions.set(node.id, {
+        ...position,
+        y: rootY + (rankById.get(node.id) ?? fallbackRank) * (nodeHeight + 260),
+      })
+    })
+    const nodesByRank = new Map<number, typeof visibleNodes>()
+    visibleNodes.forEach((node) => {
+      const rank = rankById.get(node.id) ?? fallbackRank
+      nodesByRank.set(rank, [...(nodesByRank.get(rank) ?? []), node])
+    })
+    nodesByRank.forEach((rankNodes) => {
+      const orderedX = rankNodes.map((node) => positions.get(node.id)?.x ?? 0).sort((left, right) => left - right)
+      rankNodes.sort((left, right) => left.label.localeCompare(right.label, undefined, { numeric: true })).forEach((node, index) => {
+        const position = positions.get(node.id)
+        if (position) positions.set(node.id, { ...position, x: orderedX[index] })
+      })
+    })
+  }
   if (orientation === "vertical" && productRoot && positions.size) {
     const horizontalExtents = [...positions.values()].flatMap((position) => [position.x, position.x + nodeWidth])
     const graphMidpoint = (Math.min(...horizontalExtents) + Math.max(...horizontalExtents)) / 2
@@ -1096,6 +1148,7 @@ function SankeyView({ result, loadContributionGraphs }: {
         label: node.label,
         direct: `Direct (${ownPercentage === null || ownPercentage === undefined ? "—" : formatPercent(ownPercentage)}): ${format(own)} ${unit}`,
         upstream: `Upstream (${formatPercent(percentage(total))}): ${format(total)} ${unit}`,
+        mode,
         orientation,
         scope: node.scope ?? "foreground",
       },
