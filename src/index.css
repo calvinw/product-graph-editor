@@ -573,5 +573,31 @@ html[data-theme="light"] .process-impact-table-wrap { color: #111827; background
 html[data-theme="light"] .process-flow-table td,
 html[data-theme="light"] .process-impact-table td { color: #111827; background: #fff; }
 html[data-theme="light"] .process-flow-table .empty-row td { color: #6b7280; }
-@media (max-width: 900px) { .inspector { right: 16px; top: 76px; bottom: 16px; width: 270px; }.top-actions button:first-child { display: none; } }
-@media (max-width: 620px) { .top-actions button:nth-child(2) { display: none; }.canvas-head { left: 18px; right: 16px; }.search { width: 42px; }.search input, .search kbd { display: none; }.graph-meta { display: none; } }
+@media (max-width: 900px) {
+  .inspector { right: 16px; top: 76px; bottom: 16px; width: 270px; }
+  .brand-study-title { max-width: 42vw; }
+  .global-settings-trigger span { display: none; }
+  .global-settings-trigger { width: 36px; padding: 0; justify-content: center; }
+}
+@media (max-width: 620px) {
+  .topbar { gap: 10px; padding: 0 10px; }
+  .brand { flex: 1; gap: 8px; }
+  .brand-product-name, .brand-separator { display: none; }
+  .brand-study-title { max-width: none; flex: 1; color: var(--foreground); font-size: 14px; }
+  .global-settings-trigger { width: 40px; height: 40px; }
+  .global-settings-panel { width: min(330px, calc(100vw - 20px)); max-height: calc(100vh - 70px); overflow-y: auto; }
+  .canvas-head { left: 10px; right: 10px; top: 10px; }
+  .view-tabs { flex-wrap: wrap; gap: 6px; padding: 5px; }
+  .navigation-product-select { width: 100%; padding-right: 0; }
+  .navigation-product-select [data-slot="select-trigger"] { width: auto; min-width: 0; flex: 1; }
+  .view-tab-groups { width: 100%; margin-left: 0; justify-content: flex-start; gap: 4px; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; }
+  .view-tab-groups > [data-slot="toggle-group"] { flex: 0 0 auto; }
+  .view-tabs button { min-height: 32px; }
+  .graph-toolbar, .graph-search { top: 104px; }
+  .graph-settings-picker { width: min(330px, calc(100vw - 82px)); max-height: calc(100vh - 124px); overflow-y: auto; }
+  .sankey-chart-picker { top: 104px; left: 72px; width: calc(100vw - 82px); max-height: calc(100vh - 124px); overflow-y: auto; }
+  .sankey-toolbar { top: 104px; }
+  .search { width: 42px; }
+  .search input, .search kbd { display: none; }
+  .graph-meta { display: none; }
+}
