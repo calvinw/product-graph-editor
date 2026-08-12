@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+
+<html class="scroll-smooth" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Aether | Atmospheric Precision</title>
+<!-- Google Fonts & Material Symbols -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600&amp;family=Manrope:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "surface-container": "#e5eeff",
+                        "primary-fixed-dim": "#c0c1ff",
+                        "on-secondary-fixed-variant": "#3f465c",
+                        "secondary-fixed": "#dae2fd",
+                        "inverse-surface": "#213145",
+                        "on-primary-container": "#fffbff",
+                        "on-secondary-container": "#5c647a",
+                        "surface-container-high": "#dce9ff",
+                        "secondary-container": "#dae2fd",
+                        "tertiary-container": "#727577",
+                        "surface": "#f8f9ff",
+                        "on-error": "#ffffff",
+                        "on-primary-fixed": "#07006c",
+                        "on-surface-variant": "#464554",
+                        "error": "#ba1a1a",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-tertiary-container": "#fbfdff",
+                        "on-tertiary-fixed": "#191c1e",
+                        "background": "#f8f9ff",
+                        "outline": "#767586",
+                        "surface-dim": "#cbdbf5",
+                        "error-container": "#ffdad6",
+                        "secondary-fixed-dim": "#bec6e0",
+                        "on-error-container": "#93000a",
+                        "inverse-primary": "#c0c1ff",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "primary-container": "#6063ee",
+                        "outline-variant": "#c7c4d7",
+                        "tertiary-fixed": "#e0e3e5",
+                        "inverse-on-surface": "#eaf1ff",
+                        "on-background": "#0b1c30",
+                        "surface-bright": "#f8f9ff",
+                        "primary": "#4648d4",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-variant": "#d3e4fe",
+                        "surface-container-low": "#eff4ff",
+                        "on-primary-fixed-variant": "#2f2ebe",
+                        "surface-tint": "#494bd6",
+                        "on-surface": "#0b1c30",
+                        "secondary": "#565e74",
+                        "on-secondary-fixed": "#131b2e",
+                        "on-primary": "#ffffff",
+                        "tertiary": "#595c5e",
+                        "tertiary-fixed-dim": "#c4c7c9",
+                        "primary-fixed": "#e1e0ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xs": "4px",
+                        "margin-mobile": "20px",
+                        "lg": "48px",
+                        "margin-desktop": "64px",
+                        "xl": "80px",
+                        "gutter": "24px",
+                        "sm": "12px",
+                        "md": "24px",
+                        "base": "8px"
+                    },
+                    "fontFamily": {
+                        "label-sm": ["Hanken Grotesk"],
+                        "headline-xl": ["Manrope"],
+                        "headline-md": ["Manrope"],
+                        "headline-lg-mobile": ["Manrope"],
+                        "body-md": ["Hanken Grotesk"],
+                        "body-lg": ["Hanken Grotesk"],
+                        "headline-lg": ["Manrope"]
+                    },
+                    "fontSize": {
+                        "label-sm": ["13px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "headline-xl": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "headline-lg-mobile": ["28px", { "lineHeight": "36px", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600" }]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .ambient-shadow {
+            box-shadow: 0px 0px 30px rgba(73, 75, 214, 0.04);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen flex flex-col relative overflow-x-hidden selection:bg-primary-container selection:text-on-primary-container">
+<!-- Ambient Background Blur -->
+<div aria-hidden="true" class="fixed inset-0 z-0 pointer-events-none">
+<div class="absolute top-[-10%] right-[-5%] w-[40vw] h-[40vw] rounded-full bg-surface-container-high/50 blur-[100px] opacity-70"></div>
+<div class="absolute bottom-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-surface-variant/40 blur-[120px] opacity-60"></div>
+</div>
+<!-- TopNavBar Shared Component -->
+<header class="fixed top-0 w-full z-50 bg-surface/70 dark:bg-on-background/70 backdrop-blur-xl border-b border-white/20 dark:border-white/10 shadow-[0px_0px_30px_rgba(73,75,214,0.04)]">
+<div class="flex justify-between items-center max-w-7xl mx-auto px-margin-mobile md:px-margin-desktop py-4">
+<!-- Brand -->
+<a class="font-headline-md text-headline-md font-bold tracking-tight text-on-surface dark:text-on-primary-container flex items-center gap-2 group transition-transform duration-300 hover:scale-[0.98]" href="#">
+<span class="w-8 h-8 rounded-lg bg-primary text-on-primary flex items-center justify-center shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">air</span>
+</span>
+                Aether
+            </a>
+<!-- Navigation Links (Desktop) -->
+<nav aria-label="Main Navigation" class="hidden md:flex items-center gap-8">
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-surface-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors duration-300" href="#">Focus</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-surface-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors duration-300" href="#">Collaborate</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-surface-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors duration-300" href="#">Speed</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-surface-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors duration-300" href="#">Pricing</a>
+</nav>
+<!-- Actions -->
+<div class="flex items-center gap-4">
+<a class="hidden md:block font-label-sm text-label-sm text-primary dark:text-primary-fixed-dim hover:opacity-80 transition-opacity" href="#">Sign In</a>
+<a class="font-label-sm text-label-sm bg-primary text-on-primary px-6 py-2.5 rounded-full hover:bg-on-primary-fixed-variant transition-all duration-300 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 hover:scale-[0.98]" href="#">Get Started</a>
+<!-- Mobile Menu Toggle -->
+<button aria-label="Toggle Menu" class="md:hidden text-on-surface p-2">
+<span class="material-symbols-outlined">menu</span>
+</button>
+</div>
+</div>
+</header>
+<main class="flex-grow relative z-10 pt-[100px]">
+<!-- Hero Section -->
+<section class="relative min-h-[870px] flex items-center justify-center px-margin-mobile md:px-margin-desktop py-xl">
+<div class="max-w-4xl mx-auto text-center z-10 glass-panel p-8 md:p-12 rounded-[2rem] ambient-shadow">
+<div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-surface-container-low border border-outline-variant/30 mb-8">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant tracking-wider uppercase">Introducing Aether v2.0</span>
+</div>
+<h1 class="font-headline-xl text-headline-xl text-on-surface mb-6 leading-tight">
+                    Work in the <br class="hidden md:block"/>
+<span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-container">Atmosphere of Focus</span>
+</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-10 max-w-2xl mx-auto">
+                    Experience a minimalist workspace designed for profound concentration. Strip away the noise, elevate your productivity, and enter a state of true flow.
+                </p>
+<div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+<a class="w-full sm:w-auto font-label-sm text-label-sm bg-primary text-on-primary px-8 py-4 rounded-full hover:bg-on-primary-fixed-variant transition-all duration-300 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 flex items-center justify-center gap-2" href="#">
+                        Get Started
+                        <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</a>
+<a class="w-full sm:w-auto font-label-sm text-label-sm bg-surface text-on-surface border border-outline-variant/30 px-8 py-4 rounded-full hover:bg-surface-container transition-all duration-300 flex items-center justify-center" href="#">
+                        View Pricing
+                    </a>
+</div>
+</div>
+<!-- Decorative Elements -->
+<div class="absolute top-[20%] left-[10%] w-32 h-32 rounded-full bg-gradient-to-tr from-primary/10 to-transparent blur-2xl z-0"></div>
+<div class="absolute bottom-[20%] right-[10%] w-48 h-48 rounded-full bg-gradient-to-bl from-secondary-container/30 to-transparent blur-3xl z-0"></div>
+</section>
+<!-- Features Section (Bento Grid) -->
+<section class="px-margin-mobile md:px-margin-desktop py-xl max-w-7xl mx-auto relative z-10">
+<div class="text-center mb-16">
+<h2 class="font-headline-md text-headline-md text-on-surface md:text-headline-lg font-headline-lg mb-4">Engineered for Clarity</h2>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-xl mx-auto">Every pixel serves a purpose. Aether is designed to eliminate friction and amplify your cognitive output.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Feature 1: Pure Focus -->
+<div class="glass-panel p-8 rounded-2xl ambient-shadow hover:-translate-y-1 transition-transform duration-300 group flex flex-col h-full">
+<div class="w-12 h-12 rounded-xl bg-surface-container flex items-center justify-center mb-6 text-primary group-hover:scale-110 transition-transform duration-300">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">target</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-3 text-[20px] leading-tight">Pure Focus</h3>
+<p class="font-body-md text-body-md text-on-surface-variant flex-grow">A distraction-free writing environment that automatically fades away unnecessary UI elements when you start typing.</p>
+</div>
+<!-- Feature 2: Seamless Sync -->
+<div class="glass-panel p-8 rounded-2xl ambient-shadow hover:-translate-y-1 transition-transform duration-300 group flex flex-col h-full md:col-span-2 lg:col-span-1">
+<div class="w-12 h-12 rounded-xl bg-surface-container flex items-center justify-center mb-6 text-primary group-hover:scale-110 transition-transform duration-300">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">sync</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-3 text-[20px] leading-tight">Seamless Sync</h3>
+<p class="font-body-md text-body-md text-on-surface-variant flex-grow">Real-time collaboration across all your devices. Changes propagate instantly without ever hitting a save button.</p>
+</div>
+<!-- Feature 3: Instant Flow -->
+<div class="glass-panel p-8 rounded-2xl ambient-shadow hover:-translate-y-1 transition-transform duration-300 group flex flex-col h-full lg:col-span-1">
+<div class="w-12 h-12 rounded-xl bg-surface-container flex items-center justify-center mb-6 text-primary group-hover:scale-110 transition-transform duration-300">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">bolt</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-3 text-[20px] leading-tight">Instant Flow</h3>
+<p class="font-body-md text-body-md text-on-surface-variant flex-grow">Built on a cutting-edge architecture ensuring ultra-fast performance. Interactions feel instantaneous and fluid.</p>
+</div>
+</div>
+</section>
+<!-- Visual Anchor Section -->
+<section class="px-margin-mobile md:px-margin-desktop py-xl max-w-7xl mx-auto">
+<div class="rounded-[2rem] overflow-hidden relative h-[400px] flex items-center justify-center bg-surface-container-low border border-outline-variant/20 ambient-shadow group">
+<!-- Fallback abstract gradient if image fails to load -->
+<div class="absolute inset-0 bg-gradient-to-br from-surface-container to-surface-container-high opacity-50 z-0"></div>
+<img class="absolute inset-0 w-full h-full object-cover opacity-80 mix-blend-multiply group-hover:scale-105 transition-transform duration-700 z-10" data-alt="A pristine, minimalist digital workspace interface displayed on a sleek monitor. The UI is predominantly clean white and light grey, featuring sharp typography and subtle, glowing electric indigo accents. The setting is a bright, sunlit modern office with a high-key, airy light-mode aesthetic, emphasizing deep focus and professional clarity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBq56FlX957QrGby2-CpBQFR-hJrj_vM1Jv4sMSar2gYNlAZOfyhn249l37t2CqUsYzExu8pgyaZ-oZzewEGS8ZryirU0XXkBwR071CMuRQXyODx8nJvBQNIBGw4MTmmuki_8ByHMT9I1qJeZzJnptmuq325P5VMbVhnzbUDnDXDBJKGffCcpKEimt04z-DI--42gWqo2FKRKfTOiJTFUNTIigqa8xpbQf_y9gQwrBFaqqtqvlUmiyA"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent z-20"></div>
+<div class="relative z-30 text-center p-8">
+<span class="w-16 h-16 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center mx-auto mb-4 text-primary shadow-lg cursor-pointer hover:scale-110 transition-transform duration-300">
+<span class="material-symbols-outlined text-[32px]" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+</span>
+<p class="font-label-sm text-label-sm text-on-surface tracking-widest uppercase">See Aether in Action</p>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer Shared Component -->
+<footer class="w-full py-xl bg-surface dark:bg-on-background border-t border-outline-variant/20 mt-auto relative z-10">
+<div class="flex flex-col md:flex-row justify-between items-center max-w-7xl mx-auto px-margin-mobile md:px-margin-desktop gap-8 md:gap-0">
+<!-- Brand & Copyright -->
+<div class="flex flex-col items-center md:items-start gap-2 text-center md:text-left">
+<span class="font-headline-md text-headline-md font-bold text-on-surface dark:text-on-primary-container">Aether</span>
+<p class="font-label-sm text-label-sm text-on-tertiary-fixed-variant dark:text-tertiary-fixed-dim">
+                    © 2024 Aether Workspace. Atmospheric Precision.
+                </p>
+</div>
+<!-- Footer Links -->
+<nav aria-label="Footer Navigation" class="flex flex-wrap justify-center md:justify-end gap-6 md:gap-8">
+<a class="font-label-sm text-label-sm text-on-tertiary-fixed-variant dark:text-tertiary-fixed-dim hover:text-primary dark:hover:text-primary-fixed-dim hover:underline transition-all opacity-100 hover:opacity-80" href="#">Privacy Policy</a>
+<a class="font-label-sm text-label-sm text-on-tertiary-fixed-variant dark:text-tertiary-fixed-dim hover:text-primary dark:hover:text-primary-fixed-dim hover:underline transition-all opacity-100 hover:opacity-80" href="#">Terms of Service</a>
+<a class="font-label-sm text-label-sm text-on-tertiary-fixed-variant dark:text-tertiary-fixed-dim hover:text-primary dark:hover:text-primary-fixed-dim hover:underline transition-all opacity-100 hover:opacity-80" href="#">Contact</a>
+<a class="font-label-sm text-label-sm text-on-tertiary-fixed-variant dark:text-tertiary-fixed-dim hover:text-primary dark:hover:text-primary-fixed-dim hover:underline transition-all opacity-100 hover:opacity-80" href="#">Twitter</a>
+</nav>
+</div>
+</footer>
+</body></html>
