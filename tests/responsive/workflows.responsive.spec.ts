@@ -29,6 +29,15 @@ test("editor actions and source remain reachable", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Calculate" })).toBeVisible()
 })
 
+test("Stitch test preview remains reachable", async ({ page }) => {
+  await page.getByRole("radio", { name: "Stitch Test", exact: true }).click()
+
+  const preview = page.getByTitle("Stitch Test preview")
+  await expectInsideViewport(page.locator(".stitch-preview"), page)
+  await expect(preview).toBeVisible()
+  await expect(preview.contentFrame().getByRole("heading", { name: "Work in the Atmosphere of Focus" })).toBeVisible()
+})
+
 test("analysis views contain their tables without page overflow", async ({ page }) => {
   await calculate(page)
 

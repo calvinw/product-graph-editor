@@ -36,9 +36,10 @@ import {
 } from "./lib/lcaApi"
 import { unitsAreCompatible } from "./lib/units"
 import { DisplaySettingsProvider, useDisplaySettings } from "./lib/displaySettings"
+import stitchTestHtml from "../.stitch/designs/aether-landing-page.html?raw"
 
 type NodeMeta = { label: string; kind: string; detail: string; color: string; scope?: "foreground" | "background" }
-type View = "graph" | "yaml" | "inventory" | "impact" | "process" | "contribution" | "sankey" | "results"
+type View = "graph" | "yaml" | "stitch" | "inventory" | "impact" | "process" | "contribution" | "sankey" | "results"
 type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribution" | "sankey">
 const analysisViews: AnalysisView[] = ["inventory", "impact", "process", "contribution", "sankey"]
 const isAnalysisView = (view: View): view is AnalysisView => analysisViews.includes(view as AnalysisView)
@@ -1970,7 +1971,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
     return () => window.removeEventListener("beforeunload", confirmDiscard)
   }, [isDirty])
   const hasCurrentResults = Boolean(lcaResult && calculatedRevision === appliedRevision)
-  const primaryView = view === "graph" || view === "yaml" || view === "results" ? view : ""
+  const primaryView = view === "graph" || view === "yaml" || view === "stitch" || view === "results" ? view : ""
   const analysisView = isAnalysisView(view) ? view : ""
   if (selected) lastSelectedRef.current = selected
   const inspectorSelection = selected ?? lastSelectedRef.current
@@ -2116,9 +2117,10 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
               {calculationInProgress ? <span className="calculation-message" role="status" aria-label="LCA calculation in progress">Calculating…</span>
                 : backgroundProcessing ? <span className="calculation-message" role="status" aria-label="Background graph processing">Processing…</span> : null}
               <div className="view-tab-groups">
-                <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && requestView(next as "graph" | "yaml" | "results")} className="inline-flex items-center" aria-label="Primary views">
+                <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && requestView(next as "graph" | "yaml" | "stitch" | "results")} className="inline-flex items-center" aria-label="Primary views">
                   <ToggleGroupItem value="graph">Graph</ToggleGroupItem>
                   <ToggleGroupItem value="yaml">Editor</ToggleGroupItem>
+                  <ToggleGroupItem value="stitch">Stitch Test</ToggleGroupItem>
                   <ToggleGroupItem value="results" aria-label="Results">Results</ToggleGroupItem>
                 </ToggleGroup>
                 <ToggleGroup type="single" value={analysisView} onValueChange={(next) => next && requestView(next as AnalysisView)} className="inline-flex items-center" aria-label="Result analysis views">
@@ -2218,6 +2220,8 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
             <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (!yamlDraft.trim() ? "Paste YAML to create a new LCA." : isDirty ? "Unapplied changes. Calculate the LCA or discard changes before leaving this view." : isCalculating ? "Calculating the selected YAML…" : "Catalog YAML is loaded from the LCA server and parsed locally.")}</span>
             <Button size="sm" disabled={!isDirty || isCalculating || !yamlDraft.trim()} onClick={() => applyAndCalculateYaml(yamlDraft)}>Calculate</Button>
           </div>
+        </div> : view === "stitch" ? <div className="stitch-preview">
+          <iframe title="Stitch Test preview" srcDoc={stitchTestHtml} sandbox="allow-scripts" loading="lazy" />
         </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} loadContributionGraphs={loadContributionGraphs} /> : <div className="results-panel">
           <div className="results-panel-head">
             <div><strong>LCA Results</strong>{isCalculating ? <span className="calculation-message">Calculating…</span> : null}</div>
