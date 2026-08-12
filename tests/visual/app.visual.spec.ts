@@ -333,8 +333,9 @@ test("form controls preserve selection, clamping, and disabled behavior", async 
 
   await page.getByRole("button", { name: "Global settings" }).click()
   const decimalPlaces = page.getByRole("spinbutton", { name: "Decimal places" })
+  await expect(decimalPlaces).toHaveValue("6")
   await page.getByRole("button", { name: "Increase decimal places" }).click()
-  await expect(decimalPlaces).toHaveValue("3")
+  await expect(decimalPlaces).toHaveValue("7")
   await page.getByRole("checkbox", { name: "Show all decimal places" }).click()
   await expect(decimalPlaces).toBeDisabled()
   await expect(page.getByRole("button", { name: "Decrease decimal places" })).toBeDisabled()
