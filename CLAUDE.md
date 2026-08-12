@@ -60,7 +60,7 @@ Pre-installed via npm:
 
 ## Available Scripts
 
-All scripts are located in `/usr/local/lib/ai-tools/` and added to PATH. Run them directly from anywhere.
+Inherited scripts are located in `/usr/local/lib/ai-tools/` and added to PATH. Repository-specific scripts live in `scripts/` and are invoked by path.
 
 ### Environment & Setup
 
@@ -81,21 +81,14 @@ All scripts are located in `/usr/local/lib/ai-tools/` and added to PATH. Run the
 
 ### Skills Management
 
-**`setup-skills.sh`**
-- Initializes `.skillshare/` directory structure with `skills/` subdirectory
-- Creates sample "hello-world" skill template
-- Generates `config.yaml` specifying target platforms (Claude, OpenCode, Copilot, Gemini, Crush, Codex)
-- Downloads and installs the `skillshare` CLI tool if not present
-- Run once per project: `setup-skills.sh`
+**`scripts/setup-agent-skills.sh`**
+- Treats `.agents/skills/` as the repository's canonical skills directory
+- Refreshes Claude Code compatibility links in `.claude/skills/`
+- Removes stale compatibility links after skills are renamed or deleted
+- Validates discovery with the project-installed `skills` CLI
+- Runs automatically after `npm ci` during Codespace creation
 
-**`sync-skills.sh`**
-- Deploys all skills from `.skillshare/skills/` to configured AI platforms
-- Uses `.skillshare/config.yaml` to determine target platforms
-- Run after modifying skills: `sync-skills.sh`
-
-**`unsync-skills.sh`**
-- Reverses skill synchronization (removes skills from agents)
-- Cleans up deployed skills from all platforms
+Codex and OpenCode discover `.agents/skills/` directly. Do not create independent copies in agent-specific directories.
 
 ### Optional Add-ons
 
@@ -139,11 +132,12 @@ dolt=https://bus-mgmt-databases.mcp.mathplosion.com/mcp-dolt-database/sse
 
 Run `install-mcps.sh` after editing to register changes.
 
-### `.skillshare/`
-Project-level skills directory (single source of truth for custom skills).
-- **Always edit skills here**, never in individual tool directories
-- Run `sync-skills.sh` after modifying to deploy to all agents
-- Contains: `config.yaml`, `skills/` subdirectory with individual skill definitions
+### `.agents/skills/`
+Project-level Agent Skills directory and single source of truth.
+- Edit repository-owned skills here
+- Update third-party skills with `npx --no-install skills update --project --yes`
+- Run `scripts/setup-agent-skills.sh` after adding or renaming a skill
+- Do not edit `.claude/skills/` symlinks directly
 
 ### `opencode.json`
 Project-level OpenCode configuration (project root, highest precedence).
@@ -154,7 +148,7 @@ Project-level OpenCode configuration (project root, highest precedence).
 ### `.devcontainer/devcontainer.json`
 Dev container configuration.
 - References container image: `ghcr.io/calvinw/ai-course-devcontainer:latest`
-- Runs setup on creation: `setup-env.sh && install-mcps.sh && setup-skills.sh && sync-skills.sh`
+- Runs `scripts/post-create.sh` for sequential environment, dependency, Agent Skill, browser, and optional MCP setup
 - Declares secrets for GitHub Codespaces: `STITCH_API_KEY`
 
 ---
@@ -163,24 +157,29 @@ Dev container configuration.
 
 1. **First container creation** — Runs automatically:
    - `setup-env.sh` — SSH key + PATH setup
-   - `install-mcps.sh` — Register MCPs from `configs/mcp-servers.conf`
-   - `setup-skills.sh` — Initialize skills infrastructure
-   - `sync-skills.sh` — Deploy skills to all agents
+   - `npm ci` — Restore locked project dependencies and the `skills` CLI
+   - `scripts/setup-agent-skills.sh` — Link and validate repository Agent Skills
+   - `npx playwright install --with-deps chromium` — Install the browser test runtime
+   - `install-mcps.sh` — Optionally register MCPs from `configs/mcp-servers.conf`
+   - `scripts/setup-local-mcps.sh` — Register repository-local MCP servers
+
+   Required setup is fail-fast. MCP registration is optional and reports warnings without blocking the application toolchain.
 
 2. **Adding new MCPs** — Edit `configs/mcp-servers.conf`, then:
    ```
    # install-mcps.sh
    ```
 
-3. **Creating/modifying skills** — Edit files in `.skillshare/`, then:
+3. **Creating/modifying repository skills** — Edit files in `.agents/skills/`, then:
    ```
-   # sync-skills.sh
+   # scripts/setup-agent-skills.sh
    ```
 
-4. **Installing additional skills**:
+4. **Installing additional upstream skills**:
    ```
-   # skillshare install github.com/your-org/your-skill
-   # sync-skills.sh
+   # npx --no-install skills add owner/repository --skill skill-name \
+       --agent codex --agent claude-code --agent opencode --yes
+   # scripts/setup-agent-skills.sh
    ```
 
 5. **Adding optional tools**:
@@ -188,6 +187,33 @@ Dev container configuration.
    # install-datascience.sh
    # install-dolt.sh
    ```
+
+---
+
+## Responsive UI Development
+
+Use `.agents/skills/product-graph-editor-ui-development/SKILL.md` for application UI work. Before modifying a responsive surface, read `plan/agent-ui-responsive-plan.md`, `plan/responsive-audit.md`, and `plan/responsive-baseline.md`.
+
+Preserve the React, Vite, Tailwind CSS 4, shadcn/ui, Radix, and XYFlow architecture. Keep graph and LCA behavior intact, retain semantic result tables, inspect existing `src/components/ui/` primitives before adding components, and avoid unrelated refactors.
+
+Test the affected workflow—not only the initial page render—at:
+
+- 375 × 812 — phone
+- 768 × 1024 — tablet portrait
+- 1440 × 900 — desktop
+
+At narrow widths, prioritize graph and Sankey viewport space; keep navigation, settings, and inspectors reachable; contain table scrolling; prevent document-level horizontal overflow; keep overlays within the viewport; and preserve focus, keyboard interaction, and usable touch targets.
+
+Run each verification command separately:
+
+```bash
+npm run build
+npm run lint
+npm run test:responsive
+npm run test:visual
+```
+
+Expected baseline results are 16 responsive tests passed with 5 intentionally skipped contracts, and 20 visual tests passed with 5 accepted failures. The visual command currently exits nonzero. Compare failures with `plan/responsive-baseline.md`: previously passing tests must remain green, and accepted failures must not change or expand. Remove skips only when their contracts pass, and never update screenshot baselines without visually reviewing the actual, expected, and diff images.
 
 ---
 

@@ -5,7 +5,7 @@ This repository keeps its required development workflow independent of any codin
 ## Required project setup
 
 ```bash
-npm install
+npm ci
 npx playwright install --with-deps chromium
 npm run build
 npm run lint
@@ -13,28 +13,36 @@ npm run lint
 
 Run the existing visual suite with `npm run test:visual`. Compare its known failures with `plan/responsive-baseline.md`.
 
+In the devcontainer, `scripts/post-create.sh` runs the dependency, skill, and browser setup sequentially. Required setup fails visibly; optional MCP registration reports a warning without blocking the application toolchain.
+
 ## Skills
 
-The official shadcn skill is stored at `.agents/skills/shadcn` using the installer’s universal target. `skills-lock.json` records its source and version hash.
-
-Restore or update repository-installed skills with the current `skills` CLI rather than copying them into individual agent directories:
+`.agents/skills/` is the repository's single source of truth. Codex and OpenCode discover that directory directly. Claude Code uses symlinks in `.claude/skills/`, refreshed by:
 
 ```bash
-npx skills experimental_install
-npx skills update --project
+scripts/setup-agent-skills.sh
 ```
 
-The repository-specific UI skill lives at `.skillshare/skills/product-graph-editor/SKILL.md`. Synchronize it to the targets configured in `.skillshare/config.yaml` with:
+The repository currently provides:
+
+- `product-graph-editor-ui-development` — application-specific architecture and responsive QA
+- `shadcn` — official component-system guidance
+- `frontend-design` — visual design judgment
+- `vercel-react-best-practices` — React architecture and performance guidance
+- `web-design-guidelines` — accessibility and UX review
+
+`skills-lock.json` records upstream sources and hashes. Update upstream skills with the project-installed CLI:
 
 ```bash
-sync-skills.sh
+npx --no-install skills update --project --yes
+scripts/setup-agent-skills.sh
 ```
 
-The generic shadcn skill explains the component system. The Product Graph Editor skill contains this application’s architecture, responsive, accessibility, and verification rules.
+Do not edit generated Claude links or create independent copies. The setup script removes obsolete compatibility links after a skill is renamed or deleted. Edit repository-owned skills in `.agents/skills/`; update externally sourced skills through the CLI.
 
 ## Local MCP servers
 
-Local MCP is optional. The repository records portable stdio definitions but does not commit configuration for a particular client or write to an agent’s home directory.
+Local MCP is optional. `scripts/setup-local-mcps.sh` registers the repository's local shadcn server for Claude Code and Codex and keeps the OpenCode definition in `opencode.json`.
 
 ### shadcn
 
@@ -49,6 +57,8 @@ Use it to search and inspect shadcn registries. Use `npx shadcn@latest search`, 
 
 ### Chrome DevTools
 
+Chrome DevTools MCP is documented as a portable, manual integration; `scripts/setup-local-mcps.sh` does not register it automatically.
+
 ```json
 {
   "command": "npx",
@@ -60,16 +70,16 @@ Use it for live DOM, computed-style, console, network, screenshot, and performan
 
 ### Client setup policy
 
-Translate the definitions above into the active MCP client’s supported project or user configuration. Do not treat a checked-in Codex, Claude, editor, or other client configuration as canonical.
+Use `scripts/setup-local-mcps.sh` to refresh the supported client registrations. The executable definition in that script is canonical; generated client state is not.
 
 Do not add these commands to `configs/mcp-servers.conf`. That file and the current `install-mcps.sh` support remote URL/HTTP/SSE servers, not local stdio processes.
 
 After configuring a client locally:
 
 1. restart or reload the client
-2. confirm both servers initialize
+2. confirm each server you configured initializes
 3. ask shadcn MCP to list or search the default registry
-4. ask Chrome DevTools MCP to inspect a harmless local page
+4. if configured, ask Chrome DevTools MCP to inspect a harmless local page
 5. remove or disable a failing local adapter without blocking repository tests
 
 ## React Grab

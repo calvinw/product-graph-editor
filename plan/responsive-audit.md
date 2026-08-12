@@ -6,17 +6,15 @@
 
 ## Evidence
 
-The repository-owned Playwright harness exercises five named projects:
+The repository-owned Playwright harness exercises three representative projects:
 
 | Project | Viewport |
 | --- | --- |
 | phone | 375 × 812 |
 | tablet portrait | 768 × 1024 |
-| tablet landscape | 1024 × 768 |
 | desktop | 1440 × 900 |
-| large desktop | 1920 × 1080 |
 
-The initial shell smoke test passes at all five sizes: the app loads, the graph renders, and the document does not acquire page-level horizontal overflow. Workflow checks cover graph controls, the node inspector, YAML editing, analysis tables, global settings, and Sankey settings. Known responsive gaps are represented as narrowly scoped `fixme` contracts so the tooling baseline stays green until their implementation lands.
+The initial shell smoke test passes at all three sizes: the app loads, the graph renders, and the document does not acquire page-level horizontal overflow. Workflow checks cover graph controls, the node inspector, YAML editing, analysis tables, global settings, and Sankey settings. Known responsive gaps are represented as narrowly scoped `fixme` contracts so the tooling baseline stays green until their implementation lands.
 
 ## Prioritized findings
 
@@ -58,13 +56,13 @@ Use the same narrow-screen overlay pattern chosen for graph settings and preserv
 
 ### P2 — Dense result tables are contained, but require touch review
 
-Inventory, impact, process-result, and contribution table wrappers stay within the document viewport at all five sizes and already provide local overflow containers. Keep the semantic table layout rather than converting the data to cards.
+Inventory, impact, process-result, and contribution table wrappers stay within the document viewport at all three sizes and already provide local overflow containers. Keep the semantic table layout rather than converting the data to cards.
 
 During implementation, verify sticky headers, scroll affordance, column resize handles, and touch/pointer behavior. The baseline visual suite already records unrelated failures in some resize and contribution interactions.
 
 ### P2 — Desktop behavior must remain the compatibility baseline
 
-The 1024, 1440, and 1920 workflow contracts pass for the audited surfaces. Responsive changes should be expressed through narrow breakpoints and shared overlay primitives without changing the established desktop information density.
+The 1440 workflow contracts pass for the audited desktop surfaces. Responsive changes should be expressed through narrow breakpoints and shared overlay primitives without changing the established desktop information density.
 
 ## Recommended implementation order
 

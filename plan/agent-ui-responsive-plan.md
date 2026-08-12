@@ -48,7 +48,7 @@ The implementation must not depend on a particular model, coding-agent product, 
 Repository-owned, required foundations:
 
 - source code and project documentation
-- the project-specific Skillshare skill, synchronized to the targets in `.skillshare/config.yaml`
+- the project-specific Agent Skill in `.agents/skills/product-graph-editor-ui-development`
 - shadcn CLI commands that any agent can run in the shell
 - Playwright tests and npm scripts that run without an agent integration
 - a written audit and baseline-failure ledger
@@ -93,7 +93,7 @@ Verified baseline:
 - `components.json`
 - `src/components/ui/`
 - existing Playwright visual tests
-- existing `.skillshare/` infrastructure
+- repository-owned `.agents/skills/` infrastructure
 - existing Codespace bootstrap scripts
 - existing `configs/mcp-servers.conf`
 - existing dark/light semantic CSS variables
@@ -164,7 +164,7 @@ npx skills add shadcn/ui
 
 Before relying on the command, confirm the currently installed CLI syntax.
 
-Install it for every agent target supported by the installer that is actually used in the Codespace. Inspect and commit only repository-scoped generated files; never commit user-home configuration. The project-specific Skillshare skill remains the portable fallback for agents that do not consume the official skill format.
+Install it for Claude Code, Codex, and OpenCode. Keep `.agents/skills/` as the canonical project copy and use `.claude/skills/` symlinks for Claude compatibility. Inspect and commit only repository-scoped generated files; never commit user-home configuration. The project-specific Agent Skill remains the portable application-specific layer.
 
 Verify shadcn can correctly understand the repository:
 
@@ -174,15 +174,13 @@ npx shadcn@latest info
 
 ## Important distinction
 
-The repository already uses `.skillshare/` for project-specific skills.
-
-Use the two systems for different purposes:
+Use the upstream and repository-owned skills for different purposes:
 
 ```text
 Official shadcn Skill
     -> generic knowledge of shadcn
 
-.skillshare/skills/product-graph-editor/
+.agents/skills/product-graph-editor-ui-development/
     -> knowledge and rules specific to this application
 ```
 
@@ -192,12 +190,12 @@ Do not copy the entire official shadcn skill into the local project skill.
 
 # 5. Phase 2 — Product Graph Editor Project Skill
 
-Create:
+Maintain:
 
 ```text
-.skillshare/
+.agents/
 └── skills/
-    └── product-graph-editor/
+    └── product-graph-editor-ui-development/
         └── SKILL.md
 ```
 
@@ -207,7 +205,7 @@ Recommended content:
 
 ```markdown
 ---
-name: product-graph-editor
+name: product-graph-editor-ui-development
 description: UI development and responsive-design rules for the Product Graph Editor.
 ---
 
@@ -241,9 +239,7 @@ Verify at least:
 
 - 375 × 812 — phone
 - 768 × 1024 — tablet portrait
-- 1024 × 768 — tablet landscape / small laptop
 - 1440 × 900 — desktop
-- 1920 × 1080 — large desktop
 
 ## Responsive philosophy
 
@@ -273,10 +269,10 @@ Before declaring responsive UI work complete:
 8. Verify light and dark themes where relevant.
 ```
 
-Then sync the skill using the repository's existing Skillshare workflow:
+Then refresh Claude's compatibility link and validate discovery:
 
 ```bash
-sync-skills.sh
+scripts/setup-agent-skills.sh
 ```
 
 ---
@@ -532,9 +528,7 @@ Use representative viewports:
 ```text
 phone:              375 × 812
 tablet portrait:    768 × 1024
-tablet landscape:  1024 × 768
 desktop:           1440 × 900
-large desktop:     1920 × 1080
 ```
 
 ## Initial responsive assertions
@@ -558,7 +552,7 @@ Create tests for:
 
 Prefer behavioral assertions over an explosion of pixel snapshots.
 
-Each viewport project does not need to execute every scenario. Use the smallest matrix that covers each surface while ensuring the shell and primary navigation smoke tests run at all five target sizes.
+Each viewport project does not need to execute every scenario. Use the smallest matrix that covers each surface while ensuring the shell and primary navigation smoke tests run at all three target sizes.
 
 ---
 
@@ -569,9 +563,7 @@ Before changing responsive behavior, use Playwright plus any available browser i
 ```text
 375 × 812
 768 × 1024
-1024 × 768
 1440 × 900
-1920 × 1080
 ```
 
 Document problems before fixing them.
@@ -966,9 +958,7 @@ A responsive change is not complete until relevant items below pass.
 ```text
 □ 375 × 812 tested
 □ 768 × 1024 tested
-□ 1024 × 768 tested
 □ 1440 × 900 tested
-□ 1920 × 1080 spot checked
 
 □ no page-level horizontal overflow
 □ controls remain reachable

@@ -18,6 +18,27 @@ Open the local URL printed by Vite. Use the left toolbar to add nodes, arrange t
 npm run build
 ```
 
+## Responsive development
+
+Responsive work must preserve the established desktop experience while keeping every major workflow reachable on phones and tablets. Test changes at these viewports:
+
+- 375 × 812 — phone
+- 768 × 1024 — tablet portrait
+- 1440 × 900 — desktop
+
+At narrow widths, prioritize graph and Sankey canvas space, keep settings and inspectors reachable through compact overlays, contain table scrolling inside the table region, and prevent page-level horizontal overflow. Preserve keyboard behavior, useful touch targets, semantic result tables, and dialogs/popovers that remain inside the viewport.
+
+Before changing a responsive surface, read `plan/agent-ui-responsive-plan.md`, `plan/responsive-audit.md`, and `plan/responsive-baseline.md`. Verify changes with:
+
+```bash
+npm run build
+npm run lint
+npm run test:responsive
+npm run test:visual
+```
+
+The current recorded baseline is 16 responsive tests passed with 5 intentionally skipped contracts, plus 20 visual tests passed with 5 accepted failures. The visual command therefore exits nonzero at the baseline. A change is acceptable only when no previously passing test regresses and the accepted visual failures do not change or expand. Do not update screenshot baselines without visually reviewing the differences.
+
 ## GitHub Pages
 
 Pushes to `main` automatically build and publish the app through the **Deploy to GitHub Pages** workflow. The workflow can also be run manually from the repository's Actions tab.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Product Graph Editor UI"
+  short_description: "Develop and verify the responsive graph editor"
+  default_prompt: "Use $product-graph-editor-ui-development to implement and verify this UI change."
