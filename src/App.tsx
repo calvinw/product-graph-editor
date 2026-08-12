@@ -511,6 +511,21 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
   ]))
   const nodeProcess = (node: (typeof processNodes)[number]) => yamlByName.get((node.process_name ?? node.label).toLowerCase())
     ?? yamlByName.get(cleanImpactProcessName(node.process_name ?? node.label).toLowerCase())
+  const exactLciFlowKeys = new Set<string>()
+  const lciFlowAliases = new Map<string, Set<string>>()
+  Object.entries(result.lci).forEach(([name, value]) => {
+    const input = isInventoryInput(value.type)
+    const exactKey = `${input}:${normalizedFlow(name)}`
+    const aliasKey = `${input}:${normalizedFlow(name.split(/[|,]/)[0])}`
+    exactLciFlowKeys.add(exactKey)
+    lciFlowAliases.set(aliasKey, new Set(lciFlowAliases.get(aliasKey) ?? []).add(exactKey))
+  })
+  const canonicalFlowKey = (input: boolean, name: string) => {
+    const key = `${input}:${normalizedFlow(name)}`
+    if (exactLciFlowKeys.has(key)) return key
+    const aliases = lciFlowAliases.get(key)
+    return aliases?.size === 1 ? [...aliases][0] : key
+  }
   const flowRows = new Map<string, { name: string; category: string; unit: string; upstream: number; direct: number; input: boolean }>()
   processNodes.filter((node) => flowIncludedIds.has(node.id)).forEach((node) => {
     const process = nodeProcess(node)
@@ -520,7 +535,7 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
       ...(process?.extractions ?? process?.resources ?? process?.resource_inputs ?? []).map((flow) => ({ ...flow, input: true })),
     ]
     exchanges.forEach((flow) => {
-      const key = `${flow.input}:${normalizedFlow(flow.flow)}`
+      const key = canonicalFlowKey(flow.input, flow.flow)
       const existing = flowRows.get(key) ?? { name: flow.flow, category: flow.input ? "elementary flows/resource" : "elementary flows/air", unit: flow.unit ?? "kg", upstream: 0, direct: 0, input: flow.input }
       const amount = flow.amount * scale
       existing.upstream += amount
@@ -556,7 +571,7 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
       if (!upstreamOccurrences.has(flow.process_occurrence_id)) return
       const input = flow.kind === "extraction"
       const category = `elementary flows/${flow.categories.join("/") || (input ? "resource" : "air")}`
-      const key = `${input}:${normalizedFlow(flow.flow_name)}`
+      const key = canonicalFlowKey(input, flow.flow_name)
       const existing = graphFlows.get(key) ?? {
         name: flow.flow_name,
         category,
@@ -580,9 +595,12 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
     })
   })
   calculatedFlows.forEach((flow) => {
-    const yamlKey = `${flow.input}:${normalizedFlow(flow.name)}`
+    const yamlKey = canonicalFlowKey(flow.input, flow.name)
     const existing = flowRows.get(yamlKey)
     if (existing) {
+      existing.name = flow.name
+      existing.category = flow.category
+      existing.unit = flow.unit
       existing.upstream = flow.upstream
       existing.direct = flow.direct
     } else {
@@ -595,12 +613,11 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
   if (flowIncludedIds.size === processIds.size) {
     Object.entries(result.lci).forEach(([name, value]) => {
       const input = isInventoryInput(value.type)
-      const baseName = name.split(/[|,]/)[0].trim()
-      const key = `${input}:${normalizedFlow(baseName)}`
+      const key = canonicalFlowKey(input, name)
       const existing = flowRows.get(key)
       flowRows.set(key, {
         name,
-        category: input ? "elementary flows/resource" : "elementary flows/air",
+        category: existing?.category ?? (input ? "elementary flows/resource" : "elementary flows/air"),
         unit: value.unit,
         upstream: value.amount,
         direct: existing?.direct ?? 0,
