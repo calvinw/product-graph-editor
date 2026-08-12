@@ -579,6 +579,23 @@ test("Flow and Impact Sankey process limits hide nodes from the bottom-right end
   await page.getByRole("button", { name: "Chart settings" }).click()
   await page.getByRole("radio", { name: "Flow", exact: true }).click()
 
+  const flowAssembly = page.locator(".sankey-process-node").filter({ hasText: "Jacket assembly" })
+  const flowWeaving = page.locator(".sankey-process-node").filter({ hasText: "Fabric weaving" })
+  const flowZipper = page.locator(".sankey-process-node").filter({ hasText: "Zipper production" })
+  await expect(async () => {
+    const assemblyBox = await flowAssembly.boundingBox()
+    const weavingBox = await flowWeaving.boundingBox()
+    const zipperBox = await flowZipper.boundingBox()
+    expect(assemblyBox).not.toBeNull()
+    expect(weavingBox).not.toBeNull()
+    expect(zipperBox).not.toBeNull()
+    expect(weavingBox!.y).toBeGreaterThan(assemblyBox!.y + assemblyBox!.height)
+    expect(zipperBox!.y).toBeGreaterThan(assemblyBox!.y + assemblyBox!.height)
+    expect(Math.abs(weavingBox!.y - zipperBox!.y)).toBeLessThan(2)
+  }).toPass()
+  await expect(flowAssembly.locator(".react-flow__handle-bottom.source")).toHaveCount(1)
+  await expect(flowWeaving.locator(".react-flow__handle-top.target")).toHaveCount(1)
+
   await page.getByRole("spinbutton", { name: "Maximum processes" }).fill("1")
   await expect(page.locator(".sankey-process-node")).toHaveCount(1)
   await expect(page.locator(".sankey-process-node")).toContainText("Jacket assembly")

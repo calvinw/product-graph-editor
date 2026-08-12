@@ -52,19 +52,14 @@ type SankeyProcessNodeData = {
   label: string
   direct: string
   upstream: string
-  mode: "flow" | "impact"
   orientation: "vertical" | "horizontal"
   scope: "foreground" | "background"
   pathHighlighted?: boolean
   pathDimmed?: boolean
 }
 function SankeyProcessNode({ data }: NodeProps<Node<SankeyProcessNodeData>>) {
-  const targetPosition = data.orientation === "vertical"
-    ? data.mode === "impact" ? Position.Top : Position.Bottom
-    : data.mode === "impact" ? Position.Left : Position.Right
-  const sourcePosition = data.orientation === "vertical"
-    ? data.mode === "impact" ? Position.Bottom : Position.Top
-    : data.mode === "impact" ? Position.Right : Position.Left
+  const targetPosition = data.orientation === "vertical" ? Position.Top : Position.Left
+  const sourcePosition = data.orientation === "vertical" ? Position.Bottom : Position.Right
   return <div className={`pg-node is-expanded sankey-process-node${data.pathHighlighted ? " is-path-highlighted" : ""}${data.pathDimmed ? " is-path-dimmed" : ""}`} style={{ "--node-color": nodeScopeColors[data.scope] } as React.CSSProperties}>
     <Handle type="target" position={targetPosition} />
     <div className="pg-node-head"><Component size={14} /><span className="pg-node-label">{data.label}</span><small className={`pg-node-scope is-${data.scope}`}>{data.scope}</small></div>
@@ -970,7 +965,11 @@ function SankeyView({ result, loadContributionGraphs }: {
           target: sourceDepth <= targetDepth ? edge.target : edge.source,
         }
       })
-    : result.sankey.links.filter((link) => processIds.has(link.source) && processIds.has(link.target))
+    : result.sankey.links.filter((link) => processIds.has(link.source) && processIds.has(link.target)).map((link) => ({
+        ...link,
+        source: link.target,
+        target: link.source,
+      }))
   const incoming = new Map<string, typeof links>()
   const outgoing = new Map<string, typeof links>()
   links.forEach((link) => {
@@ -1014,9 +1013,9 @@ function SankeyView({ result, loadContributionGraphs }: {
     if (visiting.has(nodeId)) return new Set()
     const next = new Set(visiting).add(nodeId)
     const processSet = new Set<string>()
-    ;(incoming.get(nodeId) ?? []).forEach((link) => {
-      processSet.add(link.source)
-      upstreamProcesses(link.source, next).forEach((id) => processSet.add(id))
+    ;(outgoing.get(nodeId) ?? []).forEach((link) => {
+      processSet.add(link.target)
+      upstreamProcesses(link.target, next).forEach((id) => processSet.add(id))
     })
     upstreamProcessMemo.set(nodeId, processSet)
     return new Set(processSet)
@@ -1042,14 +1041,10 @@ function SankeyView({ result, loadContributionGraphs }: {
   }
   const selectedTotal = mode === "impact" ? (category?.total_score ?? result.lcia[selectedImpact]?.score ?? 0) : (result.lci[selectedFlow]?.amount ?? 0)
   const totalMagnitude = Math.abs(selectedTotal)
-  const rootIds = new Set(processNodes.filter((node) => mode === "impact" && selectedContributionGraph
-    ? !(incoming.get(node.id)?.length)
-    : !(outgoing.get(node.id)?.length)).map((node) => node.id))
+  const rootIds = new Set(processNodes.filter((node) => !(incoming.get(node.id)?.length)).map((node) => node.id))
   const eligibleNodes = processNodes.filter((node) => rootIds.has(node.id) || !totalMagnitude || Math.abs(upstreamTotal(node.id) / selectedTotal * 100) >= minContribution)
   const visibleNodes = [...eligibleNodes]
-    .sort((left, right) => mode === "impact" && selectedContributionGraph
-      ? depth(right.id) - depth(left.id)
-      : depth(left.id) - depth(right.id))
+    .sort((left, right) => depth(right.id) - depth(left.id))
     .slice(0, Math.max(1, maxProcesses))
   const visibleIds = new Set(visibleNodes.map((node) => node.id))
   const visibleLinks = links.filter((link) => visibleIds.has(link.source) && visibleIds.has(link.target))
@@ -1072,9 +1067,7 @@ function SankeyView({ result, loadContributionGraphs }: {
     adjacency.set(link.source, [...(adjacency.get(link.source) ?? []), link.target])
     adjacency.set(link.target, [...(adjacency.get(link.target) ?? []), link.source])
   })
-  const productRoot = mode === "impact" && selectedContributionGraph
-    ? visibleNodes.find((node) => !(incoming.get(node.id)?.length))
-    : visibleNodes.find((node) => !(outgoing.get(node.id)?.length))
+  const productRoot = visibleNodes.find((node) => !(incoming.get(node.id)?.length))
   const laidOut = new Set<string>()
   const queue = productRoot ? [productRoot.id] : []
   if (productRoot) laidOut.add(productRoot.id)
@@ -1096,7 +1089,7 @@ function SankeyView({ result, loadContributionGraphs }: {
     const position = layoutGraph.node(node.id)
     positions.set(node.id, { x: position.x - nodeWidth / 2, y: position.y - nodeHeight / 2 })
   })
-  if (orientation === "vertical" && mode === "impact" && selectedContributionGraph && productRoot) {
+  if (orientation === "vertical" && productRoot) {
     const rankById = new Map<string, number>([[productRoot.id, 0]])
     const rankQueue = [productRoot.id]
     while (rankQueue.length) {
@@ -1145,7 +1138,6 @@ function SankeyView({ result, loadContributionGraphs }: {
         if (childPosition) positions.set(immediateChildren[0], {
           ...childPosition,
           x: centeredX,
-          y: rootPosition.y + nodeHeight + 110,
         })
       }
     }
@@ -1165,14 +1157,13 @@ function SankeyView({ result, loadContributionGraphs }: {
         label: node.label,
         direct: `Direct (${ownPercentage === null || ownPercentage === undefined ? "—" : formatPercent(ownPercentage)}): ${format(own)} ${unit}`,
         upstream: `Upstream (${formatPercent(percentage(total))}): ${format(total)} ${unit}`,
-        mode,
         orientation,
         scope: node.scope ?? "foreground",
       },
     }
   })
   const sankeyEdges: Edge[] = visibleLinks.map((link) => {
-    const value = upstreamTotal(link.source)
+    const value = upstreamTotal(link.target)
     return {
       id: link.id,
       source: link.source,
