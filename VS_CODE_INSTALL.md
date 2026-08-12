@@ -109,8 +109,8 @@ When initialization finishes, the lower-left corner of VS Code should indicate t
 Open a new VS Code terminal and run:
 
 ```bash
-ls -la .devcontainer configs .skillshare
-skillshare --version
+ls -la .devcontainer configs .agents/skills .claude/skills
+npx --no-install skills list
 ```
 
 To rerun everything in a clean container later, open the Command Palette with `Cmd+Shift+P` and select **Dev Containers: Rebuild and Reopen in Container**.

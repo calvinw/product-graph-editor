@@ -1,11 +1,11 @@
 {
+  "name": "Product Graph Editor",
   "image": "ghcr.io/calvinw/ai-course-devcontainer:latest",
-  "postCreateCommand": {
-    "agent-tooling": "setup-env.sh && install-mcps.sh && setup-skills.sh && sync-skills.sh",
-    "application": "npm install && npx playwright install --with-deps chromium"
-  },
+  "postCreateCommand": "scripts/post-create.sh",
   "secrets": {
-    "STITCH_API_KEY": "STITCH_API_KEY"
+    "STITCH_API_KEY": {
+      "description": "Optional API key for the Stitch MCP server."
+    }
   },
   "customizations": {
     "vscode": {
