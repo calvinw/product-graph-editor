@@ -6,8 +6,7 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/")
 })
 
-test("graph controls, settings, and node inspector remain reachable", async ({ page }, testInfo) => {
-  test.fixme(testInfo.project.name === "phone", "Graph settings extend past the phone viewport.")
+test("graph controls, settings, and node inspector remain reachable", async ({ page }) => {
   await expectInsideViewport(page.locator(".graph-toolbar"), page)
   await expectInsideViewport(page.locator(".graph-search"), page)
 
@@ -20,8 +19,7 @@ test("graph controls, settings, and node inspector remain reachable", async ({ p
   await expect(page.getByRole("button", { name: "Close property editor" })).toBeVisible()
 })
 
-test("editor actions and source remain reachable", async ({ page }, testInfo) => {
-  test.fixme(testInfo.project.name === "phone", "The primary view switcher extends past the phone viewport.")
+test("editor actions and source remain reachable", async ({ page }) => {
   await page.getByRole("radio", { name: "Editor", exact: true }).click()
 
   await expectInsideViewport(page.locator(".yaml-editor"), page)
@@ -50,18 +48,13 @@ test("analysis views contain their tables without page overflow", async ({ page 
   }
 })
 
-test("global settings remain reachable", async ({ page }, testInfo) => {
-  test.fixme(
-    ["phone", "tablet-portrait"].includes(testInfo.project.name),
-    "The global settings trigger is hidden at widths up to 900px.",
-  )
+test("global settings remain reachable", async ({ page }) => {
   await page.getByRole("button", { name: "Global settings" }).click()
   await expectInsideViewport(page.locator(".global-settings-panel"), page)
   await page.getByRole("button", { name: "Close global settings" }).click()
 })
 
-test("Sankey chart and settings remain reachable", async ({ page }, testInfo) => {
-  test.fixme(testInfo.project.name === "phone", "The result view switcher extends past the phone viewport.")
+test("Sankey chart and settings remain reachable", async ({ page }) => {
   await calculate(page)
   await page.getByRole("radio", { name: "Sankey Graph", exact: true }).click()
   await expectInsideViewport(page.locator(".sankey-view"), page)

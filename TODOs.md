@@ -29,10 +29,10 @@ Do not add tablet-landscape or large-desktop projects unless the testing contrac
 
 - Build: passes, with Vite's existing large-chunk advisory
 - Lint: passes
-- Responsive: 16 passed, 5 intentionally skipped
+- Responsive: 21 passed, 0 skipped
 - Visual: 20 passed, 5 accepted failures
 
-The visual suite currently exits nonzero because of the five failures recorded in `plan/responsive-baseline.md`. Responsive work must not introduce a new failure or change or expand an accepted failure.
+The visual suite currently exits nonzero because of the five failures recorded in `plan/responsive-baseline.md`. Responsive work must not introduce a new failure or change or expand an accepted failure. The original five responsive workflow skips have been removed after the shell, settings, editor, graph settings, and Sankey settings workflows passed at all supported viewports.
 
 ## Working rules
 

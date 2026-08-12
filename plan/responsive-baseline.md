@@ -33,7 +33,7 @@ Infrastructure failures such as a missing browser executable or shared library a
 | `npm run build` | Pass | Vite reports the existing large-chunk advisory. |
 | `npm run lint` | Pass | Zero warnings allowed. |
 | `npm run test:visual` | 20 passed, 5 failed | 25 tests, one Chromium worker. |
-| `npm run test:responsive` | 16 passed, 5 skipped | Three viewport projects; skipped contracts identify the known phone and tablet blockers in `plan/responsive-audit.md`. |
+| `npm run test:responsive` | 21 passed, 0 skipped | Three viewport projects; the previously skipped phone and tablet workflow contracts now pass. |
 
 The production build contains no `react-grab` or `React Grab` marker; the source-context helper is development-only.
 

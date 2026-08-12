@@ -2335,7 +2335,7 @@ function AppContent() {
     <TooltipProvider delayDuration={250}>
       <main className={`app-shell theme-${theme}`}>
         <header className="topbar">
-          <div className="brand"><div className="brand-mark"><Share2 size={16} /></div><span>PRISM Life Cycle Assessment</span><span className="brand-separator">·</span><h1 className="brand-study-title">{workspaceTitle}</h1></div>
+          <div className="brand"><div className="brand-mark"><Share2 size={16} /></div><span className="brand-product-name">PRISM Life Cycle Assessment</span><span className="brand-separator">·</span><h1 className="brand-study-title">{workspaceTitle}</h1></div>
           <div className="top-actions">
             <Popover modal open={settingsOpen} onOpenChange={setSettingsOpen}>
               <PopoverTrigger asChild>
