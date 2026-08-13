@@ -860,7 +860,7 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
   const graphNodeCumulativeScore = (node: ContributionGraphNode) => contributionMode === "flow" ? flowCumulativeScore(node.id) : node.cumulative_score
   const renderGraphProcesses = (items: ContributionGraphNode[], depth = 0): React.ReactNode[] => items.flatMap((node) => {
     const children = graphChildren.get(node.id) ?? []
-    const isOpen = !expandedProcesses.has(node.id)
+    const isOpen = expandedProcesses.has(node.id)
     const directScore = contributionMode === "flow" ? flowDirectScore(node.id) : node.direct_score
     const cumulativeScore = graphNodeCumulativeScore(node)
     const contributionRate = displayedTotal ? cumulativeScore / displayedTotal * 100 : null
