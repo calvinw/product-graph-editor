@@ -14,6 +14,14 @@
       "deviceType": "DESKTOP",
       "type": "DESIGN",
       "source": ".stitch/designs/product-graph-editor-navbar-source.html"
+    },
+    {
+      "screenId": "5e1adf19a3684087b6513c09bc2d616a",
+      "title": "PRISM — Navigation Refinement (V2)",
+      "deviceType": "DESKTOP",
+      "type": "DESIGN",
+      "source": ".stitch/designs/prism-navigation-refinement-v2.html",
+      "screenshot": ".stitch/designs/prism-navigation-refinement-v2.png"
     }
   ],
   "designSystem": {
