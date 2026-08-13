@@ -4,6 +4,7 @@ import { calculate, expectInsideViewport, mockLcaApi, openAnalysisView, pageMetr
 test.beforeEach(async ({ page }) => {
   await mockLcaApi(page)
   await page.goto("/")
+  await page.getByRole("button", { name: "Explore PRISM" }).click()
 })
 
 test("graph controls, settings, and node inspector remain reachable", async ({ page }) => {

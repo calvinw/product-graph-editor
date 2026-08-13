@@ -62,6 +62,11 @@ async function mockLcaApi(
   })
 }
 
+async function openWorkspace(page: Page) {
+  await page.goto("/")
+  await page.getByRole("button", { name: "Explore PRISM" }).click()
+}
+
 async function settle(page: Page) {
   await page.waitForTimeout(250)
 }
@@ -91,7 +96,7 @@ async function calculate(page: Page) {
 
 test("manual YAML changes must be calculated or discarded before navigation", async ({ page }) => {
   await mockLcaApi(page)
-  await page.goto("/")
+  await openWorkspace(page)
   await calculate(page)
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   await expect(page.locator(".react-flow__node")).toHaveCount(5)
@@ -146,7 +151,7 @@ test("manual YAML changes must be calculated or discarded before navigation", as
 
 test("Paste YAML opens a blank custom editor and calculates the pasted source", async ({ page }) => {
   await mockLcaApi(page)
-  await page.goto("/")
+  await openWorkspace(page)
   await calculate(page)
 
   await page.getByRole("radio", { name: "Editor", exact: true }).click()
@@ -196,7 +201,7 @@ test("a calculation for an older applied revision cannot populate results", asyn
     await route.abort("blockedbyclient")
   })
 
-  await page.goto("/")
+  await openWorkspace(page)
   await calculationRequested
 
   await page.getByRole("radio", { name: "Editor", exact: true }).click()
@@ -218,7 +223,7 @@ test("a calculation for an older applied revision cannot populate results", asyn
 
 test("toolbar tooltips open from keyboard focus and pointer input", async ({ page }) => {
   await mockLcaApi(page)
-  await page.goto("/")
+  await openWorkspace(page)
   await calculate(page)
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   const graphSettings = page.getByRole("button", { name: "Graph settings" })
@@ -236,7 +241,7 @@ test("toolbar tooltips open from keyboard focus and pointer input", async ({ pag
 
 test("graph toolbar expands and collapses all activities", async ({ page }) => {
   await mockLcaApi(page)
-  await page.goto("/")
+  await openWorkspace(page)
   await expect(page.locator(".react-flow__node")).toHaveCount(5)
 
   await page.getByRole("button", { name: "Expand all activities" }).click()
@@ -248,7 +253,7 @@ test("graph toolbar expands and collapses all activities", async ({ page }) => {
 
 test("primary and result view switchers support arrow-key navigation", async ({ page }) => {
   await mockLcaApi(page)
-  await page.goto("/")
+  await openWorkspace(page)
   await calculate(page)
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
 
@@ -272,7 +277,7 @@ test("primary and result view switchers support arrow-key navigation", async ({ 
 
 test("theme, analysis, and Sankey selection groups support keyboard navigation", async ({ page }) => {
   await mockLcaApi(page)
-  await page.goto("/")
+  await openWorkspace(page)
 
   await page.getByRole("button", { name: "Global settings" }).click()
   const darkTheme = page.getByRole("radio", { name: "Dark", exact: true })
@@ -305,7 +310,7 @@ test("theme, analysis, and Sankey selection groups support keyboard navigation",
 
 test("form controls preserve selection, clamping, and disabled behavior", async ({ page }) => {
   await mockLcaApi(page)
-  await page.goto("/")
+  await openWorkspace(page)
   await calculate(page)
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
 
@@ -361,7 +366,7 @@ test("form controls preserve selection, clamping, and disabled behavior", async 
 
 test("settings popovers dismiss predictably and restore trigger focus", async ({ page }) => {
   await mockLcaApi(page)
-  await page.goto("/")
+  await openWorkspace(page)
   await calculate(page)
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
 
@@ -401,7 +406,7 @@ test("process results show calculated upstream outputs", async ({ page }) => {
     },
   }
   await mockLcaApi(page, resultWithBackgroundOutput)
-  await page.goto("/")
+  await openWorkspace(page)
   await calculate(page)
 
   await page.getByRole("radio", { name: "Process Results", exact: true }).click()
@@ -421,7 +426,7 @@ test("process results show calculated upstream outputs", async ({ page }) => {
 
 test("process result sections select processes independently", async ({ page }) => {
   await mockLcaApi(page)
-  await page.goto("/")
+  await openWorkspace(page)
   await calculate(page)
   await page.getByRole("radio", { name: "Process Results", exact: true }).click()
 
@@ -438,7 +443,7 @@ test("process result sections select processes independently", async ({ page }) 
 
 test("all result tables expose working column resize handles", async ({ page }) => {
   await mockLcaApi(page)
-  await page.goto("/")
+  await openWorkspace(page)
   await calculate(page)
 
   const views = [
@@ -466,7 +471,7 @@ test("all result tables expose working column resize handles", async ({ page }) 
 
 test("contribution table columns support accessible keyboard resizing and horizontal scrolling", async ({ page }) => {
   await mockLcaApi(page)
-  await page.goto("/")
+  await openWorkspace(page)
   await calculate(page)
   await page.getByRole("radio", { name: "Contribution", exact: true }).click()
 
@@ -485,7 +490,7 @@ test("contribution table columns support accessible keyboard resizing and horizo
 
 test("impact contributions show process direct and accumulated results without emission details", async ({ page }) => {
   await mockLcaApi(page)
-  await page.goto("/")
+  await openWorkspace(page)
   await calculate(page)
   await page.getByRole("radio", { name: "Contribution", exact: true }).click()
 
@@ -501,7 +506,7 @@ test("impact contributions show process direct and accumulated results without e
 
 test("every analysis table exposes accessible column resize controls", async ({ page }) => {
   await mockLcaApi(page)
-  await page.goto("/")
+  await openWorkspace(page)
   await calculate(page)
 
   await page.getByRole("radio", { name: "Inventory", exact: true }).click()
@@ -520,7 +525,7 @@ test("every analysis table exposes accessible column resize controls", async ({ 
 
 test("Flow and Impact Sankey process limits hide nodes from the bottom-right end", async ({ page }) => {
   await mockLcaApi(page)
-  await page.goto("/")
+  await openWorkspace(page)
   await calculate(page)
   await page.getByRole("radio", { name: "Sankey Graph", exact: true }).click()
   await page.getByRole("button", { name: "Chart settings" }).click()
@@ -542,7 +547,7 @@ test("Flow and Impact Sankey process limits hide nodes from the bottom-right end
 test("cumulative contribution graphs load only when an analysis pane opens", async ({ page }) => {
   const contributionRequests: string[][] = []
   await mockLcaApi(page, lcaResultFixture, (categories) => contributionRequests.push(categories))
-  await page.goto("/")
+  await openWorkspace(page)
   await calculate(page)
 
   expect(contributionRequests).toHaveLength(0)
@@ -558,7 +563,7 @@ test("cumulative contribution graphs load only when an analysis pane opens", asy
 
 test("Results shows progress during lazy contribution calculations", async ({ page }) => {
   await mockLcaApi(page, lcaResultFixture, undefined, 600)
-  await page.goto("/")
+  await openWorkspace(page)
   await calculate(page)
 
   await page.getByRole("radio", { name: "Impact Analysis", exact: true }).click()
@@ -568,7 +573,7 @@ test("Results shows progress during lazy contribution calculations", async ({ pa
 
 test("Sankey starts in Impact mode without briefly rendering the Flow graph", async ({ page }) => {
   await mockLcaApi(page, lcaResultFixture, undefined, 600)
-  await page.goto("/")
+  await openWorkspace(page)
   await calculate(page)
   await page.getByRole("radio", { name: "Sankey Graph", exact: true }).click()
 
@@ -581,7 +586,7 @@ test("Sankey starts in Impact mode without briefly rendering the Flow graph", as
 
 test("Structure Graph is the default and Scaled Graph is enabled after the LCA finishes", async ({ page }) => {
   await mockLcaApi(page, lcaResultFixture, undefined, 0, 600)
-  await page.goto("/")
+  await openWorkspace(page)
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
 
   const scaledGraph = page.getByRole("button", { name: "Scaled Graph" })
@@ -599,7 +604,7 @@ test("Structure Graph is the default and Scaled Graph is enabled after the LCA f
 
 test("opening the inspector keeps the selected jacket node visible", async ({ page }) => {
   await mockLcaApi(page)
-  await page.goto("/")
+  await openWorkspace(page)
   await expect(page.locator(".react-flow__node")).toHaveCount(5)
 
   const jacketNode = page.locator(".react-flow__node").last()
@@ -616,7 +621,7 @@ test("opening the inspector keeps the selected jacket node visible", async ({ pa
 
 test("find node stays beside the graph toolbar when the inspector opens", async ({ page }) => {
   await mockLcaApi(page)
-  await page.goto("/")
+  await openWorkspace(page)
 
   const toolbar = page.locator(".graph-toolbar")
   const search = page.getByRole("textbox", { name: "Find a node" }).locator("..")
@@ -637,7 +642,7 @@ test("find node stays beside the graph toolbar when the inspector opens", async 
 
 test("opening the property editor preserves the graph viewport", async ({ page }) => {
   await mockLcaApi(page)
-  await page.goto("/")
+  await openWorkspace(page)
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   await expect(page.locator(".react-flow__node")).not.toHaveCount(0)
 
@@ -660,7 +665,7 @@ test("opening the property editor preserves the graph viewport", async ({ page }
 for (const theme of ["dark", "light"] as const) {
   test(`${theme} application views`, async ({ page }) => {
     await mockLcaApi(page)
-    await page.goto("/")
+    await openWorkspace(page)
     await calculate(page)
     await page.getByRole("radio", { name: "Graph", exact: true }).click()
     await expect(page.locator(".react-flow__node")).toHaveCount(5)
