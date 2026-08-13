@@ -552,6 +552,36 @@ test("contribution tree can show elementary flow contributions", async ({ page }
   await expect(assembly.locator("td").nth(5)).toHaveText("kg")
 })
 
+test("top contribution process shows its cumulative 100 percent share", async ({ page }) => {
+  const cumulativeRootResult = {
+    ...lcaResultFixture,
+    contribution_graphs: lcaResultFixture.contribution_graphs.map((graph) => ({
+      ...graph,
+      nodes: graph.nodes.map((node) => node.process_name.includes("Jacket assembly") ? {
+        ...node,
+        cumulative_score: graph.total_score,
+        cumulative_percentage: 100,
+      } : node),
+    })),
+  }
+  await mockLcaApi(page, cumulativeRootResult)
+  await page.goto("/")
+  await calculate(page)
+  await page.getByRole("radio", { name: "Contribution", exact: true }).click()
+
+  const topProcess = page.locator(".contribution-process-row").first()
+  await expect(topProcess.locator("td").first()).toContainText("100.000000%")
+  await expect(topProcess.locator("td").nth(1)).not.toContainText("100.000000%")
+  await expect(page.getByRole("separator", { name: "Resize Contribution column" })).toHaveAttribute("aria-valuenow", "190")
+  await expect(page.getByRole("separator", { name: "Resize Direct Contribution % column" })).toHaveAttribute("aria-valuenow", "170")
+  await expect(page.getByRole("separator", { name: "Resize Direct contribution column" })).toHaveAttribute("aria-valuenow", "190")
+  await expect(page.getByRole("separator", { name: "Resize Accumulated contribution column" })).toHaveAttribute("aria-valuenow", "250")
+  await expect.poll(() => topProcess.locator("td").evaluateAll((cells) => cells.every((cell) => cell.scrollWidth <= cell.clientWidth))).toBe(true)
+
+  await page.getByRole("radio", { name: "Flows", exact: true }).click()
+  await expect(page.locator(".contribution-process-row").first().locator("td").first()).toContainText("100.000000%")
+})
+
 test("every analysis table exposes accessible column resize controls", async ({ page }) => {
   await mockLcaApi(page)
   await page.goto("/")
