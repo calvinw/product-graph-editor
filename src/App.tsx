@@ -2113,6 +2113,19 @@ function GraphEditor({ onTitleChange, navbarTarget }: { onTitleChange: (title: s
   return (
     <>
       {navbarTarget ? createPortal(<div className="desktop-navbar" aria-label="Application navigation">
+        <label className="case-study-select navbar-product-select"><span className="sr-only">LCA File</span><AppSelect
+          value={selectedProductGraph}
+          onValueChange={(value) => !["custom", "loading", "unavailable"].includes(value) && loadProductGraph(value)}
+          label="Choose a product graph"
+          options={productGraphs.length ? [
+            ...productGraphs.map((item) => ({ value: item.id, label: productGraphLabel(item.name) })),
+            ...(selectedProductGraph === "custom" ? [{ value: "custom", label: customYamlLabel, disabled: true }] : []),
+          ] : [{
+            value: selectedProductGraph,
+            label: selectedProductGraph === "unavailable" ? "Catalog unavailable" : "Loading catalog…",
+            disabled: true,
+          }]}
+        /></label>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button className="navbar-menu-trigger" variant="ghost" size="sm">File<ChevronDown data-icon="inline-end" /></Button>
@@ -2151,20 +2164,6 @@ function GraphEditor({ onTitleChange, navbarTarget }: { onTitleChange: (title: s
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
-        <div className="navbar-product-divider" aria-hidden="true" />
-        <label className="case-study-select navbar-product-select"><span>LCA File</span><AppSelect
-          value={selectedProductGraph}
-          onValueChange={(value) => !["custom", "loading", "unavailable"].includes(value) && loadProductGraph(value)}
-          label="Choose a product graph"
-          options={productGraphs.length ? [
-            ...productGraphs.map((item) => ({ value: item.id, label: productGraphLabel(item.name) })),
-            ...(selectedProductGraph === "custom" ? [{ value: "custom", label: customYamlLabel, disabled: true }] : []),
-          ] : [{
-            value: selectedProductGraph,
-            label: selectedProductGraph === "unavailable" ? "Catalog unavailable" : "Loading catalog…",
-            disabled: true,
-          }]}
-        /></label>
         {calculationInProgress ? <span className="calculation-message navbar-status" role="status" aria-label="LCA calculation in progress">Calculating…</span>
           : backgroundProcessing ? <span className="calculation-message navbar-status" role="status" aria-label="Background graph processing">Processing…</span> : null}
       </div>, navbarTarget) : null}

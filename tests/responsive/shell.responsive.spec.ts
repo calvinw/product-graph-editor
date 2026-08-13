@@ -7,7 +7,11 @@ test.beforeEach(async ({ page }) => {
 })
 
 test("application shell and primary graph controls load", async ({ page }) => {
-  await expect(page.getByRole("heading", { name: "Jacket" })).toBeVisible()
+  if ((page.viewportSize()?.width ?? 0) > 900) {
+    await expect(page.getByText("PRISM Life Cycle Assessment", { exact: true })).toBeVisible()
+  } else {
+    await expect(page.getByRole("heading", { name: "Jacket" })).toBeVisible()
+  }
   await expect(page.getByRole("combobox", { name: "Choose a product graph" })).toBeVisible()
   await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeVisible()
   await expect(page.getByRole("radio", { name: "Editor", exact: true })).toBeVisible()
