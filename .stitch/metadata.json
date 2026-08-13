@@ -22,6 +22,14 @@
       "type": "DESIGN",
       "source": ".stitch/designs/prism-navigation-refinement-v2.html",
       "screenshot": ".stitch/designs/prism-navigation-refinement-v2.png"
+    },
+    {
+      "screenId": "1083671c2cb4496f908dcc35939dcd7f",
+      "title": "PRISM — Elegant Navigation Refinement",
+      "deviceType": "DESKTOP",
+      "type": "DESIGN",
+      "source": ".stitch/designs/prism-elegant-navigation-refinement.html",
+      "screenshot": ".stitch/designs/prism-elegant-navigation-refinement.png"
     }
   ],
   "designSystem": {

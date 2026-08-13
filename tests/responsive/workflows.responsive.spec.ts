@@ -56,6 +56,15 @@ test("analysis views contain their tables without page overflow", async ({ page 
   for (const view of views) {
     await openAnalysisView(page, view.name)
     await expectInsideViewport(page.locator(view.root), page)
+    if ((page.viewportSize()?.width ?? 0) > 900) {
+      const [navbarBox, viewBox] = await Promise.all([
+        page.locator(".topbar").boundingBox(),
+        page.locator(view.root).boundingBox(),
+      ])
+      expect(navbarBox).not.toBeNull()
+      expect(viewBox).not.toBeNull()
+      if (navbarBox && viewBox) expect(viewBox.y).toBeGreaterThanOrEqual(navbarBox.y + navbarBox.height + 16)
+    }
     await expect(page.locator(view.tableWrap).first()).toBeVisible()
     const metrics = await pageMetrics(page)
     expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth)
