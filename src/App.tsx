@@ -10,7 +10,7 @@ import "@xyflow/react/dist/style.css"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import {
-  BarChart3, Box, Component, Scan, LayoutGrid, ChevronDown, Download, Factory, FileCode2, Leaf,
+  BarChart3, Box, Component, Scan, LayoutGrid, ChevronDown, Download, Factory, FileCode2, Globe2, Leaf,
   ChevronsDownUp, ChevronsUpDown, ClipboardPaste, FileUp, Minus, Moon, MousePointer2, Plus, Search, Settings2, Share2, Sun, X,
 } from "lucide-react"
 import { parse } from "yaml"
@@ -2410,12 +2410,12 @@ function AppContent() {
     <TooltipProvider delayDuration={250}>
       <main className={`app-shell theme-${theme}`}>
         <header className="topbar">
-          <div className="brand"><div className="brand-mark"><Share2 size={16} /></div><span className="brand-product-name">PRISM Life Cycle Assessment</span><span className="brand-separator">·</span><h1 className="brand-study-title">{workspaceTitle}</h1></div>
+          <div className="brand"><div className="brand-mark"><Share2 size={16} /></div><span className="brand-product-name"><span>PRISM</span><span className="brand-product-descriptor"> Life Cycle Assessment</span></span><span className="brand-separator">·</span><h1 className="brand-study-title">{workspaceTitle}</h1></div>
           <div ref={setNavbarTarget} className="navbar-portal-target" />
           <div className="top-actions">
             <Popover modal open={settingsOpen} onOpenChange={setSettingsOpen}>
               <PopoverTrigger asChild>
-                <Button variant="ghost" className={`global-settings-trigger ${settingsOpen ? "is-active" : ""}`} type="button" aria-label="Global settings"><Settings2 size={16} /><span>Settings</span></Button>
+                <Button variant="ghost" className={`global-settings-trigger ${settingsOpen ? "is-active" : ""}`} type="button" aria-label="Global settings"><Globe2 size={16} /><span>Settings</span></Button>
               </PopoverTrigger>
               <PopoverContent className="global-settings-panel" side="bottom" align="end" sideOffset={3}>
                 <div className="global-settings-title"><div><Settings2 size={15} /><span>Global settings</span></div><Button variant="ghost" size="icon" type="button" onClick={() => setSettingsOpen(false)} aria-label="Close global settings"><X size={15} /></Button></div>
