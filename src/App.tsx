@@ -9,9 +9,10 @@ import {
 import "@xyflow/react/dist/style.css"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import prismLogoRound from "./assets/prism-logo-round.png"
 import {
   BarChart3, Box, Component, Scan, LayoutGrid, ChevronDown, Download, Factory, FileCode2, Globe2, Leaf,
-  ChevronsDownUp, ChevronsUpDown, ClipboardPaste, FileUp, Minus, Moon, MousePointer2, Plus, Search, Settings2, Share2, Sun, X,
+  ChevronsDownUp, ChevronsUpDown, ClipboardPaste, FileUp, Minus, Moon, MousePointer2, Plus, Search, Settings2, Sun, X,
 } from "lucide-react"
 import { parse } from "yaml"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -2410,7 +2411,7 @@ function AppContent() {
     <TooltipProvider delayDuration={250}>
       <main className={`app-shell theme-${theme}`}>
         <header className="topbar">
-          <div className="brand"><div className="brand-mark"><Share2 size={16} /></div><span className="brand-product-name"><span>PRISM</span><span className="brand-product-descriptor"> Life Cycle Assessment</span></span><span className="brand-separator">·</span><h1 className="brand-study-title">{workspaceTitle}</h1></div>
+          <div className="brand"><div className="brand-mark"><img src={prismLogoRound} alt="" aria-hidden="true" /></div><span className="brand-product-name"><span>PRISM</span><span className="brand-product-descriptor"> Life Cycle Assessment</span></span><span className="brand-separator">·</span><h1 className="brand-study-title">{workspaceTitle}</h1></div>
           <div ref={setNavbarTarget} className="navbar-portal-target" />
           <div className="top-actions">
             <Popover modal open={settingsOpen} onOpenChange={setSettingsOpen}>
