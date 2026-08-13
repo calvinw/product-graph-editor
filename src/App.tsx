@@ -742,7 +742,7 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
   const [impact, setImpact] = useState("")
   const [flow, setFlow] = useState("")
   const [expandedProcesses, setExpandedProcesses] = useState<Set<string>>(() => new Set())
-  const [columnWidths, setColumnWidths] = useState([130, 150, 320, 180, 220, 150])
+  const [columnWidths, setColumnWidths] = useState([190, 170, 320, 190, 250, 140])
 
   const impactNames = result ? Object.keys(result.lcia) : []
   const defaultImpact = impactNames.find((name) => impactCategoryAbbreviation(name).replaceAll(/\s+/g, "").toUpperCase() === "GWP100")
@@ -824,7 +824,7 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
       .sort((left, right) => Math.abs(rolledUpValue(right)) - Math.abs(rolledUpValue(left)))
     const canExpand = upstream.length > 0
     const isOpen = expandedProcesses.has(row.name)
-    const displayedValue = canExpand && !isOpen ? rolledUpValue(row) : ownValue(row)
+    const displayedValue = rolledUpValue(row)
     const contributionRate = total ? displayedValue / total * 100 : 0
     const directPercent = total ? row.total / total * 100 : 0
     const processRow = <tr key={`${row.name}-${depth}-${index}`} className={canExpand ? "clickable-process" : ""} onClick={canExpand ? () => toggleProcess(row.name) : undefined}>
@@ -863,9 +863,7 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
     const isOpen = !expandedProcesses.has(node.id)
     const directScore = contributionMode === "flow" ? flowDirectScore(node.id) : node.direct_score
     const cumulativeScore = graphNodeCumulativeScore(node)
-    const childCumulativeScore = children.reduce((sum, child) => sum + graphNodeCumulativeScore(child), 0)
-    const displayedScore = children.length && isOpen ? cumulativeScore - childCumulativeScore : cumulativeScore
-    const contributionRate = displayedTotal ? displayedScore / displayedTotal * 100 : null
+    const contributionRate = displayedTotal ? cumulativeScore / displayedTotal * 100 : null
     const percent = displayedTotal ? cumulativeScore / displayedTotal * 100 : null
     const directPercent = displayedTotal ? directScore / displayedTotal * 100 : null
     const row = <tr key={node.id} className={children.length ? "clickable-process contribution-process-row" : "contribution-process-row"} onClick={children.length ? () => toggleProcess(node.id) : undefined}>
