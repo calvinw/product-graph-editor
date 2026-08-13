@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>PRISM Welcome</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;620;650;750&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-muted": "#1a1d22",
+                      "inverse-surface": "#e2e2e9",
+                      "surface": "#111318",
+                      "surface-tint": "#d0bcff",
+                      "surface-container": "#1e2025",
+                      "tertiary-fixed": "#c4e7ff",
+                      "surface-container-highest": "#33353a",
+                      "outline": "#282c33",
+                      "on-error": "#690005",
+                      "on-secondary-fixed": "#07006c",
+                      "inverse-on-surface": "#2e3036",
+                      "on-secondary": "#1000a9",
+                      "tertiary-fixed-dim": "#7bd0ff",
+                      "outline-variant": "#494454",
+                      "surface-bright": "#37393f",
+                      "on-primary-fixed": "#23005c",
+                      "on-primary": "#3c0091",
+                      "inverse-primary": "#6d3bd7",
+                      "error": "#ffb4ab",
+                      "primary-fixed-dim": "#d0bcff",
+                      "tertiary-container": "#009bd1",
+                      "primary-container": "#a078ff",
+                      "on-error-container": "#ffdad6",
+                      "graph-edge": "#2563eb",
+                      "surface-active": "#292d35",
+                      "positive": "#22c55e",
+                      "on-secondary-container": "#b0b2ff",
+                      "warning": "#fbbf24",
+                      "tertiary": "#7bd0ff",
+                      "background": "#111318",
+                      "canvas": "#0b0d10",
+                      "secondary": "#c0c1ff",
+                      "destructive": "#fb7185",
+                      "text-primary": "#f4f4f5",
+                      "on-tertiary-fixed": "#001e2c",
+                      "surface-dim": "#111318",
+                      "primary": "#d0bcff",
+                      "on-primary-fixed-variant": "#5516be",
+                      "on-surface-variant": "#cbc3d7",
+                      "on-tertiary-fixed-variant": "#004c69",
+                      "on-secondary-fixed-variant": "#2f2ebe",
+                      "outline-strong": "#343944",
+                      "surface-raised": "#171a20",
+                      "surface-container-low": "#1a1b21",
+                      "surface-container-high": "#282a2f",
+                      "secondary-container": "#3131c0",
+                      "error-container": "#93000a",
+                      "process-foreground": "#a78bfa",
+                      "primary-fixed": "#e9ddff",
+                      "on-surface": "#e2e2e9",
+                      "surface-container-lowest": "#0c0e13",
+                      "secondary-fixed": "#e1e0ff",
+                      "on-tertiary": "#00354a",
+                      "surface-variant": "#33353a",
+                      "text-secondary": "#9298a3",
+                      "on-primary-container": "#340080",
+                      "on-background": "#e2e2e9",
+                      "on-tertiary-container": "#002d40",
+                      "secondary-fixed-dim": "#c0c1ff",
+                      "bg-deep": "#090b0e"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "regular": "12px",
+                      "section-gap": "28px",
+                      "inspector-width": "286px",
+                      "layout-gap": "22px",
+                      "compact": "8px",
+                      "panel-inset": "18px",
+                      "unit": "4px",
+                      "topbar-height": "58px"
+              },
+              "fontFamily": {
+                      "body": [
+                              "Inter"
+                      ],
+                      "table-header": [
+                              "Inter"
+                      ],
+                      "panel-title": [
+                              "Inter"
+                      ],
+                      "control": [
+                              "Inter"
+                      ],
+                      "code": [
+                              "jetbrainsMono"
+                      ],
+                      "view-title": [
+                              "Inter"
+                      ],
+                      "section-title": [
+                              "Inter"
+                      ],
+                      "overline": [
+                              "Inter"
+                      ],
+                      "page-title": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "body": [
+                              "12px",
+                              {
+                                      "lineHeight": "18px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "table-header": [
+                              "10px",
+                              {
+                                      "lineHeight": "12px",
+                                      "fontWeight": "650"
+                              }
+                      ],
+                      "panel-title": [
+                              "19px",
+                              {
+                                      "lineHeight": "24px",
+                                      "letterSpacing": "-0.025em",
+                                      "fontWeight": "650"
+                              }
+                      ],
+                      "control": [
+                              "11px",
+                              {
+                                      "lineHeight": "14px",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "code": [
+                              "12px",
+                              {
+                                      "lineHeight": "1.6",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "view-title": [
+                              "15px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "650"
+                              }
+                      ],
+                      "section-title": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "fontWeight": "650"
+                              }
+                      ],
+                      "overline": [
+                              "9px",
+                              {
+                                      "lineHeight": "12px",
+                                      "letterSpacing": "0.09em",
+                                      "fontWeight": "750"
+                              }
+                      ],
+                      "page-title": [
+                              "22px",
+                              {
+                                      "lineHeight": "28px",
+                                      "letterSpacing": "-0.035em",
+                                      "fontWeight": "620"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        .graph-bg {
+            background-image: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 22px 22px;
+        }
+        .glow-effect {
+            box-shadow: 0 0 40px rgba(139, 92, 246, 0.15);
+        }
+        
+        .mouse-light {
+            pointer-events: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.08) 0%, transparent 60%);
+            transform: translate(-50%, -50%);
+            z-index: 0;
+            transition: opacity 0.3s;
+            opacity: 0;
+        }
+
+        .holographic-node {
+            background: rgba(17, 19, 24, 0.25);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(167, 139, 250, 0.2);
+            box-shadow: 0 0 20px rgba(167, 139, 250, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .holographic-node:hover {
+            border-color: rgba(56, 189, 248, 0.5);
+            box-shadow: 0 0 30px rgba(167, 139, 250, 0.25);
+        }
+
+        @keyframes pulse-path {
+            0% { stroke-dashoffset: 20; opacity: 0.4; }
+            50% { opacity: 1; }
+            100% { stroke-dashoffset: 0; opacity: 0.4; }
+        }
+
+        .animated-path {
+            animation: pulse-path 3s linear infinite;
+        }
+
+        .gradient-text {
+            background: linear-gradient(to right, #ffffff, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+<body class="bg-bg-deep text-text-primary font-body antialiased min-h-screen flex items-center justify-center p-panel-inset relative overflow-hidden" id="workspace-body">
+<div class="mouse-light" id="cursor-light" style="opacity: 0; left: 606px; top: 693px;"></div>
+<div class="w-full max-w-6xl rounded-xl border border-white/10 overflow-hidden flex flex-col md:flex-row h-[716px] min-h-[500px] shadow-2xl relative graph-bg bg-surface/40 backdrop-blur-[24px]">
+<!-- Prism Refraction Effect -->
+<div class="absolute inset-0 pointer-events-none" style="background: radial-gradient(circle at 70% 50%, rgba(139, 92, 246, 0.1), rgba(99, 102, 241, 0.03) 40%, transparent 70%); z-index: 0;"></div>
+<div class="absolute inset-0 pointer-events-none" style="background: linear-gradient(to right, rgba(9, 11, 14, 0.6) 0%, rgba(9, 11, 14, 0.2) 100%); z-index: 1;"></div>
+<!-- Left Content Pane -->
+<div class="w-full md:w-1/2 p-section-gap flex flex-col justify-center relative z-10 pl-16">
+<div class="mb-regular">
+<!-- PRISM Brand Mark -->
+<div class="relative w-[36px] h-[36px] mb-6">
+<div class="absolute inset-0 bg-primary-container blur-md opacity-20 rounded-lg"></div>
+<div class="w-full h-full rounded-lg bg-gradient-to-br from-[#8b5cf6]/80 to-[#6366f1]/80 backdrop-blur-sm border border-white/10 flex items-center justify-center shadow-lg relative z-10">
+<span class="material-symbols-outlined text-white text-[20px]">change_history</span>
+</div>
+</div>
+<h1 class="font-page-title text-[32px] leading-[40px] tracking-[-0.05em] gradient-text mb-6 font-bold">Welcome to the Future of LCA</h1>
+<p class="font-body text-[14px] leading-[24px] text-text-secondary max-w-sm mb-10">
+                    A precision-engineered workspace for product graph modeling and life-cycle assessment. Uncover environmental impacts with uncompromising detail.
+                </p>
+<button class="relative group overflow-hidden bg-surface-raised border border-white/10 text-text-primary font-control text-control px-6 py-3 rounded-lg hover:border-white hover:shadow-[0_0_20px_rgba(167,139,250,0.3)] transition-all duration-300 flex items-center gap-compact w-fit">
+<div class="absolute inset-0 bg-gradient-to-r from-[#8b5cf6]/20 to-[#6366f1]/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<span class="relative z-10">Explore PRISM</span>
+<span class="material-symbols-outlined text-[14px] relative z-10 transition-transform group-hover:translate-x-1">arrow_forward</span>
+</button>
+</div>
+<div class="mt-auto pt-section-gap border-t border-outline/50 flex gap-section-gap">
+<div>
+<div class="font-overline text-overline text-text-secondary uppercase mb-unit tracking-widest">Current Context</div>
+<div class="font-control text-control text-text-primary">Global Supply Chain</div>
+</div>
+<div>
+<div class="font-overline text-overline text-text-secondary uppercase mb-unit tracking-widest">Status</div>
+<div class="font-control text-control text-positive flex items-center gap-unit">
+<div class="w-2 h-2 rounded-full bg-positive shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div> Ready
+                     </div>
+</div>
+</div>
+</div>
+<!-- Right Visual Pane (Graph Preview) -->
+<div class="w-full md:w-1/2 relative overflow-hidden flex items-center justify-center z-10">
+<!-- Holographic Graph Nodes -->
+<div class="relative w-full h-full flex items-center justify-center scale-[0.85]">
+<!-- Node 1 -->
+<div class="absolute top-[20%] left-[10%] w-[270px] holographic-node rounded-lg p-regular">
+<div class="flex items-center gap-compact mb-regular border-b border-white/10 pb-compact">
+<div class="w-[3px] h-[12px] bg-tertiary-container rounded-full shadow-[0_0_8px_rgba(0,155,209,0.8)]"></div>
+<span class="font-control text-control text-text-primary font-medium tracking-wide">Raw Material Extraction</span>
+</div>
+<div class="flex justify-between font-body text-text-secondary">
+<span class="">Mass</span>
+<span class="text-text-primary font-medium tracking-wide">120.5 kg</span>
+</div>
+</div>
+<!-- Node 2 -->
+<div class="absolute top-[40%] right-[10%] w-[270px] holographic-node rounded-lg p-regular border-l-2 border-l-process-foreground shadow-[0_0_30px_rgba(167,139,250,0.2)]">
+<div class="flex items-center gap-compact mb-regular border-b border-white/10 pb-compact">
+<span class="material-symbols-outlined text-[14px] text-process-foreground opacity-90 drop-shadow-[0_0_5px_rgba(167,139,250,0.8)]">factory</span>
+<span class="font-control text-control text-text-primary font-medium tracking-wide">Primary Processing</span>
+</div>
+<div class="flex justify-between font-body text-text-secondary">
+<span class="">Energy</span>
+<span class="text-text-primary font-medium tracking-wide">45.2 kWh</span>
+</div>
+</div>
+<!-- Node 3 -->
+<div class="absolute bottom-[20%] left-[30%] w-[270px] holographic-node rounded-lg p-regular">
+<div class="flex items-center gap-compact mb-regular border-b border-white/10 pb-compact">
+<div class="w-[3px] h-[12px] bg-warning rounded-full shadow-[0_0_8px_rgba(251,191,36,0.8)]"></div>
+<span class="font-control text-control text-text-primary font-medium tracking-wide">Transport to Facility</span>
+</div>
+<div class="flex justify-between font-body text-text-secondary">
+<span class="">Distance</span>
+<span class="text-text-primary font-medium tracking-wide">450 km</span>
+</div>
+</div>
+<!-- Connecting Lines (SVG) -->
+<svg class="absolute inset-0 w-full h-full pointer-events-none" style="z-index: -1;">
+<defs>
+<lineargradient id="line-gradient" x1="0%" x2="100%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="#38bdf8" stop-opacity="0.4"></stop>
+<stop offset="50%" stop-color="#a78bfa" stop-opacity="0.8"></stop>
+<stop offset="100%" stop-color="#38bdf8" stop-opacity="0.4"></stop>
+</lineargradient>
+<filter height="140%" id="glow-line" width="140%" x="-20%" y="-20%">
+<fegaussianblur result="blur" stddeviation="3"></fegaussianblur>
+<femerge>
+<femergenode in="blur"></femergenode>
+<femergenode in="SourceGraphic"></femergenode>
+</femerge>
+</filter>
+</defs>
+<path class="animated-path" d="M 300 150 C 400 150, 300 250, 400 250" fill="none" filter="url(#glow-line)" stroke="url(#line-gradient)" stroke-dasharray="2 4" stroke-width="0.75"></path>
+<path class="animated-path" d="M 400 250 C 350 350, 450 350, 400 450" fill="none" filter="url(#glow-line)" stroke="url(#line-gradient)" stroke-dasharray="2 4" stroke-width="0.75" style="animation-delay: -1.5s;"></path>
+</svg>
+</div>
+</div>
+</div>
+<script>
+(function() {
+  const canvas = document.createElement('canvas');
+  canvas.id = 'prism-fancy-shader';
+  canvas.className = 'fixed inset-0 w-full h-full -z-10';
+  document.body.prepend(canvas);
+
+  function syncSize() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width  = w;
+      canvas.height = h;
+    }
+  }
+  window.addEventListener('resize', syncSize);
+  syncSize();
+
+  const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+  if (!gl) return;
+  
+  const vs = `attribute vec2 a_position;
+varying vec2 v_texCoord;
+void main() {
+  v_texCoord = a_position * 0.5 + 0.5;
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}`;
+  
+  const fs = `precision highp float;
+uniform float u_time;
+uniform vec2 u_resolution;
+uniform vec2 u_mouse;
+varying vec2 v_texCoord;
+
+vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
+float snoise(vec2 v) {
+  const vec4 C = vec4(0.211324865405187, 0.366025403784439,
+           -0.577350269189626, 0.024390243902439);
+  vec2 i  = floor(v + dot(v, C.yy) );
+  vec2 x0 = v -   i + dot(i, C.xx);
+  vec2 i1;
+  i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+  vec4 x12 = x0.xyxy + C.xxzz;
+  x12.xy -= i1;
+  i = mod(i, 289.0);
+  vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 ))
+  + i.x + vec3(0.0, i1.x, 1.0 ));
+  vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy),
+    dot(x12.zw,x12.zw)), 0.0);
+  m = m*m ;
+  m = m*m ;
+  vec3 x = 2.0 * fract(p * C.www) - 1.0;
+  vec3 h = abs(x) - 0.5;
+  vec3 ox = floor(x + 0.5);
+  vec3 a0 = x - ox;
+  m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
+  vec3 g;
+  g.x  = a0.x  * x0.x  + h.x  * x0.y;
+  g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+  return 130.0 * dot(m, g);
+}
+
+void main() {
+    vec2 uv = v_texCoord;
+    vec2 center = u_mouse / u_resolution;
+    
+    float noise1 = snoise(uv * 1.2 + u_time * 0.04);
+    float noise2 = snoise(uv * 2.0 - u_time * 0.06);
+    
+    vec3 deepBg = vec3(0.035, 0.043, 0.055); // Darker base
+    vec3 primaryViolet = vec3(0.545, 0.361, 0.965); // #8b5cf6
+    vec3 indigo = vec3(0.388, 0.4, 0.945); // #6366f1
+    vec3 accentCyan = vec3(0.22, 0.741, 0.973); // #38bdf8
+    
+    float mask1 = smoothstep(-0.2, 0.8, noise1);
+    float mask2 = smoothstep(-0.5, 0.5, noise2);
+    
+    float dist = distance(uv, center);
+    float mousePulse = smoothstep(0.5, 0.0, dist) * 0.2;
+    
+    vec3 color = mix(deepBg, primaryViolet, mask1 * 0.35);
+    color = mix(color, indigo, mask2 * 0.25);
+    color = mix(color, accentCyan, (mask1 * mask2) * 0.1);
+    
+    float refraction = pow(abs(noise1 + noise2), 5.0) * 0.12;
+    color += refraction * accentCyan;
+    color += mousePulse * primaryViolet;
+    
+    gl_FragColor = vec4(color, 1.0);
+}`;
+
+  function cs(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    return s;
+  }
+  
+  const prog = gl.createProgram();
+  gl.attachShader(prog, cs(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, cs(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+  
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  
+  const pos = gl.getAttribLocation(prog, 'a_position');
+  gl.enableVertexAttribArray(pos);
+  gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
+  
+  const uTime = gl.getUniformLocation(prog, 'u_time');
+  const uRes = gl.getUniformLocation(prog, 'u_resolution');
+  const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+
+  let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
+  window.addEventListener('mousemove', (e) => {
+    mouse.x = e.clientX;
+    mouse.y = canvas.height - e.clientY;
+  });
+
+  function render(t) {
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    if (uTime) gl.uniform1f(uTime, t * 0.001);
+    if (uRes) gl.uniform2f(uRes, canvas.width, canvas.height);
+    if (uMouse) gl.uniform2f(uMouse, mouse.x, mouse.y);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    requestAnimationFrame(render);
+  }
+  render(0);
+})();
+</script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const cursorLight = document.getElementById('cursor-light');
+        const workspace = document.getElementById('workspace-body');
+        
+        workspace.addEventListener('mousemove', (e) => {
+            cursorLight.style.opacity = '1';
+            cursorLight.style.left = e.clientX + 'px';
+            cursorLight.style.top = e.clientY + 'px';
+        });
+
+        workspace.addEventListener('mouseleave', () => {
+            cursorLight.style.opacity = '0';
+        });
+    });
+</script>
+</body></html>

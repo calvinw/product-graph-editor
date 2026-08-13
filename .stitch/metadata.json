@@ -30,6 +30,14 @@
       "type": "DESIGN",
       "source": ".stitch/designs/prism-elegant-navigation-refinement.html",
       "screenshot": ".stitch/designs/prism-elegant-navigation-refinement.png"
+    },
+    {
+      "screenId": "b6fa252fbe134b099bcf62dfe752c0c3",
+      "title": "PRISM Welcome — The Masterpiece Edition (Refined)",
+      "deviceType": "DESKTOP",
+      "type": "DESIGN",
+      "source": ".stitch/designs/prism-welcome-masterpiece-refined.html",
+      "screenshot": ".stitch/designs/prism-welcome-masterpiece-refined.png"
     }
   ],
   "designSystem": {
