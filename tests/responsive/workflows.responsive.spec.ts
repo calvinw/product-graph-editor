@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test"
-import { calculate, expectInsideViewport, mockLcaApi, pageMetrics } from "./helpers"
+import { calculate, expectInsideViewport, mockLcaApi, openAnalysisView, pageMetrics } from "./helpers"
 
 test.beforeEach(async ({ page }) => {
   await mockLcaApi(page)
@@ -30,7 +30,12 @@ test("editor actions and source remain reachable", async ({ page }) => {
 })
 
 test("Stitch test preview remains reachable", async ({ page }) => {
-  await page.getByRole("radio", { name: "Stitch Test", exact: true }).click()
+  if ((page.viewportSize()?.width ?? 0) > 900) {
+    await page.getByRole("button", { name: /File/ }).click()
+    await page.getByRole("menuitem", { name: "Open Stitch test" }).click()
+  } else {
+    await page.getByRole("radio", { name: "Stitch Test", exact: true }).click()
+  }
 
   const preview = page.getByTitle("Stitch Test preview")
   await expectInsideViewport(page.locator(".stitch-preview"), page)
@@ -49,7 +54,7 @@ test("analysis views contain their tables without page overflow", async ({ page 
   ]
 
   for (const view of views) {
-    await page.getByRole("radio", { name: view.name, exact: true }).click()
+    await openAnalysisView(page, view.name)
     await expectInsideViewport(page.locator(view.root), page)
     await expect(page.locator(view.tableWrap).first()).toBeVisible()
     const metrics = await pageMetrics(page)
@@ -65,7 +70,7 @@ test("global settings remain reachable", async ({ page }) => {
 
 test("Sankey chart and settings remain reachable", async ({ page }) => {
   await calculate(page)
-  await page.getByRole("radio", { name: "Sankey Graph", exact: true }).click()
+  await openAnalysisView(page, (page.viewportSize()?.width ?? 0) > 900 ? "Sankey" : "Sankey Graph")
   await expectInsideViewport(page.locator(".sankey-view"), page)
   expect(await page.locator(".sankey-process-node").count()).toBeGreaterThan(0)
 

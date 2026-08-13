@@ -1,16 +1,23 @@
 {
-  "projectId": "9702404155046540068",
-  "title": "PRISM Product Graph Editor",
+  "projectId": "2737065332495739640",
+  "title": "PRISM Product Graph Editor — Navbar Refactor",
   "screens": [
     {
-      "screenId": "14916565459646049814",
+      "screenId": "14274960992596735550",
       "title": "PRISM Product Graph Editor Design System",
       "deviceType": "DESKTOP",
       "type": "DOCUMENT"
+    },
+    {
+      "screenId": "1356628251219422211",
+      "title": "/",
+      "deviceType": "DESKTOP",
+      "type": "DESIGN",
+      "source": ".stitch/designs/product-graph-editor-navbar-source.html"
     }
   ],
   "designSystem": {
-    "assetId": "2e137f740afa4a03aa50aa20681d9c99",
+    "assetId": "163d205cc75446ee902dd9fb604b7156",
     "primaryColor": "#8b5cf6",
     "secondaryColor": "#6366f1",
     "backgroundColor": "#0b0d10",

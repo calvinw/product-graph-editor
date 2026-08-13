@@ -117,11 +117,17 @@ The desktop top bar is 58px tall, nearly opaque, and divided from the workspace 
 
 Keep utility actions at the opposite edge. Standard controls are compact, typically 26–34px high. Icon-only touch controls may grow to 36–40px at narrow widths.
 
-### Navigation and segmented controls
+### Primary navbar and contextual controls
 
-View tabs appear as a floating segmented rail above the canvas. The rail uses a translucent `#111318` surface, fine outline, 8–10px rounding, subtle shadow, and 10–12px backdrop blur. Individual desktop tabs are approximately 26px tall with 11px labels. The active item uses `#292d35` rather than a loud fill; semantic icons can provide the color cue.
+Use a compact, full-width primary navbar rather than a floating segmented view rail. It separates global navigation from controls that operate on the current view: the navbar answers “Where am I going?” while contextual canvas and results toolbars answer “What can I do here?” The desktop hierarchy is PRISM identity, File menu, Graph, Editor, Results menu, the directly visible product selector when space permits, global settings, and compact calculation status.
 
-Keep closely related result modes grouped. At narrow widths, allow the groups to wrap or scroll horizontally inside their own container rather than forcing page-level overflow. Touch targets must be at least 32px tall on phones.
+The **File** menu contains document-level actions for starting or pasting YAML, uploading YAML, and downloading or exporting. **Graph** and **Editor** are direct workspace destinations. The **Results** menu contains Inventory, Impact analysis, Process results, Contributions, and Sankey; entries that require a completed calculation remain visibly disabled until available.
+
+The **product selector** is the existing **LCA File** dropdown. It selects and loads a product-graph YAML from the server catalog. It is not a general-purpose Product command menu. Keep it directly visible at desktop widths; place it in a contained navigation sheet or menu only when space requires this at narrower widths.
+
+**Status is not a menu.** It is a compact, non-interactive indicator that shows “Calculating…” during LCA calculation, “Processing…” during background graph processing, an appropriate error state when needed, and no label when idle. Do not let it crowd primary destinations.
+
+Keep graph zoom, fit, layout, expand/collapse, and graph settings on the graph canvas. Keep Sankey settings with Sankey, and keep impact-category, table, and analysis controls within their respective result views. Active navigation uses `#292d35` rather than a loud fill. At narrow widths, use a compact header and contained menu, Sheet, or Drawer; do not force every label into one row or create page-level overflow. Touch targets must remain comfortable for touch and keyboard use.
 
 ### Buttons and form controls
 
@@ -177,20 +183,20 @@ Use a 4px base spacing rhythm. Common gaps are 8px, 10px, 12px, 18px, 22px, and 
 
 Design and verify every major workflow at **375 × 812**, **768 × 1024**, and **1440 × 900**.
 
-- **Desktop / 1440px:** show the full product identity and labeled settings action. Preserve wide graph and table surfaces. Use floating inspectors and controls without obscuring central content.
-- **Tablet / up to 900px:** constrain study titles to roughly 42% of the viewport, reduce the inspector to 270px, and convert secondary labeled utility actions to icon-first controls.
-- **Phone / up to 620px:** use 10px top-bar side padding, hide the redundant product name and separator, keep the study title at about 14px, and use a 40px settings target. Allow view navigation to wrap or scroll within its own rail. Constrain search, popovers, and settings to the viewport. Move narrow inspectors or dense settings into a sheet/drawer-style contained overlay when that preserves the canvas better.
+- **Desktop / 1440px:** show the full PRISM identity, primary destinations, directly visible LCA File product selector, labeled settings action, and status when active. Preserve wide graph and table surfaces. Use floating contextual inspectors and canvas controls without obscuring central content.
+- **Tablet / 768px:** keep primary destinations visible, constrain study titles, reduce the inspector to 270px, and move lower-priority utilities into a contained overflow menu when needed.
+- **Phone / 375px:** use a compact header containing product identity or current file, the current section, and a menu trigger. Put destinations and utilities in a keyboard- and touch-accessible Sheet, Drawer, or menu. Constrain search, popovers, and settings to the viewport. Move narrow inspectors or dense settings into a contained overlay when that preserves the canvas better.
 
 At every width, all major views and actions remain reachable, the page has no horizontal overflow, graph and Sankey canvases retain useful working space, tables scroll within their own containers, and dialogs remain fully inside the viewport. Maintain keyboard focus order, visible focus treatment, and comfortable touch targets.
 
 ## Design System Notes for Stitch Generation
 
-When generating PRISM screens in Stitch, describe the result as a **dark-first scientific graph-analysis workspace**, not a generic admin dashboard. Start with the 58px application bar, near-black dotted graph canvas, compact translucent view rail, and small semantic process nodes. Use thin graphite outlines, restrained 8–12px rounding, Inter typography, Lucide line icons, and dense but orderly control spacing.
+When generating PRISM screens in Stitch, describe the result as a **dark-first scientific graph-analysis workspace**, not a generic admin dashboard. Start with the compact full-width application navbar, near-black dotted graph canvas, contextual edge controls, and small semantic process nodes. Use thin graphite outlines, restrained 8–12px rounding, Inter typography, Lucide line icons, and dense but orderly control spacing.
 
-For a graph-editor screen, ask for an expansive XYFlow-style canvas with blue connections, violet foreground nodes, cyan background nodes, a compact search field at the upper left, edge-aligned floating navigation, and a right-side inspector that slides over the canvas without permanently shrinking it.
+For a graph-editor screen, ask for an expansive XYFlow-style canvas with blue connections, violet foreground nodes, cyan background nodes, a compact search field at the upper left, edge-aligned contextual canvas controls, and a right-side inspector that slides over the canvas without permanently shrinking it. Keep File, Graph, Editor, Results, product selection, settings, and calculation status in the global navbar rather than in the graph controls.
 
 For analytical results, ask for a contained full-height results surface with compact controls, semantic HTML-style tables, sticky gray headers, hierarchical rows, tabular numeric columns, and internal scrolling. Preserve semantic colors for foreground processes, background processes, extractions, emissions, positive values, warnings, and calculation status.
 
-For responsive variants, explicitly generate the same workflow at 1440 × 900, 768 × 1024, and 375 × 812. On phone layouts, simplify brand chrome, enlarge icon touch targets, make navigation wrap or scroll inside its rail, and convert dense inspectors to viewport-contained overlays while leaving useful graph canvas visible.
+For responsive variants, explicitly generate the same workflow at 1440 × 900, 768 × 1024, and 375 × 812. On phone layouts, simplify brand chrome, enlarge icon touch targets, place global navigation in a viewport-contained menu or sheet, and convert dense inspectors to contained overlays while leaving useful graph canvas visible.
 
 Generate dark and light versions as matched themes. In light mode, replace the near-black workspace with cool gray `#eef1f5`, use white surfaces, navy `#172033` text, `#cbd1da` outlines, and stronger violet, blue, green, and red semantic colors. Do not change information architecture or semantic meaning between themes.

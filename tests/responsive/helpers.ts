@@ -58,10 +58,33 @@ export async function pageMetrics(page: Page) {
 }
 
 export async function calculate(page: Page) {
-  const results = page.getByRole("radio", { name: "Results", exact: true })
+  const desktop = (page.viewportSize()?.width ?? 0) > 900
+  const results = desktop
+    ? page.getByRole("button", { name: "Results", exact: true })
+    : page.getByRole("radio", { name: "Results", exact: true })
   await expect(results).toBeEnabled()
   await results.click()
-  await expect(page.locator(".markdown-report")).toBeVisible()
+  if (desktop) {
+    await page.getByRole("menuitem", { name: "Inventory", exact: true }).click()
+    await expect(page.locator(".inventory-view")).toBeVisible()
+  } else {
+    await expect(page.locator(".markdown-report")).toBeVisible()
+  }
+}
+
+export async function openAnalysisView(page: Page, name: string) {
+  if ((page.viewportSize()?.width ?? 0) > 900) {
+    const desktopNames: Record<string, string> = {
+      "Impact Analysis": "Impact analysis",
+      "Process Results": "Process results",
+      Contribution: "Contributions",
+      "Sankey Graph": "Sankey",
+    }
+    await page.getByRole("button", { name: "Results", exact: true }).click()
+    await page.getByRole("menuitem", { name: desktopNames[name] ?? name, exact: true }).click()
+    return
+  }
+  await page.getByRole("radio", { name, exact: true }).click()
 }
 
 export async function expectInsideViewport(locator: Locator, page: Page) {

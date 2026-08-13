@@ -11,7 +11,10 @@ test("application shell and primary graph controls load", async ({ page }) => {
   await expect(page.getByRole("combobox", { name: "Choose a product graph" })).toBeVisible()
   await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeVisible()
   await expect(page.getByRole("radio", { name: "Editor", exact: true })).toBeVisible()
-  await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeVisible()
+  const results = (page.viewportSize()?.width ?? 0) > 900
+    ? page.getByRole("button", { name: "Results", exact: true })
+    : page.getByRole("radio", { name: "Results", exact: true })
+  await expect(results).toBeVisible()
   await expect(page.locator(".react-flow")).toBeVisible()
 })
 

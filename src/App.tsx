@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import dagre from "@dagrejs/dagre"
 import {
   ReactFlow, ReactFlowProvider, Background, BackgroundVariant,
@@ -9,7 +10,7 @@ import "@xyflow/react/dist/style.css"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import {
-  BarChart3, Box, Component, Scan, LayoutGrid, ChevronDown, Factory, Leaf,
+  BarChart3, Box, Component, Scan, LayoutGrid, ChevronDown, Download, Factory, FileCode2, Leaf,
   ChevronsDownUp, ChevronsUpDown, ClipboardPaste, FileUp, Minus, Moon, MousePointer2, Plus, Search, Settings2, Share2, Sun, X,
 } from "lucide-react"
 import { parse } from "yaml"
@@ -19,6 +20,10 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -1277,7 +1282,7 @@ function AppSelect({
   </Select>
 }
 
-function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void }) {
+function GraphEditor({ onTitleChange, navbarTarget }: { onTitleChange: (title: string) => void; navbarTarget: HTMLDivElement | null }) {
   const { decimalPlaces, showAllDecimalPlaces, formatNumber, theme } = useDisplaySettings()
   const graphDecimalPlaces = showAllDecimalPlaces ? 20 : decimalPlaces
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<ProcessNodeData>>(layoutNodes(initialNodes, initialEdges))
@@ -1316,6 +1321,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
   const initialCalculationStartedRef = useRef(false)
   const contributionRequestsRef = useRef<Map<string, Promise<ContributionGraph[]>>>(new Map())
   const lastSelectedRef = useRef<(NodeMeta & { id: string }) | null>(null)
+  const navbarUploadRef = useRef<HTMLInputElement>(null)
   nodesRef.current = nodes
   edgesRef.current = edges
   appliedRevisionRef.current = appliedRevision
@@ -1931,6 +1937,15 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
     applyAndCalculateYaml(source)
   }
 
+  const downloadTextFile = (contents: string, filename: string, type: string) => {
+    const url = URL.createObjectURL(new Blob([contents], { type }))
+    const link = document.createElement("a")
+    link.href = url
+    link.download = filename
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   const connectionCount = edges.length
   const isDirty = yamlDraft !== appliedYaml
   const customYamlLabel = (() => {
@@ -2097,6 +2112,62 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
 
   return (
     <>
+      {navbarTarget ? createPortal(<div className="desktop-navbar" aria-label="Application navigation">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button className="navbar-menu-trigger" variant="ghost" size="sm">File<ChevronDown data-icon="inline-end" /></Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="navbar-dropdown">
+            <DropdownMenuLabel>Product graph file</DropdownMenuLabel>
+            <DropdownMenuGroup>
+              <DropdownMenuItem onSelect={startPastedYaml}><ClipboardPaste />New or paste YAML</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => navbarUploadRef.current?.click()}><FileUp />Upload YAML</DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem onSelect={() => downloadTextFile(appliedYaml, `${productGraphLabel(graphTitle) || "product-graph"}.yaml`, "text/yaml")} disabled={!appliedYaml}><Download />Download YAML</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => downloadTextFile(resultsMarkdown, `${productGraphLabel(graphTitle) || "lca-results"}.md`, "text/markdown")} disabled={!resultsMarkdown}><FileCode2 />Export results</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => requestView("stitch")}><LayoutGrid />Open Stitch test</DropdownMenuItem>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <input ref={navbarUploadRef} className="navbar-file-input" type="file" accept=".yaml,.yml,text/yaml" onChange={(event) => loadYamlFile(event.target.files?.[0])} />
+        <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && requestView(next as "graph" | "yaml")} className="desktop-primary-nav" aria-label="Primary views">
+          <ToggleGroupItem value="graph">Graph</ToggleGroupItem>
+          <ToggleGroupItem value="yaml">Editor</ToggleGroupItem>
+        </ToggleGroup>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button className={`navbar-menu-trigger${analysisView || primaryView === "results" ? " is-active" : ""}`} variant="ghost" size="sm" aria-label="Results">Results<ChevronDown data-icon="inline-end" /></Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="navbar-dropdown">
+            <DropdownMenuLabel>Analysis views</DropdownMenuLabel>
+            <DropdownMenuGroup>
+              <DropdownMenuItem onSelect={() => requestView("inventory")} disabled={!hasCurrentResults}>Inventory</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => requestView("impact")} disabled={!hasCurrentResults}>Impact analysis</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => requestView("process")} disabled={!hasCurrentResults}>Process results</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => requestView("contribution")} disabled={!hasCurrentResults}>Contributions</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => requestView("sankey")} disabled={!hasCurrentResults}>Sankey</DropdownMenuItem>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <div className="navbar-product-divider" aria-hidden="true" />
+        <label className="case-study-select navbar-product-select"><span>LCA File</span><AppSelect
+          value={selectedProductGraph}
+          onValueChange={(value) => !["custom", "loading", "unavailable"].includes(value) && loadProductGraph(value)}
+          label="Choose a product graph"
+          options={productGraphs.length ? [
+            ...productGraphs.map((item) => ({ value: item.id, label: productGraphLabel(item.name) })),
+            ...(selectedProductGraph === "custom" ? [{ value: "custom", label: customYamlLabel, disabled: true }] : []),
+          ] : [{
+            value: selectedProductGraph,
+            label: selectedProductGraph === "unavailable" ? "Catalog unavailable" : "Loading catalog…",
+            disabled: true,
+          }]}
+        /></label>
+        {calculationInProgress ? <span className="calculation-message navbar-status" role="status" aria-label="LCA calculation in progress">Calculating…</span>
+          : backgroundProcessing ? <span className="calculation-message navbar-status" role="status" aria-label="Background graph processing">Processing…</span> : null}
+      </div>, navbarTarget) : null}
       <div className="canvas-wrap">
         <div className="canvas-head">
           <div className="canvas-actions">
@@ -2333,6 +2404,7 @@ function GraphEditor({ onTitleChange }: { onTitleChange: (title: string) => void
 function AppContent() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [workspaceTitle, setWorkspaceTitle] = useState("Loading product graphs…")
+  const [navbarTarget, setNavbarTarget] = useState<HTMLDivElement | null>(null)
   const { decimalPlaces, setDecimalPlaces, showAllDecimalPlaces, setShowAllDecimalPlaces, theme, setTheme } = useDisplaySettings()
 
   return (
@@ -2340,6 +2412,7 @@ function AppContent() {
       <main className={`app-shell theme-${theme}`}>
         <header className="topbar">
           <div className="brand"><div className="brand-mark"><Share2 size={16} /></div><span className="brand-product-name">PRISM Life Cycle Assessment</span><span className="brand-separator">·</span><h1 className="brand-study-title">{workspaceTitle}</h1></div>
+          <div ref={setNavbarTarget} className="navbar-portal-target" />
           <div className="top-actions">
             <Popover modal open={settingsOpen} onOpenChange={setSettingsOpen}>
               <PopoverTrigger asChild>
@@ -2368,7 +2441,7 @@ function AppContent() {
 
         <section className="workspace">
           <ReactFlowProvider>
-            <GraphEditor onTitleChange={setWorkspaceTitle} />
+            <GraphEditor onTitleChange={setWorkspaceTitle} navbarTarget={navbarTarget} />
           </ReactFlowProvider>
         </section>
       </main>
