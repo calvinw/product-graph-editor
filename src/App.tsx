@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from "react"
+import { Fragment, useCallback, useEffect, useReducer, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import dagre from "@dagrejs/dagre"
 import {
@@ -11,13 +11,13 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import prismLogoRound from "./assets/prism-logo-round.png"
 import {
-  ArrowRight, BarChart3, Box, Component, Scan, LayoutGrid, ChevronDown, Download, Factory, FileCode2, Globe2, Leaf,
-  ChevronsDownUp, ChevronsUpDown, ClipboardPaste, FileUp, Minus, Moon, MousePointer2, Plus, Search, Settings2, Sun, X,
+  ArrowRight, BarChart3, Box, Check, Component, CopyPlus, Scan, LayoutGrid, ChevronDown, Download, Factory, FileCode2, FilePlus2, Globe2, Leaf,
+  ChevronsDownUp, ChevronsUpDown, FileUp, Minus, Moon, MousePointer2, Plus, Save as SaveIcon, Search, Settings2, Sun, X,
 } from "lucide-react"
 import { parse } from "yaml"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialog, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -25,6 +25,10 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog"
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -41,12 +45,23 @@ import {
   type ContributionGraph, type ContributionGraphNode, type LcaResult, type ProductGraphCatalogEntry,
 } from "./lib/lcaApi"
 import { unitsAreCompatible } from "./lib/units"
+import { cn } from "./lib/utils"
 import { DisplaySettingsProvider, useDisplaySettings } from "./lib/displaySettings"
+import {
+  catalogEntryToDocument, initialModelWorkspace, modelWorkspaceReducer, safeYamlFilename,
+  uniqueSessionTitle, yamlFilenameStem, type ActiveDocument, type SessionDocument,
+} from "./lib/modelWorkspace"
 import stitchTestHtml from "../.stitch/designs/aether-landing-page.html?raw"
 
 type NodeMeta = { label: string; kind: string; detail: string; color: string; scope?: "foreground" | "background" }
 type View = "graph" | "yaml" | "stitch" | "inventory" | "impact" | "process" | "contribution" | "sankey" | "results"
 type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribution" | "sankey">
+type PendingAction =
+  | { kind: "view"; view: View }
+  | { kind: "catalog"; id: string }
+  | { kind: "session"; id: string }
+  | { kind: "new" }
+  | { kind: "upload" }
 const analysisViews: AnalysisView[] = ["inventory", "impact", "process", "contribution", "sankey"]
 const isAnalysisView = (view: View): view is AnalysisView => analysisViews.includes(view as AnalysisView)
 const WEBAPP_DEFAULT_PRODUCT_GRAPH_ID = import.meta.env.VITE_DEFAULT_PRODUCT_GRAPH_ID ?? "cotton_fiber"
@@ -1373,6 +1388,92 @@ function AppSelect({
   </Select>
 }
 
+function CurrentModelTitle({ title, className = "" }: { title: string; className?: string }) {
+  return <span className={cn("current-model-title", className)} aria-label={`Current model: ${title}`} title={title}>{title}</span>
+}
+
+function ModelMenu({
+  activeDocument,
+  catalog,
+  sessionDocuments,
+  canSave,
+  canSaveAs,
+  canDownload,
+  onNew,
+  onSelectCatalog,
+  onSelectSession,
+  onSave,
+  onSaveAs,
+  onUpload,
+  onDownload,
+  onOpenStitch,
+}: {
+  activeDocument: ActiveDocument | null
+  catalog: ProductGraphCatalogEntry[]
+  sessionDocuments: SessionDocument[]
+  canSave: boolean
+  canSaveAs: boolean
+  canDownload: boolean
+  onNew: () => void
+  onSelectCatalog: (id: string) => void
+  onSelectSession: (id: string) => void
+  onSave: () => void
+  onSaveAs: () => void
+  onUpload: () => void
+  onDownload: () => void
+  onOpenStitch: () => void
+}) {
+  return <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button data-model-menu-trigger className="navbar-menu-trigger model-menu-trigger" variant="ghost" size="sm">Model<ChevronDown data-icon="inline-end" /></Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="start" className="navbar-dropdown model-menu-content">
+      <DropdownMenuGroup>
+        <DropdownMenuItem onSelect={onNew}><FilePlus2 />New model</DropdownMenuItem>
+      </DropdownMenuGroup>
+      <DropdownMenuSeparator />
+      <DropdownMenuGroup>
+        <DropdownMenuLabel>Catalog models</DropdownMenuLabel>
+        {catalog.map((item) => {
+          const selected = activeDocument?.kind === "catalog" && activeDocument.id === item.id
+          return <DropdownMenuItem key={item.id} aria-current={selected ? "true" : undefined} onSelect={() => onSelectCatalog(item.id)}>
+            <span className="model-menu-item-title">{productGraphLabel(item.name)}</span>{selected ? <Check className="model-menu-check" /> : null}
+          </DropdownMenuItem>
+        })}
+      </DropdownMenuGroup>
+      {sessionDocuments.length ? <>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>This session</DropdownMenuLabel>
+          {sessionDocuments.map((document) => {
+            const selected = activeDocument?.kind === "session" && activeDocument.id === document.id
+            return <DropdownMenuItem key={document.id} aria-current={selected ? "true" : undefined} onSelect={() => onSelectSession(document.id)}>
+              <span className="model-menu-item-title">{document.title}</span>{selected ? <Check className="model-menu-check" /> : null}
+            </DropdownMenuItem>
+          })}
+        </DropdownMenuGroup>
+      </> : null}
+      <DropdownMenuSeparator />
+      <DropdownMenuGroup>
+        <DropdownMenuItem disabled={!canSave} onSelect={onSave}><SaveIcon />Save</DropdownMenuItem>
+        <DropdownMenuItem disabled={!canSaveAs} onSelect={onSaveAs}><CopyPlus />Save As...</DropdownMenuItem>
+      </DropdownMenuGroup>
+      <DropdownMenuSeparator />
+      <DropdownMenuGroup>
+        <DropdownMenuItem onSelect={onUpload}><FileUp />Upload YAML...</DropdownMenuItem>
+        <DropdownMenuItem disabled={!canDownload} onSelect={onDownload}><Download />Download YAML</DropdownMenuItem>
+      </DropdownMenuGroup>
+      {import.meta.env.DEV ? <>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Development</DropdownMenuLabel>
+          <DropdownMenuItem onSelect={onOpenStitch}><LayoutGrid />Open Stitch test</DropdownMenuItem>
+        </DropdownMenuGroup>
+      </> : null}
+    </DropdownMenuContent>
+  </DropdownMenu>
+}
+
 function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (title: string) => void; navbarTarget: HTMLDivElement | null; active: boolean }) {
   const { decimalPlaces, showAllDecimalPlaces, formatNumber, theme } = useDisplaySettings()
   const graphDecimalPlaces = showAllDecimalPlaces ? 20 : decimalPlaces
@@ -1381,13 +1482,17 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
   const [selected, setSelected] = useState<(NodeMeta & { id: string }) | null>(null)
   const [query, setQuery] = useState("")
   const [view, setView] = useState<View>("graph")
-  const [pendingView, setPendingView] = useState<View | null>(null)
-  const [confirmNewYamlOpen, setConfirmNewYamlOpen] = useState(false)
-  const [yamlDraft, setYamlDraft] = useState("")
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
+  const [pendingConfirmationOpen, setPendingConfirmationOpen] = useState(false)
+  const [saveAsOpen, setSaveAsOpen] = useState(false)
+  const [saveAsName, setSaveAsName] = useState("")
+  const [saveAsError, setSaveAsError] = useState("")
+  const [modelWorkspace, dispatchModelWorkspace] = useReducer(modelWorkspaceReducer, initialModelWorkspace)
+  const { activeDocument, sessionDocuments, yamlDraft } = modelWorkspace
   const [appliedYaml, setAppliedYaml] = useState("")
   const [appliedRevision, setAppliedRevision] = useState(0)
   const [productGraphs, setProductGraphs] = useState<ProductGraphCatalogEntry[]>([])
-  const [selectedProductGraph, setSelectedProductGraph] = useState("loading")
+  const [catalogState, setCatalogState] = useState<"loading" | "ready" | "unavailable">("loading")
   const [yamlError, setYamlError] = useState("")
   const [graphTitle, setGraphTitle] = useState("Loading product graphs…")
   const [resultsMarkdown, setResultsMarkdown] = useState("")
@@ -1413,6 +1518,7 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
   const contributionRequestsRef = useRef<Map<string, Promise<ContributionGraph[]>>>(new Map())
   const lastSelectedRef = useRef<(NodeMeta & { id: string }) | null>(null)
   const navbarUploadRef = useRef<HTMLInputElement>(null)
+  const saveAsReturnFocusRef = useRef<HTMLElement | null>(null)
   nodesRef.current = nodes
   edgesRef.current = edges
   appliedRevisionRef.current = appliedRevision
@@ -1439,7 +1545,9 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
 
   useEffect(() => setGraphMaxProcesses(availableGraphProcessCount), [availableGraphProcessCount])
   useEffect(() => setShowReferenceAmounts(false), [graphMode, selected?.id])
-  useEffect(() => onTitleChange(graphTitle), [graphTitle, onTitleChange])
+  const currentModelTitle = activeDocument?.title
+    ?? (catalogState === "unavailable" ? "Catalog unavailable" : "Loading product graphs…")
+  useEffect(() => onTitleChange(currentModelTitle), [currentModelTitle, onTitleChange])
   useEffect(() => {
     if (lcaResult) setResultsMarkdown(lcaResultToMarkdown(lcaResult, decimalPlaces, showAllDecimalPlaces))
   }, [decimalPlaces, showAllDecimalPlaces, lcaResult])
@@ -1983,13 +2091,16 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
           ?? catalog.product_graphs.find((item) => item.id === catalog.default_id)
         if (!initial) throw new Error("The product-graph catalog has no default selection.")
         setProductGraphs(catalog.product_graphs)
-        setSelectedProductGraph(initial.id)
-        setYamlDraft(initial.product_graph)
+        setCatalogState("ready")
+        dispatchModelWorkspace({
+          type: "load-document",
+          document: { ...catalogEntryToDocument(initial), title: productGraphLabel(initial.name) },
+        })
         const revision = applyYaml(initial.product_graph)
         if (revision !== null) void calculateSource(initial.product_graph, revision)
       } catch (error) {
         const message = error instanceof Error ? error.message : "Could not load product graphs from the LCA server."
-        setSelectedProductGraph("unavailable")
+        setCatalogState("unavailable")
         setYamlError(message)
         setResultsError(message)
       }
@@ -2010,22 +2121,52 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
     const reader = new FileReader()
     reader.onload = () => {
       const source = String(reader.result ?? "")
-      setYamlDraft(source)
-      setSelectedProductGraph("custom")
-      setYamlError("")
-      applyAndCalculateYaml(source)
+      const proposedTitle = yamlFilenameStem(file.name).trim() || "Untitled model"
+      const revision = applyYaml(source)
+      if (revision === null) {
+        dispatchModelWorkspace({
+          type: "start-invalid-upload",
+          title: proposedTitle,
+          filename: file.name,
+          yaml: source,
+        })
+        setView("yaml")
+        return
+      }
+      const title = uniqueSessionTitle(proposedTitle, sessionDocuments)
+      const document: SessionDocument = {
+        kind: "session",
+        id: crypto.randomUUID(),
+        title,
+        filename: safeYamlFilename(title),
+        committedYaml: source,
+        source: "upload",
+      }
+      dispatchModelWorkspace({ type: "commit-new-session", document })
+      setView("yaml")
+      void calculateSource(source, revision)
     }
     reader.onerror = () => setYamlError("Could not read the selected file.")
     reader.readAsText(file)
   }
 
   const loadProductGraph = (id: string) => {
-    const source = productGraphs.find((item) => item.id === id)?.product_graph
-    if (!source) return
-    setSelectedProductGraph(id)
-    setYamlDraft(source)
+    const entry = productGraphs.find((item) => item.id === id)
+    if (!entry) return
+    const document = { ...catalogEntryToDocument(entry), title: productGraphLabel(entry.name) }
+    dispatchModelWorkspace({ type: "load-document", document })
     setYamlError("")
-    applyAndCalculateYaml(source)
+    setView("yaml")
+    applyAndCalculateYaml(document.committedYaml, false)
+  }
+
+  const loadSessionModel = (id: string) => {
+    const document = sessionDocuments.find((item) => item.id === id)
+    if (!document) return
+    dispatchModelWorkspace({ type: "load-document", document })
+    setYamlError("")
+    setView("yaml")
+    applyAndCalculateYaml(document.committedYaml, false)
   }
 
   const downloadTextFile = (contents: string, filename: string, type: string) => {
@@ -2038,35 +2179,99 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
   }
 
   const connectionCount = edges.length
-  const isDirty = yamlDraft !== appliedYaml
-  const customYamlLabel = (() => {
-    try {
-      const source = parse(yamlDraft) as { name?: unknown }
-      return typeof source?.name === "string" && source.name.trim()
-        ? productGraphLabel(source.name.trim())
-        : "Pasted YAML"
-    } catch {
-      return "Pasted YAML"
+  const isDirty = yamlDraft !== (activeDocument?.committedYaml ?? "")
+  const isTransient = activeDocument?.kind === "new" || activeDocument?.kind === "invalid-upload"
+  const hasUncommittedWorkspace = isDirty || isTransient
+  const canSave = activeDocument?.kind === "session" && isDirty
+  const canSaveAs = yamlDraft.trim().length > 0
+  const canDownload = yamlDraft.trim().length > 0
+
+  const suggestedSaveAsName = () => {
+    let suggestion = "Untitled model"
+    if (activeDocument?.kind === "catalog" || activeDocument?.kind === "session" || activeDocument?.kind === "invalid-upload") {
+      suggestion = activeDocument.title
+    } else {
+      try {
+        const source = parse(yamlDraft) as { name?: unknown }
+        if (typeof source?.name === "string" && source.name.trim()) suggestion = productGraphLabel(source.name.trim())
+      } catch {
+        // Keep the transient model suggestion when the draft is incomplete.
+      }
     }
-  })()
+    return uniqueSessionTitle(suggestion, sessionDocuments)
+  }
+
+  const openSaveAsDialog = () => {
+    saveAsReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setSaveAsName(suggestedSaveAsName())
+    setSaveAsError("")
+    setSaveAsOpen(true)
+  }
+
   const openBlankYamlEditor = () => {
-    setSelectedProductGraph("custom")
-    setYamlDraft("")
+    dispatchModelWorkspace({ type: "start-new" })
     setYamlError("")
     setView("yaml")
   }
-  const startPastedYaml = () => {
-    if (isDirty) {
-      setConfirmNewYamlOpen(true)
+
+  const saveSessionModel = () => {
+    if (activeDocument?.kind !== "session" || !isDirty) return false
+    const revision = applyYaml(yamlDraft)
+    if (revision === null) return false
+    dispatchModelWorkspace({ type: "commit-active-session", yaml: yamlDraft })
+    void calculateSource(yamlDraft, revision)
+    return true
+  }
+
+  const saveAsSessionModel = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const title = saveAsName.trim()
+    if (!title) { setSaveAsError("Enter a model name."); return }
+    if (title.length > 120) { setSaveAsError("Use 120 characters or fewer."); return }
+    if (sessionDocuments.some((item) => item.title.toLocaleLowerCase() === title.toLocaleLowerCase())) {
+      setSaveAsError("A model with this name already exists in this session.")
       return
     }
-    openBlankYamlEditor()
+    const revision = applyYaml(yamlDraft)
+    if (revision === null) {
+      setSaveAsOpen(false)
+      setPendingAction(null)
+      setView("yaml")
+      return
+    }
+    const source: SessionDocument["source"] = activeDocument?.kind === "catalog"
+      ? "catalog-copy"
+      : activeDocument?.kind === "session"
+        ? "session-copy"
+        : activeDocument?.kind === "invalid-upload"
+          ? "upload"
+          : "new"
+    const document: SessionDocument = {
+      kind: "session",
+      id: crypto.randomUUID(),
+      title,
+      filename: safeYamlFilename(title),
+      committedYaml: yamlDraft,
+      source,
+    }
+    const destination = pendingAction
+    dispatchModelWorkspace({ type: "commit-new-session", document })
+    setSaveAsOpen(false)
+    setSaveAsError("")
+    setPendingAction(null)
+    void calculateSource(yamlDraft, revision)
+    if (destination) performAction(destination)
   }
+
   const discardYamlChanges = () => {
-    setYamlDraft(appliedYaml)
-    setSelectedProductGraph(productGraphs.find((item) => item.product_graph === appliedYaml)?.id ?? "custom")
+    dispatchModelWorkspace({ type: "discard" })
     setYamlError("")
   }
+
+  const downloadCurrentYaml = () => {
+    downloadTextFile(yamlDraft, activeDocument?.filename || "untitled-model.yaml", "text/yaml")
+  }
+
   useEffect(() => {
     const confirmDiscard = (event: BeforeUnloadEvent) => {
       if (!isDirty) return
@@ -2174,68 +2379,80 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
     else setView(next)
   }
 
-  const requestView = (next: View) => {
-    if (isDirty && next !== "yaml") {
-      setPendingView(next)
+  function performAction(action: PendingAction) {
+    if (action.kind === "view") continueToView(action.view)
+    else if (action.kind === "catalog") loadProductGraph(action.id)
+    else if (action.kind === "session") loadSessionModel(action.id)
+    else if (action.kind === "new") openBlankYamlEditor()
+    else navbarUploadRef.current?.click()
+  }
+
+  const requestAction = (action: PendingAction) => {
+    if (hasUncommittedWorkspace && !(action.kind === "view" && action.view === "yaml")) {
+      setPendingAction(action)
+      setPendingConfirmationOpen(true)
       return
     }
-    continueToView(next)
+    performAction(action)
+  }
+
+  const requestView = (next: View) => {
+    requestAction({ kind: "view", view: next })
+  }
+
+  const cancelPendingAction = () => {
+    setPendingConfirmationOpen(false)
+    setPendingAction(null)
   }
 
   const discardAndContinue = () => {
-    if (!pendingView) return
-    const next = pendingView
+    if (!pendingAction) return
+    const destination = pendingAction
+    setPendingConfirmationOpen(false)
+    setPendingAction(null)
     discardYamlChanges()
-    setPendingView(null)
-    continueToView(next)
+    performAction(destination)
   }
 
-  const calculateAndContinue = () => {
-    if (!pendingView) return
-    const revision = applyYaml(yamlDraft)
-    if (revision === null) {
-      setPendingView(null)
+  const saveAndContinue = () => {
+    if (!pendingAction) return
+    const destination = pendingAction
+    setPendingConfirmationOpen(false)
+    if (!saveSessionModel()) {
+      setPendingAction(null)
+      setView("yaml")
       return
     }
-    setPendingView(null)
-    void calculateSource(yamlDraft, revision, true)
+    setPendingAction(null)
+    performAction(destination)
+  }
+
+  const saveAsAndContinue = () => {
+    setPendingConfirmationOpen(false)
+    openSaveAsDialog()
   }
 
   return (
     <>
       {navbarTarget ? createPortal(<div className="desktop-navbar" aria-label="Application navigation">
-        <label className="case-study-select navbar-product-select"><span className="sr-only">LCA File</span><AppSelect
-          value={selectedProductGraph}
-          onValueChange={(value) => !["custom", "loading", "unavailable"].includes(value) && loadProductGraph(value)}
-          label="Choose a product graph"
-          options={productGraphs.length ? [
-            ...productGraphs.map((item) => ({ value: item.id, label: productGraphLabel(item.name) })),
-            ...(selectedProductGraph === "custom" ? [{ value: "custom", label: customYamlLabel, disabled: true }] : []),
-          ] : [{
-            value: selectedProductGraph,
-            label: selectedProductGraph === "unavailable" ? "Catalog unavailable" : "Loading catalog…",
-            disabled: true,
-          }]}
-        /></label>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button className="navbar-menu-trigger" variant="ghost" size="sm">File<ChevronDown data-icon="inline-end" /></Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="navbar-dropdown">
-            <DropdownMenuLabel>Product graph file</DropdownMenuLabel>
-            <DropdownMenuGroup>
-              <DropdownMenuItem onSelect={startPastedYaml}><ClipboardPaste />New or paste YAML</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => navbarUploadRef.current?.click()}><FileUp />Upload YAML</DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem onSelect={() => downloadTextFile(appliedYaml, `${productGraphLabel(graphTitle) || "product-graph"}.yaml`, "text/yaml")} disabled={!appliedYaml}><Download />Download YAML</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => downloadTextFile(resultsMarkdown, `${productGraphLabel(graphTitle) || "lca-results"}.md`, "text/markdown")} disabled={!resultsMarkdown}><FileCode2 />Export results</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => requestView("stitch")}><LayoutGrid />Open Stitch test</DropdownMenuItem>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <input ref={navbarUploadRef} className="navbar-file-input" type="file" accept=".yaml,.yml,text/yaml" onChange={(event) => loadYamlFile(event.target.files?.[0])} />
+        <CurrentModelTitle title={currentModelTitle} className="navbar-model-title" />
+        <ModelMenu
+          activeDocument={activeDocument}
+          catalog={productGraphs}
+          sessionDocuments={sessionDocuments}
+          canSave={canSave}
+          canSaveAs={canSaveAs}
+          canDownload={canDownload}
+          onNew={() => requestAction({ kind: "new" })}
+          onSelectCatalog={(id) => requestAction({ kind: "catalog", id })}
+          onSelectSession={(id) => requestAction({ kind: "session", id })}
+          onSave={saveSessionModel}
+          onSaveAs={openSaveAsDialog}
+          onUpload={() => requestAction({ kind: "upload" })}
+          onDownload={downloadCurrentYaml}
+          onOpenStitch={() => requestView("stitch")}
+        />
+        <input ref={navbarUploadRef} className="navbar-file-input" type="file" accept=".yaml,.yml,text/yaml" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; loadYamlFile(file) }} />
         <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && requestView(next as "graph" | "yaml")} className="desktop-primary-nav" aria-label="Primary views">
           <ToggleGroupItem value="graph">Graph</ToggleGroupItem>
           <ToggleGroupItem value="yaml">Editor</ToggleGroupItem>
@@ -2247,11 +2464,16 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
           <DropdownMenuContent align="start" className="navbar-dropdown">
             <DropdownMenuLabel>Analysis views</DropdownMenuLabel>
             <DropdownMenuGroup>
+              <DropdownMenuItem onSelect={() => requestView("results")}>LCA results</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => requestView("inventory")} disabled={!hasCurrentResults}>Inventory</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => requestView("impact")} disabled={!hasCurrentResults}>Impact analysis</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => requestView("process")} disabled={!hasCurrentResults}>Process results</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => requestView("contribution")} disabled={!hasCurrentResults}>Contributions</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => requestView("sankey")} disabled={!hasCurrentResults}>Sankey</DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem onSelect={() => downloadTextFile(resultsMarkdown, `${productGraphLabel(graphTitle) || "lca-results"}.md`, "text/markdown")} disabled={!resultsMarkdown}><FileCode2 />Export results</DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -2262,26 +2484,32 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
         <div className="canvas-head">
           <div className="canvas-actions">
             <div className="view-tabs">
-              <label className="case-study-select navigation-product-select"><span>LCA File</span><AppSelect
-                value={selectedProductGraph}
-                onValueChange={(value) => !["custom", "loading", "unavailable"].includes(value) && loadProductGraph(value)}
-                label="Choose a product graph"
-                options={productGraphs.length ? [
-                  ...productGraphs.map((item) => ({ value: item.id, label: productGraphLabel(item.name) })),
-                  ...(selectedProductGraph === "custom" ? [{ value: "custom", label: customYamlLabel, disabled: true }] : []),
-                ] : [{
-                  value: selectedProductGraph,
-                  label: selectedProductGraph === "unavailable" ? "Catalog unavailable" : "Loading catalog…",
-                  disabled: true,
-                }]}
-              /></label>
+              <div className="navigation-model-group">
+                <CurrentModelTitle title={currentModelTitle} className="navigation-model-title" />
+                <ModelMenu
+                  activeDocument={activeDocument}
+                  catalog={productGraphs}
+                  sessionDocuments={sessionDocuments}
+                  canSave={canSave}
+                  canSaveAs={canSaveAs}
+                  canDownload={canDownload}
+                  onNew={() => requestAction({ kind: "new" })}
+                  onSelectCatalog={(id) => requestAction({ kind: "catalog", id })}
+                  onSelectSession={(id) => requestAction({ kind: "session", id })}
+                  onSave={saveSessionModel}
+                  onSaveAs={openSaveAsDialog}
+                  onUpload={() => requestAction({ kind: "upload" })}
+                  onDownload={downloadCurrentYaml}
+                  onOpenStitch={() => requestView("stitch")}
+                />
+              </div>
               {calculationInProgress ? <span className="calculation-message" role="status" aria-label="LCA calculation in progress">Calculating…</span>
                 : backgroundProcessing ? <span className="calculation-message" role="status" aria-label="Background graph processing">Processing…</span> : null}
               <div className="view-tab-groups">
                 <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && requestView(next as "graph" | "yaml" | "stitch" | "results")} className="inline-flex items-center" aria-label="Primary views">
                   <ToggleGroupItem value="graph">Graph</ToggleGroupItem>
                   <ToggleGroupItem value="yaml">Editor</ToggleGroupItem>
-                  <ToggleGroupItem value="stitch">Stitch Test</ToggleGroupItem>
+                  {import.meta.env.DEV ? <ToggleGroupItem value="stitch">Stitch Test</ToggleGroupItem> : null}
                   <ToggleGroupItem value="results" aria-label="Results">Results</ToggleGroupItem>
                 </ToggleGroup>
                 <ToggleGroup type="single" value={analysisView} onValueChange={(next) => next && requestView(next as AnalysisView)} className="inline-flex items-center" aria-label="Result analysis views">
@@ -2370,16 +2598,14 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
           <Button variant="ghost" className={`graph-action ${graphMode === "structure" ? "is-active" : ""}`} aria-pressed={graphMode === "structure"} onClick={() => showGraphMode("structure")}><LayoutGrid size={16} />Structure Graph</Button>
         </div></> : view === "yaml" ? <div className="yaml-editor">
           <div className="yaml-editor-head">
-            <div><strong>Product graph YAML</strong><span>Edit the selected example, paste YAML, or open a local file.</span></div>
-            <div className="yaml-editor-actions">
-              <Button size="sm" variant="outline" className="yaml-paste-button" onClick={startPastedYaml}><ClipboardPaste size={14} />Paste YAML</Button>
-              <label className="yaml-upload"><FileUp size={15} /> Upload<input type="file" accept=".yaml,.yml,text/yaml" onChange={(event) => loadYamlFile(event.target.files?.[0])} /></label>
-            </div>
+            <div><strong>Product graph YAML</strong><span>{isTransient ? "Start writing YAML, or upload an existing model from the Model menu." : activeDocument?.kind === "catalog" ? "Edit this catalog example, then save a session copy." : "Edit the current session model."}</span></div>
           </div>
-          <textarea value={yamlDraft} onChange={(event) => { setYamlDraft(event.target.value); setSelectedProductGraph("custom"); setYamlError("") }} spellCheck={false} aria-label="Product graph YAML" />
+          <textarea value={yamlDraft} onChange={(event) => { dispatchModelWorkspace({ type: "edit-draft", yaml: event.target.value }); setYamlError("") }} spellCheck={false} aria-label="Product graph YAML" />
           <div className="yaml-editor-foot">
-            <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (!yamlDraft.trim() ? "Paste YAML to create a new LCA." : isDirty ? "Unapplied changes. Calculate the LCA or discard changes before leaving this view." : isCalculating ? "Calculating the selected YAML…" : "Catalog YAML is loaded from the LCA server and parsed locally.")}</span>
-            <Button size="sm" disabled={!isDirty || isCalculating || !yamlDraft.trim()} onClick={() => applyAndCalculateYaml(yamlDraft)}>Calculate</Button>
+            <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (!yamlDraft.trim() ? "Start writing YAML, or upload a model from the Model menu." : isDirty ? activeDocument?.kind === "session" ? "Unsaved changes. Save to update this session model." : "Unsaved draft. Save As to create a session model." : isCalculating ? "Calculating the saved YAML…" : activeDocument?.kind === "catalog" ? "Catalog model loaded as an immutable example." : "Saved in this browser session.")}</span>
+            {activeDocument?.kind === "session" && isDirty ? <Button size="sm" onClick={saveSessionModel}><SaveIcon data-icon="inline-start" />Save</Button>
+              : activeDocument?.kind === "catalog" || isTransient ? <Button size="sm" disabled={!canSaveAs} onClick={openSaveAsDialog}><CopyPlus data-icon="inline-start" />Save As...</Button>
+                : null}
           </div>
         </div> : view === "stitch" ? <div className="stitch-preview">
           <iframe title="Stitch Test preview" srcDoc={stitchTestHtml} sandbox="allow-scripts" loading="lazy" />
@@ -2390,7 +2616,7 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
           <div className="results-panel-body">
             {resultsError ? <div className="results-error"><strong>Calculation failed</strong><p>{resultsError}</p></div>
               : resultsMarkdown ? <article className="markdown-report"><ReactMarkdown remarkPlugins={[remarkGfm]}>{resultsMarkdown}</ReactMarkdown></article>
-              : <div className="results-placeholder"><div className="results-empty-icon"><BarChart3 size={22} /></div><strong>No LCA results yet</strong><p>Select Calculate to analyze the current YAML graph.</p></div>}
+              : <div className="results-placeholder"><div className="results-empty-icon"><BarChart3 size={22} /></div><strong>No LCA results yet</strong><p>Save a valid model to analyze its product graph.</p></div>}
           </div>
         </div>}
         {view === "graph" ? <div className="graph-meta">{nodes.length} nodes&nbsp;&nbsp;·&nbsp;&nbsp;{connectionCount} connections</div> : null}
@@ -2458,35 +2684,51 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
           </>}
         </>
       </aside> : null}
-      <AlertDialog open={pendingView !== null} onOpenChange={(open) => { if (!open) setPendingView(null) }}>
+      <AlertDialog open={pendingConfirmationOpen} onOpenChange={(open) => { if (!open) cancelPendingAction() }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Unsaved YAML changes</AlertDialogTitle>
             <AlertDialogDescription>
-              Calculate the LCA to apply your YAML changes, or discard them before leaving the file editor.
+              {activeDocument?.kind === "session"
+                ? `Save changes to "${activeDocument.title}" before continuing?`
+                : "Save a copy before continuing?"}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep editing</AlertDialogCancel>
-            <AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={discardAndContinue}>Discard changes</AlertDialogAction>
-            <AlertDialogAction onClick={calculateAndContinue}>Calculate</AlertDialogAction>
+            <AlertDialogCancel onClick={cancelPendingAction}>Keep editing</AlertDialogCancel>
+            <Button variant="destructive" onClick={discardAndContinue}>Discard changes</Button>
+            {activeDocument?.kind === "session"
+              ? <Button onClick={saveAndContinue}>Save</Button>
+              : <Button disabled={!canSaveAs} onClick={saveAsAndContinue}>Save As...</Button>}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <AlertDialog open={confirmNewYamlOpen} onOpenChange={setConfirmNewYamlOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Discard current YAML changes?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Starting a new pasted YAML file will clear the unapplied changes currently in the editor.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep editing</AlertDialogCancel>
-            <AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={openBlankYamlEditor}>Discard and start new</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <Dialog open={saveAsOpen} onOpenChange={(open) => { setSaveAsOpen(open); if (!open) { setSaveAsError(""); setPendingAction(null) } }}>
+        <DialogContent onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          const fallback = [...document.querySelectorAll<HTMLElement>("[data-model-menu-trigger]")].find((element) => element.offsetParent !== null)
+          const target = saveAsReturnFocusRef.current?.isConnected ? saveAsReturnFocusRef.current : fallback
+          target?.focus()
+        }}>
+          <form className="save-as-form" onSubmit={saveAsSessionModel}>
+            <DialogHeader>
+              <DialogTitle>Save model as</DialogTitle>
+              <DialogDescription>Create a writable model for this browser session. It will not survive a page refresh.</DialogDescription>
+            </DialogHeader>
+            <FieldGroup>
+              <Field data-invalid={Boolean(saveAsError)}>
+                <FieldLabel htmlFor="save-as-model-name">Model name</FieldLabel>
+                <Input id="save-as-model-name" value={saveAsName} maxLength={120} aria-invalid={Boolean(saveAsError)} autoFocus onChange={(event) => { setSaveAsName(event.target.value); setSaveAsError("") }} />
+                <FieldError>{saveAsError}</FieldError>
+              </Field>
+            </FieldGroup>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => { setSaveAsOpen(false); setPendingAction(null) }}>Cancel</Button>
+              <Button type="submit">Save As</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

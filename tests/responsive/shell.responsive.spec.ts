@@ -13,7 +13,8 @@ test("application shell and primary graph controls load", async ({ page }) => {
   } else {
     await expect(page.getByRole("heading", { name: "Jacket" })).toBeVisible()
   }
-  await expect(page.getByRole("combobox", { name: "Choose a product graph" })).toBeVisible()
+  await expect(page.locator('[aria-label="Current model: Jacket"]:visible')).toBeVisible()
+  await expect(page.getByRole("button", { name: "Model", exact: true })).toBeVisible()
   await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeVisible()
   await expect(page.getByRole("radio", { name: "Editor", exact: true })).toBeVisible()
   const results = (page.viewportSize()?.width ?? 0) > 900
