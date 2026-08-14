@@ -11,7 +11,9 @@ async function mockLcaApi(
   onContributionRequest?: (categories: string[]) => void,
   contributionDelayMs = 0,
   baseDelayMs = 0,
+  baseFailureOnRequest?: number,
 ) {
+  let baseRequestCount = 0
   await page.route("**/lca-api/api/**", async (route) => {
     const { pathname } = new URL(route.request().url())
     if (pathname.endsWith("/api/product-graphs")) {
@@ -38,7 +40,12 @@ async function mockLcaApi(
       return
     }
     if (pathname.endsWith("/api/lca/base")) {
+      baseRequestCount += 1
       if (baseDelayMs) await new Promise((resolve) => setTimeout(resolve, baseDelayMs))
+      if (baseRequestCount === baseFailureOnRequest) {
+        await route.fulfill({ status: 503, json: { detail: "Calculation engine unavailable." } })
+        return
+      }
       await route.fulfill({ json: { ...result, contribution_graphs: [] } })
       return
     }
@@ -67,6 +74,15 @@ async function openWorkspace(page: Page) {
   await page.getByRole("button", { name: "Explore PRISM" }).click()
 }
 
+async function uploadYaml(page: Page, name: string, source: string) {
+  await page.locator(".navbar-file-input").evaluate((input, file) => {
+    const transfer = new DataTransfer()
+    transfer.items.add(new File([file.source], file.name, { type: "text/yaml" }))
+    ;(input as HTMLInputElement).files = transfer.files
+    input.dispatchEvent(new Event("change", { bubbles: true }))
+  }, { name, source })
+}
+
 async function settle(page: Page) {
   await page.waitForTimeout(250)
 }
@@ -85,13 +101,20 @@ async function selectTheme(page: Page, theme: Theme) {
 }
 
 async function calculate(page: Page) {
-  await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
-  await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeEnabled()
-  await page.getByRole("radio", { name: "Results", exact: true }).click()
+  await page.getByRole("button", { name: "Results", exact: true }).click()
+  await page.getByRole("menuitem", { name: "LCA results", exact: true }).click()
   const report = page.locator(".markdown-report")
   await expect(report).toBeVisible()
   await expect(report.locator("h1")).toHaveCount(0)
   await expect(report.locator("p").first()).toContainText("Method:")
+}
+
+async function expectAnalysisAvailability(page: Page, name: string, enabled: boolean) {
+  await page.getByRole("button", { name: "Results", exact: true }).click()
+  const item = page.getByRole("menuitem", { name, exact: true })
+  if (enabled) await expect(item).toBeEnabled()
+  else await expect(item).toBeDisabled()
+  await page.keyboard.press("Escape")
 }
 
 async function openDesktopAnalysis(page: Page, name: string, root: string) {
@@ -102,7 +125,7 @@ async function openDesktopAnalysis(page: Page, name: string, root: string) {
   await expect(page.locator(root)).toBeVisible()
 }
 
-test("manual YAML changes must be calculated or discarded before navigation", async ({ page }) => {
+test("catalog drafts must be saved as a session model or discarded before navigation", async ({ page }) => {
   await mockLcaApi(page)
   await openWorkspace(page)
   await calculate(page)
@@ -113,70 +136,187 @@ test("manual YAML changes must be calculated or discarded before navigation", as
   const editor = page.getByRole("textbox", { name: "Product graph YAML" })
   const appliedSource = await editor.inputValue()
   await editor.fill(appliedSource.replace("Jacket", "Draft jacket"))
-  await expect(page.getByText("Unapplied changes. Calculate the LCA or discard changes before leaving this view.")).toBeVisible()
-  await expect(page.getByRole("button", { name: "Calculate" })).toBeEnabled()
-  await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeVisible()
-  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeVisible()
+  await expect(page.getByText("Unsaved draft. Save As to create a session model.")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Save As..." })).toBeEnabled()
+  await expect(page.getByRole("button", { name: "Results", exact: true })).toBeVisible()
 
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   const dialog = page.getByRole("alertdialog")
   await expect(dialog.getByRole("heading", { name: "Unsaved YAML changes" })).toBeVisible()
+  await expect(dialog).toContainText("Save a copy before continuing?")
   await dialog.getByRole("button", { name: "Keep editing" }).click()
   await expect(page.getByRole("radio", { name: "Editor", exact: true })).toBeChecked()
 
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   await dialog.getByRole("button", { name: "Discard changes" }).click()
-  await expect(page.getByRole("heading", { name: "Jacket" })).toBeVisible()
+  await expect(page.locator('[aria-label="Current model: Jacket"]:visible')).toBeVisible()
+  await expect(page.locator(".react-flow__node")).toHaveCount(5)
   await page.getByRole("radio", { name: "Editor", exact: true }).click()
   await expect(editor).toHaveValue(appliedSource)
 
   await editor.fill("not: [valid")
-  await page.getByRole("button", { name: "Calculate" }).click()
+  await page.getByRole("button", { name: "Save As..." }).click()
+  await page.getByRole("dialog").getByRole("button", { name: "Save As", exact: true }).click()
   await expect(page.locator(".yaml-error")).toBeVisible()
 
   await editor.fill(appliedSource.replace("Jacket", "Calculated jacket"))
-  await page.getByRole("button", { name: "Calculate" }).click()
-  await expect(page.getByRole("heading", { name: "Calculated jacket" })).toBeVisible()
+  await page.getByRole("button", { name: "Save As..." }).click()
+  const saveAsDialog = page.getByRole("dialog")
+  await saveAsDialog.getByRole("textbox", { name: "Model name" }).fill("Calculated jacket study")
+  await saveAsDialog.getByRole("button", { name: "Save As", exact: true }).click()
+  await expect(page.locator('[aria-label="Current model: Calculated jacket study"]:visible')).toBeVisible()
+  await page.getByRole("radio", { name: "Graph", exact: true }).click()
+  await expect(page.locator(".react-flow__node")).toHaveCount(5)
   await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
-  await page.getByRole("radio", { name: "Results", exact: true }).click()
+  await page.getByRole("button", { name: "Results", exact: true }).click()
+  await page.getByRole("menuitem", { name: "LCA results", exact: true }).click()
   await expect(page.locator(".markdown-report")).toBeVisible()
-  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeVisible()
 
-  await page.getByRole("radio", { name: "Inventory", exact: true }).click()
-  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeChecked()
-  await expect(page.getByRole("radio", { name: "Results", exact: true })).not.toBeChecked()
+  await openDesktopAnalysis(page, "Inventory", ".inventory-view")
 
   await page.getByRole("radio", { name: "Editor", exact: true }).click()
   await editor.fill(appliedSource.replace("Jacket", "Modal calculated jacket"))
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
-  await dialog.getByRole("button", { name: "Calculate" }).click()
-  await expect(page.getByRole("heading", { name: "Modal calculated jacket" })).toBeVisible()
+  await expect(dialog).toContainText("Save changes to \"Calculated jacket study\"")
+  await dialog.getByRole("button", { name: "Save", exact: true }).click()
+  await expect(page.locator('[aria-label="Current model: Calculated jacket study"]:visible')).toBeVisible()
   await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
-  await page.getByRole("radio", { name: "Results", exact: true }).click()
+  await page.getByRole("button", { name: "Results", exact: true }).click()
+  await page.getByRole("menuitem", { name: "LCA results", exact: true }).click()
   await expect(page.locator(".markdown-report")).toBeVisible()
-  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeVisible()
 })
 
-test("Paste YAML opens a blank custom editor and calculates the pasted source", async ({ page }) => {
+test("New model starts blank and Save As creates a writable session model", async ({ page }) => {
   await mockLcaApi(page)
   await openWorkspace(page)
   await calculate(page)
 
-  await page.getByRole("radio", { name: "Editor", exact: true }).click()
   const editor = page.getByRole("textbox", { name: "Product graph YAML" })
+  await page.getByRole("radio", { name: "Editor", exact: true }).click()
   const source = await editor.inputValue()
-  await page.getByRole("button", { name: "Paste YAML" }).click()
+  await page.getByRole("button", { name: "Model", exact: true }).click()
+  await page.getByRole("menuitem", { name: "New model" }).click()
 
   await expect(editor).toHaveValue("")
-  await expect(page.getByText("Paste YAML to create a new LCA.")).toBeVisible()
-  await expect(page.getByRole("button", { name: "Calculate" })).toBeDisabled()
+  await expect(page.getByText("Start writing YAML, or upload a model from the Model menu.")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Save As..." })).toBeDisabled()
+  await expect(page.getByText("Paste YAML", { exact: true })).toHaveCount(0)
 
   await editor.fill(source.replace("Jacket", "Pasted jacket"))
-  await expect(page.getByRole("button", { name: "Calculate" })).toBeEnabled()
-  await expect(page.getByRole("combobox", { name: "Choose a product graph" })).toHaveText(/Pasted jacket/)
-  await page.getByRole("button", { name: "Calculate" }).click()
-  await expect(page.getByRole("heading", { name: "Pasted jacket" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Save As..." })).toBeEnabled()
+  await page.getByRole("button", { name: "Save As..." }).click()
+  await page.getByRole("dialog").getByRole("textbox", { name: "Model name" }).fill("Pasted jacket study")
+  await page.getByRole("dialog").getByRole("button", { name: "Save As", exact: true }).click()
+  await expect(page.locator('[aria-label="Current model: Pasted jacket study"]:visible')).toBeVisible()
+  await page.getByRole("radio", { name: "Graph", exact: true }).click()
+  await expect(page.locator(".react-flow__node")).toHaveCount(5)
   await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
+})
+
+test("Upload creates a writable session model and Download preserves the exact draft", async ({ page }) => {
+  await mockLcaApi(page)
+  let calculationRequests = 0
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.endsWith("/api/lca/base")) calculationRequests += 1
+  })
+  await openWorkspace(page)
+  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  const editor = page.getByRole("textbox", { name: "Product graph YAML" })
+  const uploadedSource = (await editor.inputValue()).replace("Jacket", "Uploaded jacket")
+
+  await uploadYaml(page, "uploaded-study.yaml", uploadedSource)
+  await expect(page.locator('[aria-label="Current model: uploaded-study"]:visible')).toBeVisible()
+  await expect(editor).toHaveValue(uploadedSource)
+  await expect(page.getByText("Saved in this browser session.")).toBeVisible()
+
+  await page.getByRole("button", { name: "Model", exact: true }).click()
+  await expect(page.getByRole("menuitem", { name: "uploaded-study", exact: true })).toHaveAttribute("aria-current", "true")
+  await page.keyboard.press("Escape")
+
+  const recoveryDraft = `${uploadedSource}\n# local recovery note\n`
+  await editor.fill(recoveryDraft)
+  const requestCountBeforeDownload = calculationRequests
+  const downloadPromise = page.waitForEvent("download")
+  await page.getByRole("button", { name: "Model", exact: true }).click()
+  await page.getByRole("menuitem", { name: "Download YAML" }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toBe("uploaded-study.yaml")
+  const stream = await download.createReadStream()
+  let downloadedSource = ""
+  for await (const chunk of stream) downloadedSource += chunk.toString()
+  expect(downloadedSource).toBe(recoveryDraft)
+  expect(calculationRequests).toBe(requestCountBeforeDownload)
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible()
+})
+
+test("an invalid upload keeps the prior committed graph and can be discarded", async ({ page }) => {
+  await mockLcaApi(page)
+  await openWorkspace(page)
+  await calculate(page)
+  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+
+  await uploadYaml(page, "broken-model.yaml", "not: [valid")
+  const editor = page.getByRole("textbox", { name: "Product graph YAML" })
+  await expect(editor).toHaveValue("not: [valid")
+  await expect(page.locator('[aria-label="Current model: broken-model"]:visible')).toBeVisible()
+  await expect(page.locator(".yaml-error")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Save As..." })).toBeEnabled()
+
+  await page.getByRole("radio", { name: "Graph", exact: true }).click()
+  await page.getByRole("alertdialog").getByRole("button", { name: "Discard changes" }).click()
+  await expect(page.locator('[aria-label="Current model: Jacket"]:visible')).toBeVisible()
+  await expect(page.locator(".react-flow__node")).toHaveCount(5)
+})
+
+test("model replacement protects dirty drafts and unload warns only while dirty", async ({ page }) => {
+  await mockLcaApi(page)
+  await openWorkspace(page)
+  const unloadPrevented = () => page.evaluate(() => {
+    const event = new Event("beforeunload", { cancelable: true })
+    window.dispatchEvent(event)
+    return event.defaultPrevented
+  })
+  expect(await unloadPrevented()).toBe(false)
+
+  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  const editor = page.getByRole("textbox", { name: "Product graph YAML" })
+  await editor.fill((await editor.inputValue()).replace("Jacket", "Protected jacket draft"))
+  expect(await unloadPrevented()).toBe(true)
+
+  await page.getByRole("button", { name: "Model", exact: true }).click()
+  await page.getByRole("menuitem", { name: "Cotton Fiber", exact: true }).click()
+  const confirmation = page.getByRole("alertdialog")
+  await confirmation.getByRole("button", { name: "Keep editing" }).click()
+  await expect(editor).toHaveValue(/Protected jacket draft/)
+  await expect(page.locator('[aria-label="Current model: Jacket"]:visible')).toBeVisible()
+
+  await page.getByRole("button", { name: "Model", exact: true }).click()
+  await page.getByRole("menuitem", { name: "Cotton Fiber", exact: true }).click()
+  await confirmation.getByRole("button", { name: "Discard changes" }).click()
+  await expect(editor).toHaveValue(/Cotton Fiber/)
+  await expect(page.locator('[aria-label="Current model: Cotton Fiber"]:visible')).toBeVisible()
+  expect(await unloadPrevented()).toBe(false)
+})
+
+test("an engine failure keeps the locally committed session model and structure graph", async ({ page }) => {
+  await mockLcaApi(page, lcaResultFixture, undefined, 0, 0, 2)
+  await openWorkspace(page)
+  await calculate(page)
+  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  const editor = page.getByRole("textbox", { name: "Product graph YAML" })
+  await editor.fill((await editor.inputValue()).replace("Jacket", "Locally saved jacket"))
+  await page.getByRole("button", { name: "Save As..." }).click()
+  await page.getByRole("dialog").getByRole("textbox", { name: "Model name" }).fill("Offline jacket study")
+  await page.getByRole("dialog").getByRole("button", { name: "Save As", exact: true }).click()
+  await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toHaveCount(0)
+
+  await expect(page.locator('[aria-label="Current model: Offline jacket study"]:visible')).toBeVisible()
+  await page.getByRole("radio", { name: "Graph", exact: true }).click()
+  await expect(page.locator(".react-flow__node")).toHaveCount(5)
+  await expectAnalysisAvailability(page, "Inventory", false)
+  await page.getByRole("button", { name: "Results", exact: true }).click()
+  await page.getByRole("menuitem", { name: "LCA results", exact: true }).click()
+  await expect(page.getByText("Calculation engine unavailable.")).toBeVisible()
 })
 
 test("a calculation for an older applied revision cannot populate results", async ({ page }) => {
@@ -215,18 +355,19 @@ test("a calculation for an older applied revision cannot populate results", asyn
   await page.getByRole("radio", { name: "Editor", exact: true }).click()
   const editor = page.getByRole("textbox", { name: "Product graph YAML" })
   await editor.fill((await editor.inputValue()).replace("Jacket", "New revision"))
-  await page.getByRole("button", { name: "Calculate" }).click()
-  await expect(page.getByRole("heading", { name: "New revision" })).toBeVisible()
+  await page.getByRole("button", { name: "Save As..." }).click()
+  await page.getByRole("dialog").getByRole("textbox", { name: "Model name" }).fill("New revision study")
+  await page.getByRole("dialog").getByRole("button", { name: "Save As", exact: true }).click()
   await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toBeVisible()
   await expect(page.getByRole("radio", { name: "Editor", exact: true })).toBeChecked()
-  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeDisabled()
+  await expectAnalysisAvailability(page, "Inventory", false)
   await page.waitForTimeout(650)
 
   await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toBeVisible()
-  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeDisabled()
-  await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
+  await expectAnalysisAvailability(page, "Inventory", false)
+  await expect(page.getByRole("radio", { name: "Editor", exact: true })).toBeChecked()
   await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toHaveCount(0)
-  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeEnabled()
+  await expectAnalysisAvailability(page, "Inventory", true)
 })
 
 test("toolbar tooltips open from keyboard focus and pointer input", async ({ page }) => {
@@ -241,6 +382,7 @@ test("toolbar tooltips open from keyboard focus and pointer input", async ({ pag
   await expect(page.getByRole("tooltip", { name: "Graph settings" })).toBeVisible()
 
   await page.reload()
+  await openWorkspace(page)
   await calculate(page)
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   await graphSettings.hover()
@@ -259,7 +401,7 @@ test("graph toolbar expands and collapses all activities", async ({ page }) => {
   await expect(page.locator(".react-flow__node .pg-node.is-expanded")).toHaveCount(0)
 })
 
-test("primary and result view switchers support arrow-key navigation", async ({ page }) => {
+test("primary switcher and Results menu support keyboard navigation", async ({ page }) => {
   await mockLcaApi(page)
   await openWorkspace(page)
   await calculate(page)
@@ -273,13 +415,15 @@ test("primary and result view switchers support arrow-key navigation", async ({ 
   await expect(fileView).toBeChecked()
   await expect(page.locator(".yaml-editor")).toBeVisible()
 
-  await page.getByRole("radio", { name: "Inventory", exact: true }).focus()
-  await page.keyboard.press("ArrowRight")
-  const impactView = page.getByRole("radio", { name: "Impact Analysis", exact: true })
-  await expect(impactView).toBeFocused()
-  await page.keyboard.press("Space")
-  await expect(impactView).toBeChecked()
-  await expect(page.getByRole("radio", { name: "Results", exact: true })).not.toBeChecked()
+  const resultsMenu = page.getByRole("button", { name: "Results", exact: true })
+  await resultsMenu.focus()
+  await page.keyboard.press("Enter")
+  await expect(page.getByRole("menuitem", { name: "LCA results", exact: true })).toBeFocused()
+  await page.keyboard.press("ArrowDown")
+  await expect(page.getByRole("menuitem", { name: "Inventory", exact: true })).toBeFocused()
+  await page.keyboard.press("ArrowDown")
+  await expect(page.getByRole("menuitem", { name: "Impact analysis", exact: true })).toBeFocused()
+  await page.keyboard.press("Enter")
   await expect(page.locator(".impact-view")).toBeVisible()
 })
 
@@ -298,7 +442,7 @@ test("theme, analysis, and Sankey selection groups support keyboard navigation",
   await page.getByRole("button", { name: "Close global settings" }).click()
 
   await calculate(page)
-  await page.getByRole("radio", { name: "Impact Analysis", exact: true }).click()
+  await openDesktopAnalysis(page, "Impact analysis", ".impact-view")
   const processes = page.getByRole("radio", { name: "Processes", exact: true })
   await processes.focus()
   await page.keyboard.press("ArrowRight")
@@ -306,7 +450,7 @@ test("theme, analysis, and Sankey selection groups support keyboard navigation",
   await page.keyboard.press("Space")
   await expect(page.getByRole("radio", { name: "Flows", exact: true })).toBeChecked()
 
-  await page.getByRole("radio", { name: "Sankey Graph", exact: true }).click()
+  await openDesktopAnalysis(page, "Sankey", ".sankey-view")
   await page.getByRole("button", { name: "Chart settings" }).click()
   await page.getByRole("radio", { name: "Flow", exact: true }).focus()
   await page.keyboard.press("ArrowRight")
@@ -349,28 +493,28 @@ test("form controls preserve selection, clamping, and disabled behavior", async 
   await page.getByRole("button", { name: "Close global settings" }).click()
 
   await page.getByRole("radio", { name: "Editor", exact: true }).click()
-  const caseStudy = page.getByRole("combobox", { name: "Choose a product graph" })
-  await caseStudy.click()
-  await page.getByRole("option", { name: "Cotton Fiber", exact: true }).click()
-  await expect(page.getByRole("heading", { name: "Cotton Fiber" })).toBeVisible()
-  await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
-  await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeEnabled()
-  await page.getByRole("radio", { name: "Results", exact: true }).click()
+  const modelMenu = page.getByRole("button", { name: "Model", exact: true })
+  await modelMenu.click()
+  await page.getByRole("menuitem", { name: "Cotton Fiber", exact: true }).click()
+  await expect(page.locator('[aria-label="Current model: Cotton Fiber"]:visible')).toBeVisible()
+  await expect(page.getByRole("radio", { name: "Editor", exact: true })).toBeChecked()
+  await page.getByRole("button", { name: "Results", exact: true }).click()
+  await page.getByRole("menuitem", { name: "LCA results", exact: true }).click()
   await expect(page.locator(".markdown-report")).toBeVisible()
 
   await page.getByRole("radio", { name: "Editor", exact: true }).click()
   await expect(page.getByRole("textbox", { name: "Product graph YAML" })).toHaveValue(/Cotton Fiber/)
-  await expect(page.getByRole("button", { name: "Calculate" })).toBeDisabled()
-  await caseStudy.click()
-  await page.getByRole("option", { name: "Simple Mock Plastic Broom", exact: true }).click()
-  await expect(page.getByRole("heading", { name: "Simple Mock Plastic Broom" })).toBeVisible()
-  await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
-  await expect(page.getByRole("radio", { name: "Results", exact: true })).toBeEnabled()
-  await page.getByRole("radio", { name: "Results", exact: true }).click()
+  await expect(page.getByRole("button", { name: "Save As..." })).toBeEnabled()
+  await modelMenu.click()
+  await page.getByRole("menuitem", { name: "Simple Mock Plastic Broom", exact: true }).click()
+  await expect(page.locator('[aria-label="Current model: Simple Mock Plastic Broom"]:visible')).toBeVisible()
+  await expect(page.getByRole("radio", { name: "Editor", exact: true })).toBeChecked()
+  await page.getByRole("button", { name: "Results", exact: true }).click()
+  await page.getByRole("menuitem", { name: "LCA results", exact: true }).click()
   await expect(page.locator(".markdown-report")).toBeVisible()
   await page.getByRole("radio", { name: "Editor", exact: true }).click()
   await expect(page.getByRole("textbox", { name: "Product graph YAML" })).toHaveValue(/Mock freight transport, small truck, direct emissions only/)
-  await expect(page.getByRole("button", { name: "Calculate" })).toBeDisabled()
+  await expect(page.getByRole("button", { name: "Save As..." })).toBeEnabled()
 })
 
 test("settings popovers dismiss predictably and restore trigger focus", async ({ page }) => {
@@ -418,7 +562,7 @@ test("process results show calculated upstream outputs", async ({ page }) => {
   await openWorkspace(page)
   await calculate(page)
 
-  await page.getByRole("radio", { name: "Process Results", exact: true }).click()
+  await openDesktopAnalysis(page, "Process results", ".process-results-view")
   const outputs = page.locator(".process-flow-grids section").filter({ has: page.getByRole("heading", { name: "Outputs" }) })
 
   await expect(outputs.getByText("Sulfur dioxide, air (SO2)")).toBeVisible()
@@ -464,7 +608,7 @@ test("process result sections select processes independently", async ({ page }) 
   await mockLcaApi(page)
   await openWorkspace(page)
   await calculate(page)
-  await page.getByRole("radio", { name: "Process Results", exact: true }).click()
+  await openDesktopAnalysis(page, "Process results", ".process-results-view")
 
   const flowProcess = page.getByRole("combobox", { name: "Flow contribution process" })
   const impactProcess = page.getByRole("combobox", { name: "Impact assessment process" })
@@ -483,14 +627,17 @@ test("all result tables expose working column resize handles", async ({ page }) 
   await calculate(page)
 
   const views = [
-    { name: "Inventory", table: ".inventory-table" },
-    { name: "Impact Analysis", table: ".impact-table" },
-    { name: "Process Results", table: ".process-flow-table, .process-impact-table" },
-    { name: "Contribution", table: ".contribution-table" },
+    { name: "Inventory", root: ".inventory-view", table: ".inventory-table" },
+    { name: "Impact Analysis", root: ".impact-view", table: ".impact-table" },
+    { name: "Process Results", root: ".process-results-view", table: ".process-flow-table, .process-impact-table" },
+    { name: "Contribution", root: ".contribution-view", table: ".contribution-table" },
   ]
 
   for (const view of views) {
-    await page.getByRole("radio", { name: view.name, exact: true }).click()
+    const menuName = view.name === "Impact Analysis" ? "Impact analysis"
+      : view.name === "Process Results" ? "Process results"
+        : view.name === "Contribution" ? "Contributions" : view.name
+    await openDesktopAnalysis(page, menuName, view.root)
     const table = page.locator(view.table).first()
     await expect(table).toBeVisible()
     const handle = table.getByRole("separator").first()
@@ -509,7 +656,7 @@ test("contribution table columns support accessible keyboard resizing and horizo
   await mockLcaApi(page)
   await openWorkspace(page)
   await calculate(page)
-  await page.getByRole("radio", { name: "Contribution", exact: true }).click()
+  await openDesktopAnalysis(page, "Contributions", ".contribution-view")
 
   const resizeProcess = page.getByRole("separator", { name: "Resize Process column" })
   await expect(resizeProcess).toHaveAttribute("aria-valuenow", "320")
@@ -601,17 +748,17 @@ test("every analysis table exposes accessible column resize controls", async ({ 
   await openWorkspace(page)
   await calculate(page)
 
-  await page.getByRole("radio", { name: "Inventory", exact: true }).click()
+  await openDesktopAnalysis(page, "Inventory", ".inventory-view")
   await expect(page.locator(".inventory-table").first().getByRole("separator")).toHaveCount(4)
 
-  await page.getByRole("radio", { name: "Impact Analysis", exact: true }).click()
+  await openDesktopAnalysis(page, "Impact analysis", ".impact-view")
   await expect(page.locator(".impact-table").getByRole("separator")).toHaveCount(5)
 
-  await page.getByRole("radio", { name: "Process Results", exact: true }).click()
+  await openDesktopAnalysis(page, "Process results", ".process-results-view")
   await expect(page.locator(".process-flow-table").first().getByRole("separator")).toHaveCount(6)
   await expect(page.locator(".process-impact-table").getByRole("separator")).toHaveCount(5)
 
-  await page.getByRole("radio", { name: "Contribution", exact: true }).click()
+  await openDesktopAnalysis(page, "Contributions", ".contribution-view")
   await expect(page.locator(".contribution-table").getByRole("separator")).toHaveCount(6)
 })
 
@@ -619,7 +766,7 @@ test("Flow and Impact Sankey process limits hide nodes from the bottom-right end
   await mockLcaApi(page)
   await openWorkspace(page)
   await calculate(page)
-  await page.getByRole("radio", { name: "Sankey Graph", exact: true }).click()
+  await openDesktopAnalysis(page, "Sankey", ".sankey-view")
   await page.getByRole("button", { name: "Chart settings" }).click()
   await page.getByRole("radio", { name: "Flow", exact: true }).click()
 
@@ -678,7 +825,7 @@ test("cumulative contribution graphs load only when an analysis pane opens", asy
 
   expect(contributionRequests).toHaveLength(0)
 
-  await page.getByRole("radio", { name: "Sankey Graph", exact: true }).click()
+  await openDesktopAnalysis(page, "Sankey", ".sankey-view")
   await expect.poll(() => contributionRequests.length).toBe(1)
   expect(contributionRequests[0]).toEqual(
     Object.entries(lcaResultFixture.lcia)
@@ -692,7 +839,7 @@ test("Results shows progress during lazy contribution calculations", async ({ pa
   await openWorkspace(page)
   await calculate(page)
 
-  await page.getByRole("radio", { name: "Impact Analysis", exact: true }).click()
+  await openDesktopAnalysis(page, "Impact analysis", ".impact-view")
   await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toBeVisible()
   await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toHaveCount(0)
 })
@@ -701,7 +848,7 @@ test("Sankey starts in Impact mode without briefly rendering the Flow graph", as
   await mockLcaApi(page, lcaResultFixture, undefined, 600)
   await openWorkspace(page)
   await calculate(page)
-  await page.getByRole("radio", { name: "Sankey Graph", exact: true }).click()
+  await openDesktopAnalysis(page, "Sankey", ".sankey-view")
 
   await expect(page.locator(".sankey-empty[role=status]")).toContainText("Loading impact graph")
   await expect(page.locator(".sankey-process-node")).toHaveCount(0)
@@ -711,7 +858,7 @@ test("Sankey starts in Impact mode without briefly rendering the Flow graph", as
 })
 
 test("Structure Graph is the default and Scaled Graph is enabled after the LCA finishes", async ({ page }) => {
-  await mockLcaApi(page, lcaResultFixture, undefined, 0, 600)
+  await mockLcaApi(page, lcaResultFixture, undefined, 0, 2_000)
   await openWorkspace(page)
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
 
@@ -720,7 +867,7 @@ test("Structure Graph is the default and Scaled Graph is enabled after the LCA f
   await expect(structureGraph).toHaveAttribute("aria-pressed", "true")
   await expect(scaledGraph).toBeDisabled()
 
-  await expect(page.getByRole("radio", { name: "Inventory", exact: true })).toBeVisible()
+  await expectAnalysisAvailability(page, "Inventory", true)
   await expect(scaledGraph).toBeEnabled()
   await scaledGraph.click()
   await expect(scaledGraph).toHaveAttribute("aria-pressed", "true")
@@ -816,32 +963,31 @@ for (const theme of ["dark", "light"] as const) {
     await expect(page.locator(".yaml-editor")).toBeVisible()
     await screenshot(page, `${theme}-yaml-editor.png`)
 
-    await page.getByRole("radio", { name: "Results", exact: true }).click()
+    await page.getByRole("button", { name: "Results", exact: true }).click()
+    await page.getByRole("menuitem", { name: "LCA results", exact: true }).click()
     await expect(page.locator(".markdown-report")).toBeVisible()
     await screenshot(page, `${theme}-lca-results.png`)
 
     await page.getByRole("radio", { name: "Graph", exact: true }).click()
     await page.getByRole("button", { name: "Scaled Graph" }).click()
     await expect(page.getByRole("button", { name: "Scaled Graph" })).toHaveAttribute("aria-pressed", "true")
+    await page.getByRole("button", { name: "Fit graph" }).click()
+    await page.waitForTimeout(500)
     await screenshot(page, `${theme}-scaled-graph.png`)
 
-    await page.getByRole("radio", { name: "Inventory", exact: true }).click()
-    await expect(page.locator(".inventory-view")).toBeVisible()
+    await openDesktopAnalysis(page, "Inventory", ".inventory-view")
     await screenshot(page, `${theme}-inventory.png`)
 
-    await page.getByRole("radio", { name: "Impact Analysis", exact: true }).click()
-    await expect(page.locator(".impact-view")).toBeVisible()
+    await openDesktopAnalysis(page, "Impact analysis", ".impact-view")
     await screenshot(page, `${theme}-impact-analysis.png`)
 
-    await page.getByRole("radio", { name: "Process Results", exact: true }).click()
-    await expect(page.locator(".process-results-view")).toBeVisible()
+    await openDesktopAnalysis(page, "Process results", ".process-results-view")
     await screenshot(page, `${theme}-process-results.png`)
 
-    await page.getByRole("radio", { name: "Contribution", exact: true }).click()
-    await expect(page.locator(".contribution-view")).toBeVisible()
+    await openDesktopAnalysis(page, "Contributions", ".contribution-view")
     await screenshot(page, `${theme}-contribution.png`)
 
-    await page.getByRole("radio", { name: "Sankey Graph", exact: true }).click()
+    await openDesktopAnalysis(page, "Sankey", ".sankey-view")
     await expect(page.locator(".sankey-process-node")).toHaveCount(5)
     await screenshot(page, `${theme}-sankey.png`)
 

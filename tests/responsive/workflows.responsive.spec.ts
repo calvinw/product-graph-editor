@@ -24,15 +24,17 @@ test("editor actions and source remain reachable", async ({ page }) => {
   await page.getByRole("radio", { name: "Editor", exact: true }).click()
 
   await expectInsideViewport(page.locator(".yaml-editor"), page)
-  await expect(page.getByRole("button", { name: "Paste YAML" })).toBeVisible()
-  await expect(page.locator(".yaml-upload")).toBeVisible()
   await expect(page.getByRole("textbox", { name: "Product graph YAML" })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Calculate" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Save As..." })).toBeVisible()
+  await expect(page.getByText("Paste YAML", { exact: true })).toHaveCount(0)
+  await page.getByRole("button", { name: "Model", exact: true }).click()
+  await expect(page.getByRole("menuitem", { name: "Upload YAML..." })).toBeVisible()
+  await expectInsideViewport(page.getByRole("menu"), page)
 })
 
 test("Stitch test preview remains reachable", async ({ page }) => {
   if ((page.viewportSize()?.width ?? 0) > 900) {
-    await page.getByRole("button", { name: /File/ }).click()
+    await page.getByRole("button", { name: "Model", exact: true }).click()
     await page.getByRole("menuitem", { name: "Open Stitch test" }).click()
   } else {
     await page.getByRole("radio", { name: "Stitch Test", exact: true }).click()

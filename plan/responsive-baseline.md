@@ -1,6 +1,6 @@
 # Responsive Work Baseline
 
-**Recorded:** August 10, 2026
+**Recorded:** August 14, 2026
 **Application baseline:** `48de6be`
 **Plan branch:** `agent-ui-responsive`
 **Viewport used by existing visual suite:** 1440 × 900
@@ -31,9 +31,9 @@ Infrastructure failures such as a missing browser executable or shared library a
 | Command | Result | Notes |
 | --- | --- | --- |
 | `npm run build` | Pass | Vite reports the existing large-chunk advisory. |
-| `npm run lint` | Pass | Zero warnings allowed. |
-| `npm run test:visual` | 20 passed, 5 failed | 25 tests, one Chromium worker. |
-| `npm run test:responsive` | 21 passed, 0 skipped | Three viewport projects; the previously skipped phone and tablet workflow contracts now pass. |
+| `npm run lint` | 40 failed | All failures are in the repository-owned `.agents/skills/extract-static-html/scripts/` files; targeted lint passes for the application and test files changed by the model-workspace implementation. |
+| `npm run test:visual` | 29 passed, 3 failed | 32 tests, one Chromium worker. The remaining failures match the accepted interaction failures below. |
+| `npm run test:responsive` | 27 passed, 0 skipped | Three viewport projects; model menus, editor actions, and analysis workflows pass at phone, tablet, and desktop sizes. |
 
 The production build contains no `react-grab` or `React Grab` marker; the source-context helper is development-only.
 
@@ -41,15 +41,15 @@ The baseline was refreshed after merging `origin/main` at `48de6be`. The contrib
 
 ## Accepted baseline failures
 
-All five failures below are temporarily accepted baseline failures. They may not change or expand during responsive work. Each must be fixed or explicitly quarantined with a follow-up reference by the final cleanup PR.
+All three failures below are temporarily accepted baseline failures. They may not change or expand during responsive work. Each must be fixed or explicitly quarantined with a follow-up reference by the final cleanup PR.
 
 | Test | Current failure | Disposition |
 | --- | --- | --- |
 | `all result tables expose working column resize handles` | The first Impact table resize handle remains at `aria-valuenow="300"` instead of changing to `330` after pointer drag. | Accepted baseline; investigate during browser/test tooling work. |
 | `opening the inspector keeps the selected jacket node visible` | The selected node overlaps the inspector; measured gap is about `-119px`, below the required `16px`. | Accepted baseline; investigate during graph/inspector responsive work. |
 | `opening the property editor preserves the graph viewport` | The inspector remains visually present after close even though it has `inert` and `aria-hidden="true"`. | Accepted baseline; investigate during graph/inspector responsive work. |
-| `dark application views` | `dark-global-settings.png` differs by about 1% of pixels. | Accepted baseline; determine whether this is an environment/font baseline or a real visual regression before updating snapshots. |
-| `light application views` | `light-global-settings.png` differs by about 1% of pixels. | Accepted baseline; determine whether this is an environment/font baseline or a real visual regression before updating snapshots. |
+
+The dark and light application snapshots were visually reviewed and refreshed for the model-workspace navigation and editor changes. Both themed application-view tests now pass; the scaled-graph captures explicitly fit the canvas before recording to avoid transient viewport snapshots.
 
 ## Regression rule
 
