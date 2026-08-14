@@ -16,6 +16,14 @@ const processNames = {
   assembly: "P4 — Jacket assembly",
 } as const
 
+const contributionDepths = {
+  [processIds.assembly]: 1,
+  [processIds.weaving]: 2,
+  [processIds.zipper]: 2,
+  [processIds.spinning]: 3,
+  [processIds.extraction]: 4,
+} as const
+
 const processScores = [
   {
     process_id: processIds.extraction,
@@ -177,7 +185,7 @@ export const lcaResultFixture = {
           code: process.process_id,
           location: null,
           scope: process.scope,
-          depth: index + 1,
+          depth: contributionDepths[process.process_id],
           supply_amount: [1, 1, 0.6, 0.66, 0.792][index],
           unit: index === 0 || index === 1 ? "unit" : "kg",
           direct_score: process.direct_score,
@@ -190,8 +198,8 @@ export const lcaResultFixture = {
       edges: [
         {
           id: "root-assembly",
-          source: "root",
-          target: "occurrence-p4",
+          source: "occurrence-p4",
+          target: "root",
           consumer_id: "root",
           producer_id: "occurrence-p4",
           flow_name: "Jacket",
@@ -200,8 +208,8 @@ export const lcaResultFixture = {
         },
         {
           id: "assembly-zipper",
-          source: "occurrence-p4",
-          target: "occurrence-p3",
+          source: "occurrence-p3",
+          target: "occurrence-p4",
           consumer_id: "occurrence-p4",
           producer_id: "occurrence-p3",
           flow_name: "Zipper",
@@ -210,8 +218,8 @@ export const lcaResultFixture = {
         },
         {
           id: "assembly-weaving",
-          source: "occurrence-p4",
-          target: "occurrence-p2",
+          source: "occurrence-p2",
+          target: "occurrence-p4",
           consumer_id: "occurrence-p4",
           producer_id: "occurrence-p2",
           flow_name: "Fabric",
@@ -220,8 +228,8 @@ export const lcaResultFixture = {
         },
         {
           id: "weaving-spinning",
-          source: "occurrence-p2",
-          target: "occurrence-p1",
+          source: "occurrence-p1",
+          target: "occurrence-p2",
           consumer_id: "occurrence-p2",
           producer_id: "occurrence-p1",
           flow_name: "Fiber",
@@ -230,8 +238,8 @@ export const lcaResultFixture = {
         },
         {
           id: "spinning-extraction",
-          source: "occurrence-p1",
-          target: "occurrence-p0",
+          source: "occurrence-p0",
+          target: "occurrence-p1",
           consumer_id: "occurrence-p1",
           producer_id: "occurrence-p0",
           flow_name: "Raw fiber material",

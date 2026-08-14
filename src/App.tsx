@@ -65,14 +65,16 @@ type SankeyProcessNodeData = {
   pathDimmed?: boolean
 }
 function SankeyProcessNode({ data }: NodeProps<Node<SankeyProcessNodeData>>) {
+  const targetPosition = data.orientation === "vertical" ? Position.Top : Position.Left
+  const sourcePosition = data.orientation === "vertical" ? Position.Bottom : Position.Right
   return <div className={`pg-node is-expanded sankey-process-node${data.pathHighlighted ? " is-path-highlighted" : ""}${data.pathDimmed ? " is-path-dimmed" : ""}`} style={{ "--node-color": nodeScopeColors[data.scope] } as React.CSSProperties}>
-    <Handle type="target" position={data.orientation === "vertical" ? Position.Bottom : Position.Right} />
+    <Handle type="target" position={targetPosition} />
     <div className="pg-node-head"><Component size={14} /><span className="pg-node-label">{data.label}</span><small className={`pg-node-scope is-${data.scope}`}>{data.scope}</small></div>
     <div className="sankey-process-metrics">
       <div>{data.direct}</div>
       <div>{data.upstream}</div>
     </div>
-    <Handle type="source" position={data.orientation === "vertical" ? Position.Top : Position.Left} />
+    <Handle type="source" position={sourcePosition} />
   </div>
 }
 const sankeyNodeTypes = { sankeyProcess: SankeyProcessNode }
@@ -511,6 +513,21 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
   ]))
   const nodeProcess = (node: (typeof processNodes)[number]) => yamlByName.get((node.process_name ?? node.label).toLowerCase())
     ?? yamlByName.get(cleanImpactProcessName(node.process_name ?? node.label).toLowerCase())
+  const exactLciFlowKeys = new Set<string>()
+  const lciFlowAliases = new Map<string, Set<string>>()
+  Object.entries(result.lci).forEach(([name, value]) => {
+    const input = isInventoryInput(value.type)
+    const exactKey = `${input}:${normalizedFlow(name)}`
+    const aliasKey = `${input}:${normalizedFlow(name.split(/[|,]/)[0])}`
+    exactLciFlowKeys.add(exactKey)
+    lciFlowAliases.set(aliasKey, new Set(lciFlowAliases.get(aliasKey) ?? []).add(exactKey))
+  })
+  const canonicalFlowKey = (input: boolean, name: string) => {
+    const key = `${input}:${normalizedFlow(name)}`
+    if (exactLciFlowKeys.has(key)) return key
+    const aliases = lciFlowAliases.get(key)
+    return aliases?.size === 1 ? [...aliases][0] : key
+  }
   const flowRows = new Map<string, { name: string; category: string; unit: string; upstream: number; direct: number; input: boolean }>()
   processNodes.filter((node) => flowIncludedIds.has(node.id)).forEach((node) => {
     const process = nodeProcess(node)
@@ -520,7 +537,7 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
       ...(process?.extractions ?? process?.resources ?? process?.resource_inputs ?? []).map((flow) => ({ ...flow, input: true })),
     ]
     exchanges.forEach((flow) => {
-      const key = `${flow.input}:${normalizedFlow(flow.flow)}`
+      const key = canonicalFlowKey(flow.input, flow.flow)
       const existing = flowRows.get(key) ?? { name: flow.flow, category: flow.input ? "elementary flows/resource" : "elementary flows/air", unit: flow.unit ?? "kg", upstream: 0, direct: 0, input: flow.input }
       const amount = flow.amount * scale
       existing.upstream += amount
@@ -556,7 +573,7 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
       if (!upstreamOccurrences.has(flow.process_occurrence_id)) return
       const input = flow.kind === "extraction"
       const category = `elementary flows/${flow.categories.join("/") || (input ? "resource" : "air")}`
-      const key = `${input}:${normalizedFlow(flow.flow_name)}`
+      const key = canonicalFlowKey(input, flow.flow_name)
       const existing = graphFlows.get(key) ?? {
         name: flow.flow_name,
         category,
@@ -580,9 +597,12 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
     })
   })
   calculatedFlows.forEach((flow) => {
-    const yamlKey = `${flow.input}:${normalizedFlow(flow.name)}`
+    const yamlKey = canonicalFlowKey(flow.input, flow.name)
     const existing = flowRows.get(yamlKey)
     if (existing) {
+      existing.name = flow.name
+      existing.category = flow.category
+      existing.unit = flow.unit
       existing.upstream = flow.upstream
       existing.direct = flow.direct
     } else {
@@ -595,12 +615,11 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
   if (flowIncludedIds.size === processIds.size) {
     Object.entries(result.lci).forEach(([name, value]) => {
       const input = isInventoryInput(value.type)
-      const baseName = name.split(/[|,]/)[0].trim()
-      const key = `${input}:${normalizedFlow(baseName)}`
+      const key = canonicalFlowKey(input, name)
       const existing = flowRows.get(key)
       flowRows.set(key, {
         name,
-        category: input ? "elementary flows/resource" : "elementary flows/air",
+        category: existing?.category ?? (input ? "elementary flows/resource" : "elementary flows/air"),
         unit: value.unit,
         upstream: value.amount,
         direct: existing?.direct ?? 0,
@@ -726,10 +745,11 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
   loadContributionGraphs: (categories: string[]) => Promise<ContributionGraph[]>
 }) {
   const { formatNumber, formatPercent } = useDisplaySettings()
+  const [contributionMode, setContributionMode] = useState<"flow" | "impact">("impact")
   const [impact, setImpact] = useState("")
-  const [expanded, setExpanded] = useState(true)
+  const [flow, setFlow] = useState("")
   const [expandedProcesses, setExpandedProcesses] = useState<Set<string>>(() => new Set())
-  const [columnWidths, setColumnWidths] = useState([140, 320, 180, 220, 180])
+  const [columnWidths, setColumnWidths] = useState([190, 170, 320, 190, 250, 140])
 
   const impactNames = result ? Object.keys(result.lcia) : []
   const defaultImpact = impactNames.find((name) => impactCategoryAbbreviation(name).replaceAll(/\s+/g, "").toUpperCase() === "GWP100")
@@ -744,6 +764,12 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
 
   const category = result.process_contributions.categories.find((item) => item.label === selectedImpact || item.id === selectedImpact)
   const selectedContributionGraph = result.contribution_graphs.find((item) => item.label === selectedImpact)
+  const availableFlows = [...new Map(result.contribution_graphs.flatMap((graph) => graph.flows).map((item) => [
+    `${item.flow_name}\u0000${item.unit}`,
+    { value: `${item.flow_name}\u0000${item.unit}`, label: `${chemicalFlowLabel(item.flow_name)} (${item.unit})` },
+  ])).values()].sort((left, right) => left.label.localeCompare(right.label))
+  const selectedFlow = availableFlows.some((item) => item.value === flow) ? flow : (availableFlows[0]?.value ?? "")
+  const [selectedFlowName, selectedFlowUnit = ""] = selectedFlow.split("\u0000")
   let requirements: ReturnType<typeof buildInventoryRequirements> = []
   try { requirements = buildInventoryRequirements(yaml, result.scaling_vector) } catch { requirements = [] }
   const impactTotal = result.lcia[selectedImpact]
@@ -805,10 +831,12 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
       .sort((left, right) => Math.abs(rolledUpValue(right)) - Math.abs(rolledUpValue(left)))
     const canExpand = upstream.length > 0
     const isOpen = expandedProcesses.has(row.name)
-    const displayedValue = canExpand && !isOpen ? rolledUpValue(row) : ownValue(row)
-    const percent = total ? displayedValue / total * 100 : 0
+    const displayedValue = rolledUpValue(row)
+    const contributionRate = total ? displayedValue / total * 100 : 0
+    const directPercent = total ? row.total / total * 100 : 0
     const processRow = <tr key={`${row.name}-${depth}-${index}`} className={canExpand ? "clickable-process" : ""} onClick={canExpand ? () => toggleProcess(row.name) : undefined}>
-      <td><span className="rate-value">{formatPercent(percent)}</span></td>
+      <td><span className="result-bar contribution-rate-bar"><i className={contributionRate < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(contributionRate))}%` }} /></span><span className="rate-value">{formatPercent(contributionRate)}</span></td>
+      <td><span className="rate-value">{formatPercent(directPercent)}</span></td>
       <td style={{ paddingLeft: `${7 + depth * 20}px` }}>{canExpand ? <button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-expanded={isOpen} aria-label={`${isOpen ? "Hide" : "Show"} inputs for ${row.name}`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className="process-mark">⌘</span>{row.name}</td>
       <td>{number(row.total)}</td><td><span className="result-bar"><i className={displayedValue < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(displayedValue) / maxMagnitude * 100)}%` }} /></span>{number(displayedValue)}</td><td>{unit}</td>
     </tr>
@@ -823,16 +851,35 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
     graphChildren.set(edge.consumer_id, [...(graphChildren.get(edge.consumer_id) ?? []), producer])
   })
   graphChildren.forEach((children) => children.sort((left, right) => Math.abs(right.cumulative_score) - Math.abs(left.cumulative_score)))
+  const flowDirectScore = (nodeId: string) => selectedContributionGraph?.flows
+    .filter((item) => item.process_occurrence_id === nodeId && item.flow_name === selectedFlowName && item.unit === selectedFlowUnit)
+    .reduce((sum, item) => sum + item.amount, 0) ?? 0
+  const flowCumulativeScore = (nodeId: string, visited = new Set<string>()): number => {
+    if (visited.has(nodeId)) return 0
+    const nextVisited = new Set(visited).add(nodeId)
+    return flowDirectScore(nodeId) + (graphChildren.get(nodeId) ?? []).reduce((sum, child) => sum + flowCumulativeScore(child.id, nextVisited), 0)
+  }
+  const graphRootId = selectedContributionGraph?.nodes.find((node) => node.kind === "functional_unit")?.id ?? ""
+  const graphRootProcesses = graphChildren.get(graphRootId) ?? []
+  const flowTotal = graphRootProcesses.reduce((sum, node) => sum + flowCumulativeScore(node.id), 0)
+  const displayedTotal = contributionMode === "flow" ? flowTotal : (selectedContributionGraph?.total_score ?? total)
+  const displayedUnit = contributionMode === "flow" ? selectedFlowUnit : (selectedContributionGraph?.unit ?? unit)
+  const graphNodeCumulativeScore = (node: ContributionGraphNode) => contributionMode === "flow" ? flowCumulativeScore(node.id) : node.cumulative_score
   const renderGraphProcesses = (items: ContributionGraphNode[], depth = 0): React.ReactNode[] => items.flatMap((node) => {
     const children = graphChildren.get(node.id) ?? []
-    const isOpen = !expandedProcesses.has(node.id)
-    const percent = selectedContributionGraph?.total_score ? node.cumulative_score / selectedContributionGraph.total_score * 100 : null
+    const isOpen = expandedProcesses.has(node.id)
+    const directScore = contributionMode === "flow" ? flowDirectScore(node.id) : node.direct_score
+    const cumulativeScore = graphNodeCumulativeScore(node)
+    const contributionRate = displayedTotal ? cumulativeScore / displayedTotal * 100 : null
+    const percent = displayedTotal ? cumulativeScore / displayedTotal * 100 : null
+    const directPercent = displayedTotal ? directScore / displayedTotal * 100 : null
     const row = <tr key={node.id} className={children.length ? "clickable-process contribution-process-row" : "contribution-process-row"} onClick={children.length ? () => toggleProcess(node.id) : undefined}>
-      <td><span className="rate-value">{percent === null ? "—" : formatPercent(percent)}</span></td>
+      <td>{contributionRate === null ? "—" : <><span className="result-bar contribution-rate-bar"><i className={contributionRate < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(contributionRate))}%` }} /></span><span className="rate-value">{formatPercent(contributionRate)}</span></>}</td>
+      <td><span className="rate-value">{directPercent === null ? "—" : formatPercent(directPercent)}</span></td>
       <td style={{ paddingLeft: `${7 + depth * 20}px` }}>{children.length ? <button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-expanded={isOpen} aria-label={`${isOpen ? "Hide" : "Show"} upstream processes for ${node.process_name}`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className="process-mark">⌘</span>{cleanProcessName(node.process_name)}{node.location ? <small>{node.location}</small> : null}</td>
-      <td>{number(node.direct_score)}</td>
-      <td><span className="result-bar"><i className={node.cumulative_score < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(percent ?? 0))}%` }} /></span>{number(node.cumulative_score)}</td>
-      <td>{selectedContributionGraph?.unit}</td>
+      <td>{number(directScore)}</td>
+      <td><span className="result-bar"><i className={cumulativeScore < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(percent ?? 0))}%` }} /></span>{number(cumulativeScore)}</td>
+      <td>{displayedUnit}</td>
     </tr>
     return isOpen ? [row, ...renderGraphProcesses(children, depth + 1)] : [row]
   })
@@ -845,25 +892,26 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
       </aside> : null}
     </div>
     <div className="contribution-controls">
-      <label className="active">Impact category</label>
-      <div className="contribution-control-slot"><div className="contribution-select is-impact"><BarChart3 size={16} /><AppSelect value={selectedImpact} onValueChange={(value) => { setImpact(value); void loadContributionGraphs([value]) }} label="Impact category" options={impactNames.map((value) => ({ value, label: impactCategoryDisplayName(value) }))} /></div></div>
+      <div className="contribution-mode-group"><label className={contributionMode === "flow" ? "active" : ""}><input className="app-radio" type="radio" name="contribution-mode" checked={contributionMode === "flow"} onChange={() => setContributionMode("flow")} />Flows</label><label className={contributionMode === "impact" ? "active" : ""}><input className="app-radio" type="radio" name="contribution-mode" checked={contributionMode === "impact"} onChange={() => setContributionMode("impact")} />Impact category</label></div>
+      <div className="contribution-control-slot">{contributionMode === "flow"
+        ? <div className="contribution-select is-flow"><Leaf size={16} /><AppSelect value={selectedFlow} onValueChange={setFlow} label="Flow" options={availableFlows} /></div>
+        : <div className="contribution-select is-impact"><BarChart3 size={16} /><AppSelect value={selectedImpact} onValueChange={(value) => { setImpact(value); void loadContributionGraphs([value]) }} label="Impact category" options={impactNames.map((value) => ({ value, label: impactCategoryDisplayName(value) }))} /></div>}</div>
       {!selectedContributionGraph ? <p className="contribution-fallback-note">Recursive contributions were not requested for this category. Showing the available process-contribution results.</p> : null}
     </div>
-    <div className="contribution-table-wrap"><table className="contribution-table" style={{ width: Math.max(1040, columnWidths.reduce((sum, width) => sum + width, 0)) }}><ResizableTableHeader labels={[
-      "Contribution rate",
+    <div className="contribution-table-wrap"><table className="contribution-table" style={{ width: Math.max(1180, columnWidths.reduce((sum, width) => sum + width, 0)) }}><ResizableTableHeader labels={[
+      "Contribution",
+      "Direct Contribution %",
       "Process",
       "Direct contribution",
       "Accumulated contribution",
       "Unit",
     ]} widths={columnWidths} onWidthsChange={setColumnWidths} /><tbody>
       {selectedContributionGraph ? <>
-        <tr className="contribution-root"><td>{selectedContributionGraph.status === "zero_total" ? "—" : formatPercent(100)}</td><td><button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} process contributions`}><ChevronDown size={14} /></button><span className="process-mark">⌘</span>Total — {result.name}</td><td>—</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(selectedContributionGraph.total_score)}</td><td>{selectedContributionGraph.unit}</td></tr>
-        {expanded ? renderGraphProcesses(graphChildren.get(selectedContributionGraph.nodes.find((node) => node.kind === "functional_unit")?.id ?? "") ?? []) : null}
-        {expanded && !selectedContributionGraph.nodes.some((node) => node.kind === "process") ? <tr className="empty-row"><td colSpan={5}>{selectedContributionGraph.status === "zero_total" ? "This impact category has a zero total, so contribution percentages are unavailable." : "No process contributions were returned for this category."}</td></tr> : null}
+        {renderGraphProcesses(graphRootProcesses)}
+        {!selectedContributionGraph.nodes.some((node) => node.kind === "process") ? <tr className="empty-row"><td colSpan={6}>{selectedContributionGraph.status === "zero_total" ? "This selection has a zero total, so contribution percentages are unavailable." : "No process contributions were returned for this selection."}</td></tr> : null}
       </> : <>
-        <tr className="contribution-root"><td>{formatPercent(100)}</td><td><button className={`tree-toggle ${expanded ? "is-expanded" : ""}`} onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} process contributions`}><ChevronDown size={14} /></button><span className="process-mark">⌘</span>{result.name}</td><td>—</td><td><span className="result-bar"><i style={{ width: "100%" }} /></span>{number(total)}</td><td>{unit}</td></tr>
-        {expanded ? renderContributionRows(rootRows.length ? rootRows : rows) : null}
-        {expanded && !rows.length ? <tr className="empty-row"><td colSpan={5}>No process contribution rows were returned for this category.</td></tr> : null}
+        {renderContributionRows(rootRows.length ? rootRows : rows)}
+        {!rows.length ? <tr className="empty-row"><td colSpan={6}>No process contribution rows were returned for this category.</td></tr> : null}
       </>}
     </tbody></table></div>
   </div>
@@ -901,7 +949,7 @@ function SankeyView({ result, loadContributionGraphs }: {
   const selectedContributionGraph = result.contribution_graphs.find((graph) => graph.label === selectedImpact)
   const impactGraphPending = mode === "impact" && !selectedContributionGraph
   const processNodes = mode === "impact" && selectedContributionGraph
-    ? selectedContributionGraph.nodes.map((node) => ({
+    ? selectedContributionGraph.nodes.filter((node) => node.kind === "process").map((node) => ({
         id: node.id,
         label: node.process_name,
         process_name: node.process_name,
@@ -911,13 +959,22 @@ function SankeyView({ result, loadContributionGraphs }: {
     : result.sankey.nodes.filter((node) => node.kind === "process").map((node) => ({ ...node, kind: node.kind }))
   useEffect(() => setMaxProcesses(processNodes.length), [mode, processNodes.length, selectedContributionGraph?.id, selectedFlow, selectedImpact])
   const processIds = new Set(processNodes.map((node) => node.id))
+  const contributionDepths = new Map(selectedContributionGraph?.nodes.map((node) => [node.id, node.depth]) ?? [])
   const links = mode === "impact" && selectedContributionGraph
-    ? selectedContributionGraph.edges.map((edge) => ({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
+    ? selectedContributionGraph.edges.filter((edge) => processIds.has(edge.source) && processIds.has(edge.target)).map((edge) => {
+        const sourceDepth = contributionDepths.get(edge.source) ?? 0
+        const targetDepth = contributionDepths.get(edge.target) ?? 0
+        return {
+          id: edge.id,
+          source: sourceDepth <= targetDepth ? edge.source : edge.target,
+          target: sourceDepth <= targetDepth ? edge.target : edge.source,
+        }
+      })
+    : result.sankey.links.filter((link) => processIds.has(link.source) && processIds.has(link.target)).map((link) => ({
+        ...link,
+        source: link.target,
+        target: link.source,
       }))
-    : result.sankey.links.filter((link) => processIds.has(link.source) && processIds.has(link.target))
   const incoming = new Map<string, typeof links>()
   const outgoing = new Map<string, typeof links>()
   links.forEach((link) => {
@@ -961,9 +1018,9 @@ function SankeyView({ result, loadContributionGraphs }: {
     if (visiting.has(nodeId)) return new Set()
     const next = new Set(visiting).add(nodeId)
     const processSet = new Set<string>()
-    ;(incoming.get(nodeId) ?? []).forEach((link) => {
-      processSet.add(link.source)
-      upstreamProcesses(link.source, next).forEach((id) => processSet.add(id))
+    ;(outgoing.get(nodeId) ?? []).forEach((link) => {
+      processSet.add(link.target)
+      upstreamProcesses(link.target, next).forEach((id) => processSet.add(id))
     })
     upstreamProcessMemo.set(nodeId, processSet)
     return new Set(processSet)
@@ -989,10 +1046,10 @@ function SankeyView({ result, loadContributionGraphs }: {
   }
   const selectedTotal = mode === "impact" ? (category?.total_score ?? result.lcia[selectedImpact]?.score ?? 0) : (result.lci[selectedFlow]?.amount ?? 0)
   const totalMagnitude = Math.abs(selectedTotal)
-  const rootIds = new Set(processNodes.filter((node) => !(outgoing.get(node.id)?.length)).map((node) => node.id))
+  const rootIds = new Set(processNodes.filter((node) => !(incoming.get(node.id)?.length)).map((node) => node.id))
   const eligibleNodes = processNodes.filter((node) => rootIds.has(node.id) || !totalMagnitude || Math.abs(upstreamTotal(node.id) / selectedTotal * 100) >= minContribution)
   const visibleNodes = [...eligibleNodes]
-    .sort((left, right) => depth(left.id) - depth(right.id))
+    .sort((left, right) => depth(right.id) - depth(left.id))
     .slice(0, Math.max(1, maxProcesses))
   const visibleIds = new Set(visibleNodes.map((node) => node.id))
   const visibleLinks = links.filter((link) => visibleIds.has(link.source) && visibleIds.has(link.target))
@@ -1015,9 +1072,7 @@ function SankeyView({ result, loadContributionGraphs }: {
     adjacency.set(link.source, [...(adjacency.get(link.source) ?? []), link.target])
     adjacency.set(link.target, [...(adjacency.get(link.target) ?? []), link.source])
   })
-  const productRoot = selectedContributionGraph
-    ? visibleNodes.find((node) => node.kind === "functional_unit")
-    : visibleNodes.find((node) => !(outgoing.get(node.id)?.length))
+  const productRoot = visibleNodes.find((node) => !(incoming.get(node.id)?.length))
   const laidOut = new Set<string>()
   const queue = productRoot ? [productRoot.id] : []
   if (productRoot) laidOut.add(productRoot.id)
@@ -1039,6 +1094,42 @@ function SankeyView({ result, loadContributionGraphs }: {
     const position = layoutGraph.node(node.id)
     positions.set(node.id, { x: position.x - nodeWidth / 2, y: position.y - nodeHeight / 2 })
   })
+  if (orientation === "vertical" && productRoot) {
+    const rankById = new Map<string, number>([[productRoot.id, 0]])
+    const rankQueue = [productRoot.id]
+    while (rankQueue.length) {
+      const parentId = rankQueue.shift()!
+      const childRank = rankById.get(parentId)! + 1
+      ;(outgoing.get(parentId) ?? []).forEach((link) => {
+        const currentRank = rankById.get(link.target)
+        if (currentRank !== undefined && currentRank <= childRank) return
+        rankById.set(link.target, childRank)
+        rankQueue.push(link.target)
+      })
+    }
+    const rootY = positions.get(productRoot.id)?.y ?? 0
+    const fallbackRank = Math.max(1, ...rankById.values()) + 1
+    visibleNodes.forEach((node) => {
+      const position = positions.get(node.id)
+      if (!position) return
+      positions.set(node.id, {
+        ...position,
+        y: rootY + (rankById.get(node.id) ?? fallbackRank) * (nodeHeight + 260),
+      })
+    })
+    const nodesByRank = new Map<number, typeof visibleNodes>()
+    visibleNodes.forEach((node) => {
+      const rank = rankById.get(node.id) ?? fallbackRank
+      nodesByRank.set(rank, [...(nodesByRank.get(rank) ?? []), node])
+    })
+    nodesByRank.forEach((rankNodes) => {
+      const orderedX = rankNodes.map((node) => positions.get(node.id)?.x ?? 0).sort((left, right) => left - right)
+      rankNodes.sort((left, right) => left.label.localeCompare(right.label, undefined, { numeric: true })).forEach((node, index) => {
+        const position = positions.get(node.id)
+        if (position) positions.set(node.id, { ...position, x: orderedX[index] })
+      })
+    })
+  }
   if (orientation === "vertical" && productRoot && positions.size) {
     const horizontalExtents = [...positions.values()].flatMap((position) => [position.x, position.x + nodeWidth])
     const graphMidpoint = (Math.min(...horizontalExtents) + Math.max(...horizontalExtents)) / 2
@@ -1052,7 +1143,6 @@ function SankeyView({ result, loadContributionGraphs }: {
         if (childPosition) positions.set(immediateChildren[0], {
           ...childPosition,
           x: centeredX,
-          y: rootPosition.y + nodeHeight + 110,
         })
       }
     }
@@ -1078,7 +1168,7 @@ function SankeyView({ result, loadContributionGraphs }: {
     }
   })
   const sankeyEdges: Edge[] = visibleLinks.map((link) => {
-    const value = upstreamTotal(link.source)
+    const value = upstreamTotal(link.target)
     return {
       id: link.id,
       source: link.source,

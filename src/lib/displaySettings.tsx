@@ -16,7 +16,7 @@ type DisplaySettings = {
 const DisplaySettingsContext = createContext<DisplaySettings | null>(null)
 
 export function DisplaySettingsProvider({ children }: { children: ReactNode }) {
-  const [decimalPlaces, setDecimalPlacesState] = useState(2)
+  const [decimalPlaces, setDecimalPlacesState] = useState(6)
   const [showAllDecimalPlaces, setShowAllDecimalPlaces] = useState(false)
   const [theme, setTheme] = useState<Theme>("dark")
   const setDecimalPlaces = (value: number) => setDecimalPlacesState(Math.min(8, Math.max(0, Math.floor(value))))
