@@ -94,6 +94,14 @@ async function calculate(page: Page) {
   await expect(report.locator("p").first()).toContainText("Method:")
 }
 
+async function openDesktopAnalysis(page: Page, name: string, root: string) {
+  const results = page.getByRole("button", { name: "Results", exact: true })
+  await expect(results).toBeEnabled()
+  await results.click()
+  await page.getByRole("menuitem", { name, exact: true }).click()
+  await expect(page.locator(root)).toBeVisible()
+}
+
 test("manual YAML changes must be calculated or discarded before navigation", async ({ page }) => {
   await mockLcaApi(page)
   await openWorkspace(page)
@@ -330,8 +338,9 @@ test("form controls preserve selection, clamping, and disabled behavior", async 
 
   await page.getByRole("button", { name: "Global settings" }).click()
   const decimalPlaces = page.getByRole("spinbutton", { name: "Decimal places" })
+  await expect(decimalPlaces).toHaveValue("6")
   await page.getByRole("button", { name: "Increase decimal places" }).click()
-  await expect(decimalPlaces).toHaveValue("3")
+  await expect(decimalPlaces).toHaveValue("7")
   await page.getByRole("checkbox", { name: "Show all decimal places" }).click()
   await expect(decimalPlaces).toBeDisabled()
   await expect(page.getByRole("button", { name: "Decrease decimal places" })).toBeDisabled()
@@ -413,7 +422,7 @@ test("process results show calculated upstream outputs", async ({ page }) => {
   const outputs = page.locator(".process-flow-grids section").filter({ has: page.getByRole("heading", { name: "Outputs" }) })
 
   await expect(outputs.getByText("Sulfur dioxide, air (SO2)")).toBeVisible()
-  await expect(outputs.getByText("0.12")).toBeVisible()
+  await expect(outputs.getByText("0.123000")).toBeVisible()
   await expect(outputs.getByText("No output flows for this process.")).toHaveCount(0)
 
   const process = page.getByRole("combobox", { name: "Flow contribution process" })
@@ -421,7 +430,34 @@ test("process results show calculated upstream outputs", async ({ page }) => {
   await page.getByRole("option", { name: "Raw material extraction", exact: true }).click()
   const methane = outputs.getByRole("row").filter({ hasText: "Methane" })
   await expect(methane).toBeVisible()
-  await expect(methane.getByRole("cell").nth(4)).toHaveText("0.02")
+  await expect(methane.getByRole("cell").nth(4)).toHaveText("0.016000")
+})
+
+test("process results merge unambiguous YAML and engine flow aliases", async ({ page }) => {
+  const canonicalMethaneResult = {
+    ...lcaResultFixture,
+    lci: {
+      ...Object.fromEntries(Object.entries(lcaResultFixture.lci).filter(([name]) => name !== "Methane, air")),
+      "Methane, fossil": { amount: 0.023, unit: "kg", type: "emission" },
+    },
+    contribution_graphs: lcaResultFixture.contribution_graphs.map((graph) => ({
+      ...graph,
+      flows: graph.flows.map((flow) => flow.flow_name === "Methane" ? {
+        ...flow,
+        flow_name: "Methane, fossil",
+        categories: ["air", "low population density, long-term"],
+      } : flow),
+    })),
+  }
+  await mockLcaApi(page, canonicalMethaneResult)
+  await openWorkspace(page)
+  await openDesktopAnalysis(page, "Process results", ".process-results-view")
+
+  const outputs = page.locator(".process-flow-grids section").filter({ has: page.getByRole("heading", { name: "Outputs" }) })
+  const methane = outputs.getByRole("row").filter({ hasText: "Methane, fossil" })
+  await expect(methane).toHaveCount(1)
+  await expect(methane.getByRole("cell").nth(2)).toHaveText("elementary flows/air/low population density, long-term")
+  await expect(methane.getByRole("cell").nth(3)).toHaveText("0.023000")
 })
 
 test("process result sections select processes independently", async ({ page }) => {
@@ -491,17 +527,73 @@ test("contribution table columns support accessible keyboard resizing and horizo
 test("impact contributions show process direct and accumulated results without emission details", async ({ page }) => {
   await mockLcaApi(page)
   await openWorkspace(page)
-  await calculate(page)
-  await page.getByRole("radio", { name: "Contribution", exact: true }).click()
+  await openDesktopAnalysis(page, "Contributions", ".contribution-view")
 
-  await expect(page.getByRole("columnheader", { name: /Direct contribution/ })).toBeVisible()
+  await expect(page.getByRole("columnheader", { name: /^Direct contribution\b/ })).toBeVisible()
+  await expect(page.getByRole("columnheader", { name: /^Direct Contribution %/ })).toBeVisible()
   await expect(page.getByRole("columnheader", { name: /Accumulated contribution/ })).toBeVisible()
-  await expect(page.locator(".contribution-process-row")).toHaveCount(5)
+  await expect(page.locator(".contribution-process-row")).toHaveCount(1)
   const assembly = page.locator(".contribution-process-row").filter({ hasText: "Jacket assembly" })
-  await expect(assembly.locator("td").nth(2)).toHaveText("1.28")
-  await expect(assembly.locator("td").nth(3)).toContainText("5.6")
+  await expect(assembly.getByRole("button", { name: "Show upstream processes for P4 — Jacket assembly" })).toHaveAttribute("aria-expanded", "false")
+  await expect(assembly.locator("td").nth(1)).toContainText("22.857143")
+  await expect(assembly.locator("td").nth(3)).toHaveText("1.280000")
+  await expect(assembly.locator("td").nth(4)).toContainText("5.600000")
+  await expect(page.locator(".contribution-table").getByText(/Total —/)).toHaveCount(0)
   await expect(page.getByText("Carbon dioxide (CO2)", { exact: true })).toHaveCount(0)
   await expect(page.getByText("Other emissions", { exact: true })).toHaveCount(0)
+})
+
+test("contribution tree can show elementary flow contributions", async ({ page }) => {
+  await mockLcaApi(page)
+  await openWorkspace(page)
+  await openDesktopAnalysis(page, "Contributions", ".contribution-view")
+
+  await page.getByRole("radio", { name: "Flows", exact: true }).click()
+  const flow = page.getByRole("combobox", { name: "Flow" })
+  await flow.click()
+  await page.getByRole("option", { name: "CO₂ (kg)", exact: true }).click()
+  const assembly = page.locator(".contribution-process-row").filter({ hasText: "Jacket assembly" })
+  await expect(assembly.locator("td").nth(3)).toHaveText("0.800000")
+  await expect(assembly.locator("td").nth(5)).toHaveText("kg")
+})
+
+test("top contribution process shows its cumulative 100 percent share", async ({ page }) => {
+  const cumulativeRootResult = {
+    ...lcaResultFixture,
+    contribution_graphs: lcaResultFixture.contribution_graphs.map((graph) => ({
+      ...graph,
+      nodes: graph.nodes.map((node) => node.process_name.includes("Jacket assembly") ? {
+        ...node,
+        cumulative_score: graph.total_score,
+        cumulative_percentage: 100,
+      } : node),
+    })),
+  }
+  await mockLcaApi(page, cumulativeRootResult)
+  await openWorkspace(page)
+  await openDesktopAnalysis(page, "Contributions", ".contribution-view")
+
+  const topProcess = page.locator(".contribution-process-row").first()
+  const topChevron = topProcess.getByRole("button", { name: "Show upstream processes for P4 — Jacket assembly" })
+  await expect(page.locator(".contribution-process-row")).toHaveCount(1)
+  await expect(topChevron).toHaveAttribute("aria-expanded", "false")
+  await expect(topProcess.locator("td").first()).toContainText("100.000000%")
+  await expect(topProcess.locator("td").nth(1)).not.toContainText("100.000000%")
+  await expect(page.getByRole("separator", { name: "Resize Contribution column" })).toHaveAttribute("aria-valuenow", "190")
+  await expect(page.getByRole("separator", { name: "Resize Direct Contribution % column" })).toHaveAttribute("aria-valuenow", "170")
+  await expect(page.getByRole("separator", { name: "Resize Direct contribution column" })).toHaveAttribute("aria-valuenow", "190")
+  await expect(page.getByRole("separator", { name: "Resize Accumulated contribution column" })).toHaveAttribute("aria-valuenow", "250")
+  await expect.poll(() => topProcess.locator("td").evaluateAll((cells) => cells.every((cell) => cell.scrollWidth <= cell.clientWidth))).toBe(true)
+  await topChevron.click()
+  await expect(page.locator(".contribution-process-row")).toHaveCount(3)
+  await expect(topProcess.getByRole("button", { name: "Hide upstream processes for P4 — Jacket assembly" })).toHaveAttribute("aria-expanded", "true")
+  await topProcess.getByRole("button", { name: "Hide upstream processes for P4 — Jacket assembly" }).click()
+  await expect(page.locator(".contribution-process-row")).toHaveCount(1)
+
+  await page.getByRole("radio", { name: "Flows", exact: true }).click()
+  await expect(page.locator(".contribution-process-row")).toHaveCount(1)
+  await expect(page.locator(".contribution-process-row").first().getByRole("button", { name: "Show upstream processes for P4 — Jacket assembly" })).toHaveAttribute("aria-expanded", "false")
+  await expect(page.locator(".contribution-process-row").first().locator("td").first()).toContainText("100.000000%")
 })
 
 test("every analysis table exposes accessible column resize controls", async ({ page }) => {
@@ -520,7 +612,7 @@ test("every analysis table exposes accessible column resize controls", async ({ 
   await expect(page.locator(".process-impact-table").getByRole("separator")).toHaveCount(5)
 
   await page.getByRole("radio", { name: "Contribution", exact: true }).click()
-  await expect(page.locator(".contribution-table").getByRole("separator")).toHaveCount(5)
+  await expect(page.locator(".contribution-table").getByRole("separator")).toHaveCount(6)
 })
 
 test("Flow and Impact Sankey process limits hide nodes from the bottom-right end", async ({ page }) => {
@@ -531,17 +623,51 @@ test("Flow and Impact Sankey process limits hide nodes from the bottom-right end
   await page.getByRole("button", { name: "Chart settings" }).click()
   await page.getByRole("radio", { name: "Flow", exact: true }).click()
 
+  const flowAssembly = page.locator(".sankey-process-node").filter({ hasText: "Jacket assembly" })
+  const flowWeaving = page.locator(".sankey-process-node").filter({ hasText: "Fabric weaving" })
+  const flowZipper = page.locator(".sankey-process-node").filter({ hasText: "Zipper production" })
+  await expect(async () => {
+    const assemblyBox = await flowAssembly.boundingBox()
+    const weavingBox = await flowWeaving.boundingBox()
+    const zipperBox = await flowZipper.boundingBox()
+    expect(assemblyBox).not.toBeNull()
+    expect(weavingBox).not.toBeNull()
+    expect(zipperBox).not.toBeNull()
+    expect(weavingBox!.y).toBeGreaterThan(assemblyBox!.y + assemblyBox!.height)
+    expect(zipperBox!.y).toBeGreaterThan(assemblyBox!.y + assemblyBox!.height)
+    expect(Math.abs(weavingBox!.y - zipperBox!.y)).toBeLessThan(2)
+  }).toPass()
+  await expect(flowAssembly.locator(".react-flow__handle-bottom.source")).toHaveCount(1)
+  await expect(flowWeaving.locator(".react-flow__handle-top.target")).toHaveCount(1)
+
   await page.getByRole("spinbutton", { name: "Maximum processes" }).fill("1")
   await expect(page.locator(".sankey-process-node")).toHaveCount(1)
   await expect(page.locator(".sankey-process-node")).toContainText("Jacket assembly")
   await expect(page.locator(".sankey-process-node")).not.toContainText("Raw material extraction")
 
   await page.getByRole("radio", { name: "Impact", exact: true }).click()
-  await expect(page.getByRole("spinbutton", { name: "Maximum processes" })).toHaveValue("6")
+  await expect(page.getByRole("spinbutton", { name: "Maximum processes" })).toHaveValue("5")
+  const jacketAssembly = page.locator(".sankey-process-node").filter({ hasText: "Jacket assembly" })
+  const fabricWeaving = page.locator(".sankey-process-node").filter({ hasText: "Fabric weaving" })
+  const zipperProduction = page.locator(".sankey-process-node").filter({ hasText: "Zipper production" })
+  await expect(async () => {
+    const jacketBox = await jacketAssembly.boundingBox()
+    const fabricBox = await fabricWeaving.boundingBox()
+    const zipperBox = await zipperProduction.boundingBox()
+    const processBoxes = await page.locator(".sankey-process-node").evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().y))
+    expect(jacketBox).not.toBeNull()
+    expect(fabricBox).not.toBeNull()
+    expect(zipperBox).not.toBeNull()
+    expect(processBoxes.filter((y) => Math.abs(y - jacketBox!.y) < 2)).toHaveLength(1)
+    expect(fabricBox!.y).toBeGreaterThan(jacketBox!.y + jacketBox!.height)
+    expect(zipperBox!.y).toBeGreaterThan(jacketBox!.y + jacketBox!.height)
+    expect(Math.abs(fabricBox!.y - zipperBox!.y)).toBeLessThan(2)
+    expect(fabricBox!.x).toBeLessThan(zipperBox!.x)
+  }).toPass()
   await page.getByRole("spinbutton", { name: "Maximum processes" }).fill("1")
   await expect(page.locator(".sankey-process-node")).toHaveCount(1)
-  await expect(page.locator(".sankey-process-node")).toContainText("Raw material extraction")
-  await expect(page.locator(".sankey-process-node")).not.toContainText("Jacket assembly")
+  await expect(page.locator(".sankey-process-node")).toContainText("Jacket assembly")
+  await expect(page.locator(".sankey-process-node")).not.toContainText("Raw material extraction")
 })
 
 test("cumulative contribution graphs load only when an analysis pane opens", async ({ page }) => {
