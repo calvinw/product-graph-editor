@@ -307,8 +307,6 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
 .yaml-editor-foot .yaml-error { color: #fb7185; }
 .yaml-editor-foot .yaml-dirty { color: #fbbf24; }
 .save-as-form { display: flex; flex-direction: column; gap: 16px; }
-.stitch-preview { position: absolute; z-index: 1; inset: 72px 18px 18px; overflow: hidden; border: 1px solid var(--panel-border); border-radius: 12px; background: #f8f9ff; box-shadow: var(--panel-shadow); }
-.stitch-preview iframe { display: block; width: 100%; height: 100%; border: 0; background: #f8f9ff; }
 .results-empty { position: absolute; z-index: 1; inset: 92px 28px 28px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px; border: 1px solid #292e37; border-radius: 12px; text-align: center; background: rgba(14,17,22,.97); box-shadow: 0 18px 55px rgba(0,0,0,.3); }
 .results-empty-icon { display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 16px; border: 1px solid rgba(139,92,246,.3); border-radius: 12px; color: #a78bfa; background: rgba(139,92,246,.09); }
 .results-empty strong { font-size: 14px; }.results-empty p { max-width: 390px; margin: 8px 0 0; color: #747b86; font-size: 12px; line-height: 1.6; }
@@ -651,7 +649,6 @@ html[data-theme="light"] .process-flow-table .empty-row td { color: #6b7280; }
   .yaml-editor, .results-empty, .results-panel { inset: 108px 28px 28px; }
   .inventory-view, .impact-view, .process-results-view, .contribution-view, .sankey-view { inset: 108px 28px 28px; border-radius: 12px; }
   .sankey-toolbar, .sankey-chart-picker { top: 18px; }
-  .stitch-preview { inset: 108px 28px 28px; }
 }
 @media (max-width: 620px) {
   .welcome-page { padding: 10px; }
@@ -684,7 +681,6 @@ html[data-theme="light"] .process-flow-table .empty-row td { color: #6b7280; }
   .graph-settings-picker { width: min(330px, calc(100vw - 82px)); max-height: calc(100vh - 124px); overflow-y: auto; }
   .sankey-chart-picker { top: 104px; left: 72px; width: calc(100vw - 82px); max-height: calc(100vh - 124px); overflow-y: auto; }
   .sankey-toolbar { top: 104px; }
-  .stitch-preview { inset: 104px 10px 10px; }
   .yaml-editor { inset: 104px 10px 10px; }
   .yaml-editor-head, .yaml-editor-foot { align-items: stretch; flex-direction: column; gap: 9px; padding: 11px 12px; }
   .yaml-editor-foot button { width: 100%; min-height: 36px; }
