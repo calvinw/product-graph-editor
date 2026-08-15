@@ -424,6 +424,7 @@ test("primary switcher and Results menu support keyboard navigation", async ({ p
   const resultsMenu = page.getByRole("button", { name: "Results", exact: true })
   await resultsMenu.focus()
   await page.keyboard.press("Enter")
+  await expect(page.getByRole("menuitem", { name: "Export results" })).toHaveCount(0)
   await expect(page.getByRole("menuitem", { name: "LCA results", exact: true })).toBeFocused()
   await page.keyboard.press("ArrowDown")
   await expect(page.getByRole("menuitem", { name: "Inventory", exact: true })).toBeFocused()
