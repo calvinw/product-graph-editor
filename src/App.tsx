@@ -52,10 +52,8 @@ import {
   catalogEntryToDocument, initialModelWorkspace, modelWorkspaceReducer, safeYamlFilename,
   uniqueSessionTitle, yamlFilenameStem, type ActiveDocument, type SessionDocument,
 } from "./lib/modelWorkspace"
-import stitchTestHtml from "../.stitch/designs/aether-landing-page.html?raw"
-
 type NodeMeta = { label: string; kind: string; detail: string; color: string; scope?: "foreground" | "background" }
-type View = "graph" | "yaml" | "stitch" | "inventory" | "impact" | "process" | "contribution" | "sankey" | "results"
+type View = "graph" | "yaml" | "inventory" | "impact" | "process" | "contribution" | "sankey" | "results"
 type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribution" | "sankey">
 type PendingAction =
   | { kind: "view"; view: View }
@@ -1408,7 +1406,6 @@ function ModelMenu({
   onSaveAs,
   onUpload,
   onDownload,
-  onOpenStitch,
 }: {
   activeDocument: ActiveDocument | null
   catalog: ProductGraphCatalogEntry[]
@@ -1423,7 +1420,6 @@ function ModelMenu({
   onSaveAs: () => void
   onUpload: () => void
   onDownload: () => void
-  onOpenStitch: () => void
 }) {
   return <DropdownMenu>
     <DropdownMenuTrigger asChild>
@@ -1467,13 +1463,6 @@ function ModelMenu({
         <DropdownMenuItem onSelect={onUpload}><FileUp />Upload YAML...</DropdownMenuItem>
         <DropdownMenuItem disabled={!canDownload} onSelect={onDownload}><Download />Download YAML</DropdownMenuItem>
       </DropdownMenuGroup>
-      {import.meta.env.DEV ? <>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Development</DropdownMenuLabel>
-          <DropdownMenuItem onSelect={onOpenStitch}><LayoutGrid />Open Stitch test</DropdownMenuItem>
-        </DropdownMenuGroup>
-      </> : null}
     </DropdownMenuContent>
   </DropdownMenu>
 }
@@ -2286,7 +2275,7 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
     return () => window.removeEventListener("beforeunload", confirmDiscard)
   }, [isDirty])
   const hasCurrentResults = Boolean(lcaResult && calculatedRevision === appliedRevision)
-  const primaryView = view === "graph" || view === "yaml" || view === "stitch" || view === "results" ? view : ""
+  const primaryView = view === "graph" || view === "yaml" || view === "results" ? view : ""
   const analysisView = isAnalysisView(view) ? view : ""
   if (selected) lastSelectedRef.current = selected
   const inspectorSelection = selected ?? lastSelectedRef.current
@@ -2454,7 +2443,6 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
           onSaveAs={openSaveAsDialog}
           onUpload={() => requestAction({ kind: "upload" })}
           onDownload={downloadCurrentYaml}
-          onOpenStitch={() => requestView("stitch")}
         />
         <input ref={navbarUploadRef} className="navbar-file-input" type="file" accept=".yaml,.yml,text/yaml" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; loadYamlFile(file) }} />
         <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && requestView(next as "graph" | "yaml")} className="desktop-primary-nav" aria-label="Primary views">
@@ -2511,16 +2499,14 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
                   onSaveAs={openSaveAsDialog}
                   onUpload={() => requestAction({ kind: "upload" })}
                   onDownload={downloadCurrentYaml}
-                  onOpenStitch={() => requestView("stitch")}
                 />
               </div>
               {calculationInProgress ? <span className="calculation-message" role="status" aria-label="LCA calculation in progress">Calculating…</span>
                 : backgroundProcessing ? <span className="calculation-message" role="status" aria-label="Background graph processing">Processing…</span> : null}
               <div className="view-tab-groups">
-                <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && requestView(next as "graph" | "yaml" | "stitch" | "results")} className="inline-flex items-center" aria-label="Primary views">
+                <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && requestView(next as "graph" | "yaml" | "results")} className="inline-flex items-center" aria-label="Primary views">
                   <ToggleGroupItem value="graph">Graph</ToggleGroupItem>
                   <ToggleGroupItem value="yaml">Editor</ToggleGroupItem>
-                  {import.meta.env.DEV ? <ToggleGroupItem value="stitch">Stitch Test</ToggleGroupItem> : null}
                   <ToggleGroupItem value="results" aria-label="Results">Results</ToggleGroupItem>
                 </ToggleGroup>
                 <ToggleGroup type="single" value={analysisView} onValueChange={(next) => next && requestView(next as AnalysisView)} className="inline-flex items-center" aria-label="Result analysis views">
@@ -2618,8 +2604,6 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
               : activeDocument?.kind === "catalog" || isTransient ? <Button size="sm" disabled={!canSaveAs} onClick={openSaveAsDialog}><CopyPlus data-icon="inline-start" />Save As...</Button>
                 : null}
           </div>
-        </div> : view === "stitch" ? <div className="stitch-preview">
-          <iframe title="Stitch Test preview" srcDoc={stitchTestHtml} sandbox="allow-scripts" loading="lazy" />
         </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} loadContributionGraphs={loadContributionGraphs} /> : <div className="results-panel">
           <div className="results-panel-head">
             <div><strong>LCA Results</strong>{isCalculating ? <span className="calculation-message">Calculating…</span> : null}</div>

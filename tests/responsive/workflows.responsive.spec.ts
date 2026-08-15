@@ -40,20 +40,6 @@ test("editor actions and source remain reachable", async ({ page }) => {
   await expect(catalogMenu.getByRole("menuitem", { name: "Simple Mock Plastic Broom", exact: true })).toBeVisible()
 })
 
-test("Stitch test preview remains reachable", async ({ page }) => {
-  if ((page.viewportSize()?.width ?? 0) > 900) {
-    await page.getByRole("button", { name: "Model", exact: true }).click()
-    await page.getByRole("menuitem", { name: "Open Stitch test" }).click()
-  } else {
-    await page.getByRole("radio", { name: "Stitch Test", exact: true }).click()
-  }
-
-  const preview = page.getByTitle("Stitch Test preview")
-  await expectInsideViewport(page.locator(".stitch-preview"), page)
-  await expect(preview).toBeVisible()
-  await expect(preview.contentFrame().getByRole("heading", { name: "Work in the Atmosphere of Focus" })).toBeVisible()
-})
-
 test("analysis views contain their tables without page overflow", async ({ page }) => {
   await calculate(page)
 
