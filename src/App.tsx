@@ -2134,7 +2134,7 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
         source: "upload",
       }
       dispatchModelWorkspace({ type: "commit-new-session", document })
-      setView("yaml")
+      setView("graph")
       void calculateSource(source, revision)
     }
     reader.onerror = () => setYamlError("Could not read the selected file.")
@@ -2147,7 +2147,7 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
     const document = { ...catalogEntryToDocument(entry), title: productGraphLabel(entry.name) }
     dispatchModelWorkspace({ type: "load-document", document })
     setYamlError("")
-    setView("yaml")
+    setView("graph")
     applyAndCalculateYaml(document.committedYaml, false)
   }
 
@@ -2156,7 +2156,7 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
     if (!document) return
     dispatchModelWorkspace({ type: "load-document", document })
     setYamlError("")
-    setView("yaml")
+    setView("graph")
     applyAndCalculateYaml(document.committedYaml, false)
   }
 
