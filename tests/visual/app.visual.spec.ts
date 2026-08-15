@@ -5,6 +5,10 @@ import type { LcaResult } from "../../src/lib/lcaApi"
 
 type Theme = "dark" | "light"
 
+async function openCatalogModels(page: Page) {
+  await page.getByRole("menuitem", { name: "Catalog models" }).click()
+}
+
 async function mockLcaApi(
   page: Page,
   result: LcaResult = lcaResultFixture,
@@ -284,6 +288,7 @@ test("model replacement protects dirty drafts and unload warns only while dirty"
   expect(await unloadPrevented()).toBe(true)
 
   await page.getByRole("button", { name: "Model", exact: true }).click()
+  await openCatalogModels(page)
   await page.getByRole("menuitem", { name: "Cotton Fiber", exact: true }).click()
   const confirmation = page.getByRole("alertdialog")
   await confirmation.getByRole("button", { name: "Keep editing" }).click()
@@ -291,6 +296,7 @@ test("model replacement protects dirty drafts and unload warns only while dirty"
   await expect(page.locator('[aria-label="Current model: Jacket"]:visible')).toBeVisible()
 
   await page.getByRole("button", { name: "Model", exact: true }).click()
+  await openCatalogModels(page)
   await page.getByRole("menuitem", { name: "Cotton Fiber", exact: true }).click()
   await confirmation.getByRole("button", { name: "Discard changes" }).click()
   await expect(editor).toHaveValue(/Cotton Fiber/)
@@ -425,6 +431,11 @@ test("primary switcher and Results menu support keyboard navigation", async ({ p
   await expect(page.getByRole("menuitem", { name: "Impact analysis", exact: true })).toBeFocused()
   await page.keyboard.press("Enter")
   await expect(page.locator(".impact-view")).toBeVisible()
+
+  await resultsMenu.click()
+  const selectedResult = page.getByRole("menuitem", { name: "Impact analysis", exact: true })
+  await expect(selectedResult).toHaveAttribute("aria-current", "true")
+  await expect(selectedResult.locator(".lucide-check")).toBeVisible()
 })
 
 test("theme, analysis, and Sankey selection groups support keyboard navigation", async ({ page }) => {
@@ -495,6 +506,7 @@ test("form controls preserve selection, clamping, and disabled behavior", async 
   await page.getByRole("radio", { name: "Editor", exact: true }).click()
   const modelMenu = page.getByRole("button", { name: "Model", exact: true })
   await modelMenu.click()
+  await openCatalogModels(page)
   await page.getByRole("menuitem", { name: "Cotton Fiber", exact: true }).click()
   await expect(page.locator('[aria-label="Current model: Cotton Fiber"]:visible')).toBeVisible()
   await expect(page.getByRole("radio", { name: "Editor", exact: true })).toBeChecked()
@@ -506,6 +518,7 @@ test("form controls preserve selection, clamping, and disabled behavior", async 
   await expect(page.getByRole("textbox", { name: "Product graph YAML" })).toHaveValue(/Cotton Fiber/)
   await expect(page.getByRole("button", { name: "Save As..." })).toBeEnabled()
   await modelMenu.click()
+  await openCatalogModels(page)
   await page.getByRole("menuitem", { name: "Simple Mock Plastic Broom", exact: true }).click()
   await expect(page.locator('[aria-label="Current model: Simple Mock Plastic Broom"]:visible')).toBeVisible()
   await expect(page.getByRole("radio", { name: "Editor", exact: true })).toBeChecked()

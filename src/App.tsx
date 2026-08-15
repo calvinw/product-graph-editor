@@ -23,7 +23,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
-  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent,
+  DropdownMenuSubTrigger, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -224,7 +225,7 @@ function InventoryView({ result, yaml, isCurrent, error }: {
   })
 
   return <div className="inventory-view">
-    <div className="inventory-title"><div><strong>{result.name}</strong><span>{result.functional_unit}</span></div></div>
+    <div className="inventory-title"><div><strong>Inventory results</strong><span>{result.name} · {result.functional_unit}</span></div></div>
     <details open><summary>Inputs <span>{inputs.length}</span></summary>{renderFlowTable(inputs, "No environmental input flows were returned.")}</details>
     <details open><summary>Outputs <span>{outputs.length}</span></summary>{renderFlowTable(outputs, "No environmental output flows were returned.")}</details>
     <details open className="requirements"><summary>Total requirements <span>{requirementGraph?.nodes.filter((node) => node.kind === "process").length ?? fallbackRequirements.length}</span></summary>
@@ -389,7 +390,7 @@ function ImpactAnalysisView({ result, yaml, isCurrent, error, loadContributionGr
   }
 
   return <div className="impact-view">
-    <div className="impact-title"><div><strong>{result.name}</strong><span>Impact analysis – {result.method}</span></div></div>
+    <div className="impact-title"><div><strong>Impact analysis</strong><span>{result.name} · {result.method}</span></div></div>
     <div className="impact-controls">
       <span>Sub-group by</span>
       <RadioGroup className="impact-subgroup" value={subgroup} onValueChange={(value) => setSubgroup(value as "processes" | "flows")} aria-label="Sub-group impact results">
@@ -678,6 +679,7 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
   }).filter((row) => Math.abs(row.contribution) >= threshold && row.upstream !== 0)
 
   return <div className="process-results-view">
+    <div className="process-results-title"><div><strong>Process results</strong><span>{result.name} · {result.functional_unit}</span></div></div>
     <details open><summary>Flow contributions to process results</summary>
       <div className="process-results-controls"><label>Process <AppSelect value={selectedFlowProcessId} onValueChange={setFlowProcessId} label="Flow contribution process" options={processNodes.map((node) => ({ value: node.id, label: cleanImpactProcessName(node.process_name ?? node.label) }))} /></label><label>Don’t show &lt; <Input type="number" min="0" max="100" step="0.01" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label></div>
       <div className="process-flow-grids"><section><h3>Inputs</h3>{renderFlowResultsTable(true)}</section><section><h3>Outputs</h3>{renderFlowResultsTable(false)}</section></div>
@@ -900,7 +902,7 @@ function ContributionView({ result, yaml, isCurrent, error, loadContributionGrap
   })
 
   return <div className="contribution-view">
-    <div className="contribution-title"><div><strong>{result.name}</strong><span>{result.method} · {result.functional_unit}</span></div>
+    <div className="contribution-title"><div><strong>Contribution analysis</strong><span>{result.name} · {result.method} · {result.functional_unit}</span></div>
       {selectedContributionGraph ? <aside className={`contribution-graph-summary is-${selectedContributionGraph.status}`}>
         <strong>{selectedContributionGraph.status.replace("_", " ")}</strong>
         <span>Total {formatNumber(selectedContributionGraph.total_score)} {selectedContributionGraph.unit} · Coverage {selectedContributionGraph.coverage === null ? "—" : formatPercent(selectedContributionGraph.coverage * 100)} · Unexpanded {formatNumber(selectedContributionGraph.unexpanded_score)} {selectedContributionGraph.unit}</span>
@@ -1432,15 +1434,17 @@ function ModelMenu({
         <DropdownMenuItem onSelect={onNew}><FilePlus2 />New model</DropdownMenuItem>
       </DropdownMenuGroup>
       <DropdownMenuSeparator />
-      <DropdownMenuGroup>
-        <DropdownMenuLabel>Catalog models</DropdownMenuLabel>
-        {catalog.map((item) => {
-          const selected = activeDocument?.kind === "catalog" && activeDocument.id === item.id
-          return <DropdownMenuItem key={item.id} aria-current={selected ? "true" : undefined} onSelect={() => onSelectCatalog(item.id)}>
-            <span className="model-menu-item-title">{productGraphLabel(item.name)}</span>{selected ? <Check className="model-menu-check" /> : null}
-          </DropdownMenuItem>
-        })}
-      </DropdownMenuGroup>
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger>Catalog models</DropdownMenuSubTrigger>
+        <DropdownMenuSubContent className="navbar-dropdown model-catalog-submenu">
+          {catalog.map((item) => {
+            const selected = activeDocument?.kind === "catalog" && activeDocument.id === item.id
+            return <DropdownMenuItem key={item.id} aria-current={selected ? "true" : undefined} onSelect={() => onSelectCatalog(item.id)}>
+              <span className="model-menu-item-title" title={item.filename}>{productGraphLabel(item.name)}</span>{selected ? <Check className="model-menu-check" /> : null}
+            </DropdownMenuItem>
+          })}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
       {sessionDocuments.length ? <>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
@@ -2464,12 +2468,19 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
           <DropdownMenuContent align="start" className="navbar-dropdown">
             <DropdownMenuLabel>Analysis views</DropdownMenuLabel>
             <DropdownMenuGroup>
-              <DropdownMenuItem onSelect={() => requestView("results")}>LCA results</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => requestView("inventory")} disabled={!hasCurrentResults}>Inventory</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => requestView("impact")} disabled={!hasCurrentResults}>Impact analysis</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => requestView("process")} disabled={!hasCurrentResults}>Process results</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => requestView("contribution")} disabled={!hasCurrentResults}>Contributions</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => requestView("sankey")} disabled={!hasCurrentResults}>Sankey</DropdownMenuItem>
+              {([
+                ["results", "LCA results"],
+                ["inventory", "Inventory"],
+                ["impact", "Impact analysis"],
+                ["process", "Process results"],
+                ["contribution", "Contributions"],
+                ["sankey", "Sankey"],
+              ] as const).map(([resultView, label]) => {
+                const selected = view === resultView
+                return <DropdownMenuItem key={resultView} aria-current={selected ? "true" : undefined} onSelect={() => requestView(resultView)} disabled={resultView !== "results" && !hasCurrentResults}>
+                  <span className="model-menu-item-title">{label}</span>{selected ? <Check className="model-menu-check" /> : null}
+                </DropdownMenuItem>
+              })}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
