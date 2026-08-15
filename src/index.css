@@ -636,12 +636,13 @@ html[data-theme="light"] .process-flow-table .empty-row td { color: #6b7280; }
   .brand-study-title, .brand-separator { display: none; }
   .desktop-navbar .navbar-menu-trigger, .desktop-primary-nav button { height: 40px; padding: 0 15px; border-radius: 999px; font-size: 13px; font-weight: 600; letter-spacing: 0; }
   .desktop-navbar .lucide-chevron-down { width: 10px; height: 10px; }
-  .navbar-model-title { width: 156px; height: 40px; display: flex; align-items: center; padding-inline: 14px; border: 1px solid rgba(255,255,255,.12); border-radius: 999px; background: rgba(255,255,255,.045); font-size: 13px; font-weight: 550; }
+  .navbar-model-title { width: max-content; max-width: none; padding-inline: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; font-size: 13px; font-weight: 550; text-overflow: clip; }
   .navbar-status { font-size: 11px; }
   .top-actions { padding-left: 12px; }
   .global-settings-trigger { height: 40px; padding: 0 16px; border: 1px solid rgba(255,255,255,.1); border-radius: 999px; background: rgba(255,255,255,.045); font-size: 13px; }
   html[data-theme="light"] .topbar { border-color: rgba(71,85,105,.18); background: rgba(255,255,255,.82); box-shadow: 0 18px 50px rgba(41,51,68,.16), inset 0 1px rgba(255,255,255,.9); }
-  html[data-theme="light"] .navbar-model-title, html[data-theme="light"] .global-settings-trigger { border-color: rgba(71,85,105,.16); color: #475569; background: rgba(241,245,249,.82); }
+  html[data-theme="light"] .navbar-model-title { color: #475569; }
+  html[data-theme="light"] .global-settings-trigger { border-color: rgba(71,85,105,.16); color: #475569; background: rgba(241,245,249,.82); }
   html[data-theme="light"] .global-settings-trigger:hover, html[data-theme="light"] .global-settings-trigger.is-active { border-color: rgba(71,85,105,.24); color: #172033; background: rgba(226,232,240,.9); }
   .canvas-head { display: none; }
   .graph-search { top: 108px; left: 76px; }

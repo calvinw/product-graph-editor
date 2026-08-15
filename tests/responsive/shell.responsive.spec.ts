@@ -10,6 +10,13 @@ test("application shell and primary graph controls load", async ({ page }) => {
   await page.getByRole("button", { name: "Explore PRISM" }).click()
   if ((page.viewportSize()?.width ?? 0) > 900) {
     await expect(page.getByText("PRISM Life Cycle Assessment", { exact: true })).toBeVisible()
+    const fileTitle = page.locator(".navbar-model-title")
+    await expect(fileTitle).toHaveText("Jacket")
+    await expect(fileTitle).toHaveCSS("border-top-width", "0px")
+    await expect(fileTitle).toHaveCSS("border-radius", "0px")
+    await expect(fileTitle).toHaveCSS("background-color", "rgba(0, 0, 0, 0)")
+    await expect(fileTitle).toHaveCSS("text-overflow", "clip")
+    await expect(fileTitle).toHaveCSS("overflow", "visible")
   } else {
     await expect(page.getByRole("heading", { name: "Jacket" })).toBeVisible()
   }
