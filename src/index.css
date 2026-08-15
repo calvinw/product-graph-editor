@@ -243,8 +243,9 @@ button, input { font: inherit; }
 .desktop-primary-nav { display: flex; align-items: center; gap: 2px; }
 .navbar-dropdown { min-width: 190px; border-color: var(--floating-border); color: var(--popover-foreground); background: var(--floating-background-strong); font-size: 11px; }
 .navbar-dropdown [data-slot="dropdown-menu-label"] { color: var(--label-foreground); font-size: 9px; letter-spacing: .07em; text-transform: uppercase; }
-.navbar-dropdown [data-slot="dropdown-menu-item"] { min-height: 28px; font-size: 11px; }
+.navbar-dropdown [data-slot="dropdown-menu-item"], .navbar-dropdown [data-slot="dropdown-menu-sub-trigger"] { min-height: 28px; font-size: 11px; }
 .model-menu-content { width: min(300px, calc(100vw - 20px)); min-width: 240px; }
+.model-catalog-submenu { width: min(300px, calc(100vw - 20px)); }
 .model-menu-item-title { min-width: 0; overflow: hidden; flex: 1; text-overflow: ellipsis; white-space: nowrap; }
 .model-menu-check { margin-left: auto; }
 .navbar-file-input { display: none; }
@@ -356,6 +357,7 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
 .impact-bar { display: inline-block; width: 34px; height: 8px; margin-right: 8px; vertical-align: middle; background: #292c31; }.impact-bar i { display: block; height: 100%; min-width: 2px; background: #7757a5; }.impact-bar.flow i { background: #6a57a3; }.impact-result { display: inline-block; min-width: 112px; font-variant-numeric: tabular-nums; }
 .impact-panel .results-placeholder { padding: 30px; }
 .process-results-view { position: absolute; z-index: 1; inset: 72px 18px 18px; overflow: auto; border: 1px solid #34383d; color: #d8dadd; background: #1b1d20; box-shadow: 0 18px 55px rgba(0,0,0,.32); }
+.process-results-title { position: sticky; z-index: 2; top: 0; padding: 10px 14px; border-bottom: 1px solid #393c40; background: #3a3a3a; }.process-results-title > div { display: grid; gap: 2px; }.process-results-title strong { font-size: 15px; }.process-results-title span { color: #aaaeb3; font-size: 10px; }
 .process-results-view details { margin: 10px; border: 1px solid #34383d; background: #1c1e21; }.process-results-view details + details { margin-top: 18px; margin-bottom: 12px; }.process-results-view summary { padding: 9px 11px; border-bottom: 1px solid #34383d; color: #d7d9dc; background: linear-gradient(#36383a,#282a2c); font-size: 12px; font-weight: 700; cursor: pointer; }
 .process-results-controls { display: flex; align-items: center; gap: 24px; padding: 22px 26px 16px; font-size: 11px; }.process-results-controls label { display: flex; flex: 1; align-items: center; gap: 10px; }.process-results-controls label:last-child { flex: 0 0 auto; }.process-results-controls [data-slot="select-trigger"] { width: auto; height: 32px; flex: 1; padding: 0 3px 0 15px; border: 1px solid #555960; border-radius: 0; color: #e3e5e7; background: #292b2f; box-shadow: none; }.process-results-controls input { width: 68px; height: 30px; padding: 0 7px; border: 1px solid #555960; border-radius: 0; color: #e3e5e7; background: #292b2f; box-shadow: none; font-variant-numeric: tabular-nums; }
 .process-flow-grids { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 0 20px 24px; }.process-flow-grids section { min-width: 0; overflow-x: auto; }.process-flow-grids h3 { margin: 0 0 7px; font-size: 12px; font-weight: 500; }
@@ -673,7 +675,8 @@ html[data-theme="light"] .process-flow-table .empty-row td { color: #6b7280; }
   .view-tabs { flex-wrap: wrap; gap: 6px; padding: 5px; }
   .navigation-model-group { width: 100%; flex-basis: 100%; padding-left: 5px; }
   .navigation-model-title { font-size: 12px; }
-  .model-menu-content [data-slot="dropdown-menu-item"] { min-height: 36px; }
+  .model-menu-content, .model-catalog-submenu { width: 180px; min-width: 180px; }
+  .model-menu-content [data-slot="dropdown-menu-item"], .model-menu-content [data-slot="dropdown-menu-sub-trigger"], .model-catalog-submenu [data-slot="dropdown-menu-item"] { min-height: 36px; }
   .view-tab-groups { width: 100%; margin-left: 0; justify-content: flex-start; gap: 4px; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; }
   .view-tab-groups > [data-slot="toggle-group"] { flex: 0 0 auto; }
   .view-tabs button { min-height: 32px; }
