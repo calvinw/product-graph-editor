@@ -11,7 +11,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import prismLogoRound from "./assets/prism-logo-round.png"
 import {
-  ArrowRight, BarChart3, Box, Check, Component, CopyPlus, Scan, LayoutGrid, ChevronDown, Download, Factory, FileCode2, FilePlus2, Globe2, Leaf,
+  ArrowRight, BarChart3, Box, Check, Component, CopyPlus, Scan, LayoutGrid, ChevronDown, Download, Factory, FilePlus2, Globe2, Leaf,
   ChevronsDownUp, ChevronsUpDown, FileUp, Minus, Moon, MousePointer2, Plus, Save as SaveIcon, Search, Settings2, Sun, X,
 } from "lucide-react"
 import { parse } from "yaml"
@@ -1487,7 +1487,6 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
   const [productGraphs, setProductGraphs] = useState<ProductGraphCatalogEntry[]>([])
   const [catalogState, setCatalogState] = useState<"loading" | "ready" | "unavailable">("loading")
   const [yamlError, setYamlError] = useState("")
-  const [graphTitle, setGraphTitle] = useState("Loading product graphs…")
   const [resultsMarkdown, setResultsMarkdown] = useState("")
   const [resultsError, setResultsError] = useState("")
   const [contributionError, setContributionError] = useState("")
@@ -2028,7 +2027,6 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
         ...node,
         data: { ...node.data, canFold: parsed.edges.some((edge) => edge.target === node.id) },
       })), parsed.edges, { orientation: graphOrientation }))
-      setGraphTitle(parsed.name)
       setGraphMode("structure")
       setSelected(null)
       setYamlError("")
@@ -2469,10 +2467,6 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
                   <span className="model-menu-item-title">{label}</span>{selected ? <Check className="model-menu-check" /> : null}
                 </DropdownMenuItem>
               })}
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem onSelect={() => downloadTextFile(resultsMarkdown, `${productGraphLabel(graphTitle) || "lca-results"}.md`, "text/markdown")} disabled={!resultsMarkdown}><FileCode2 />Export results</DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
