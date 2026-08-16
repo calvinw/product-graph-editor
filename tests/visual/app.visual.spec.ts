@@ -1,12 +1,12 @@
 import { expect, test, type Page } from "@playwright/test"
 import { lcaResultFixture } from "../fixtures/lca-result"
-import { productGraphCatalogFixture } from "../fixtures/product-graph-catalog"
+import { productGraphTemplatesFixture } from "../fixtures/product-graph-templates"
 import type { LcaResult } from "../../src/lib/lcaApi"
 
 type Theme = "dark" | "light"
 
-async function openCatalogModels(page: Page) {
-  await page.getByRole("menuitem", { name: "Catalog models" }).click()
+async function openTemplates(page: Page) {
+  await page.getByRole("menuitem", { name: "Templates..." }).click()
 }
 
 async function mockLcaApi(
@@ -21,7 +21,7 @@ async function mockLcaApi(
   await page.route("**/lca-api/api/**", async (route) => {
     const { pathname } = new URL(route.request().url())
     if (pathname.endsWith("/api/product-graphs")) {
-      await route.fulfill({ json: productGraphCatalogFixture })
+      await route.fulfill({ json: productGraphTemplatesFixture })
       return
     }
     if (pathname.endsWith("/api/health")) {
@@ -129,14 +129,14 @@ async function openDesktopAnalysis(page: Page, name: string, root: string) {
   await expect(page.locator(root)).toBeVisible()
 }
 
-test("catalog drafts must be saved as a session model or discarded before navigation", async ({ page }) => {
+test("template drafts must be saved as a session model or discarded before navigation", async ({ page }) => {
   await mockLcaApi(page)
   await openWorkspace(page)
   await calculate(page)
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   await expect(page.locator(".react-flow__node")).toHaveCount(5)
 
-  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
   const editor = page.getByRole("textbox", { name: "Product graph YAML" })
   const appliedSource = await editor.inputValue()
   await editor.fill(appliedSource.replace("Jacket", "Draft jacket"))
@@ -149,13 +149,13 @@ test("catalog drafts must be saved as a session model or discarded before naviga
   await expect(dialog.getByRole("heading", { name: "Unsaved YAML changes" })).toBeVisible()
   await expect(dialog).toContainText("Save a copy before continuing?")
   await dialog.getByRole("button", { name: "Keep editing" }).click()
-  await expect(page.getByRole("radio", { name: "Editor", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "Edit", exact: true })).toBeChecked()
 
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   await dialog.getByRole("button", { name: "Discard changes" }).click()
   await expect(page.locator('[aria-label="Current model: Jacket"]:visible')).toBeVisible()
   await expect(page.locator(".react-flow__node")).toHaveCount(5)
-  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
   await expect(editor).toHaveValue(appliedSource)
 
   await editor.fill("not: [valid")
@@ -178,7 +178,7 @@ test("catalog drafts must be saved as a session model or discarded before naviga
 
   await openDesktopAnalysis(page, "Inventory", ".inventory-view")
 
-  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
   await editor.fill(appliedSource.replace("Jacket", "Modal calculated jacket"))
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   await expect(dialog).toContainText("Save changes to \"Calculated jacket study\"")
@@ -190,19 +190,19 @@ test("catalog drafts must be saved as a session model or discarded before naviga
   await expect(page.locator(".markdown-report")).toBeVisible()
 })
 
-test("New model starts blank and Save As creates a writable session model", async ({ page }) => {
+test("New starts blank and Save As creates a writable session model", async ({ page }) => {
   await mockLcaApi(page)
   await openWorkspace(page)
   await calculate(page)
 
   const editor = page.getByRole("textbox", { name: "Product graph YAML" })
-  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
   const source = await editor.inputValue()
-  await page.getByRole("button", { name: "Model", exact: true }).click()
-  await page.getByRole("menuitem", { name: "New model" }).click()
+  await page.getByRole("button", { name: "File", exact: true }).click()
+  await page.getByRole("menuitem", { name: "New..." }).click()
 
   await expect(editor).toHaveValue("")
-  await expect(page.getByText("Start writing YAML, or upload a model from the Model menu.")).toBeVisible()
+  await expect(page.getByText("Start writing YAML, or upload a model from the File menu.")).toBeVisible()
   await expect(page.getByRole("button", { name: "Save As..." })).toBeDisabled()
   await expect(page.getByText("Paste YAML", { exact: true })).toHaveCount(0)
 
@@ -224,7 +224,7 @@ test("Upload creates a writable session model and Download preserves the exact d
     if (new URL(request.url()).pathname.endsWith("/api/lca/base")) calculationRequests += 1
   })
   await openWorkspace(page)
-  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
   const editor = page.getByRole("textbox", { name: "Product graph YAML" })
   const uploadedSource = (await editor.inputValue()).replace("Jacket", "Uploaded jacket")
 
@@ -232,11 +232,11 @@ test("Upload creates a writable session model and Download preserves the exact d
   await expect(page.locator('[aria-label="Current model: uploaded-study"]:visible')).toBeVisible()
   await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
   await expect(page.locator(".react-flow__node")).toHaveCount(5)
-  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
   await expect(editor).toHaveValue(uploadedSource)
   await expect(page.getByText("Saved in this browser session.")).toBeVisible()
 
-  await page.getByRole("button", { name: "Model", exact: true }).click()
+  await page.getByRole("button", { name: "File", exact: true }).click()
   await expect(page.getByRole("menuitem", { name: "uploaded-study", exact: true })).toHaveAttribute("aria-current", "true")
   await page.keyboard.press("Escape")
 
@@ -244,7 +244,7 @@ test("Upload creates a writable session model and Download preserves the exact d
   await editor.fill(recoveryDraft)
   const requestCountBeforeDownload = calculationRequests
   const downloadPromise = page.waitForEvent("download")
-  await page.getByRole("button", { name: "Model", exact: true }).click()
+  await page.getByRole("button", { name: "File", exact: true }).click()
   await page.getByRole("menuitem", { name: "Download YAML" }).click()
   const download = await downloadPromise
   expect(download.suggestedFilename()).toBe("uploaded-study.yaml")
@@ -260,7 +260,7 @@ test("an invalid upload keeps the prior committed graph and can be discarded", a
   await mockLcaApi(page)
   await openWorkspace(page)
   await calculate(page)
-  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
 
   await uploadYaml(page, "broken-model.yaml", "not: [valid")
   const editor = page.getByRole("textbox", { name: "Product graph YAML" })
@@ -285,27 +285,27 @@ test("model replacement protects dirty drafts and unload warns only while dirty"
   })
   expect(await unloadPrevented()).toBe(false)
 
-  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
   const editor = page.getByRole("textbox", { name: "Product graph YAML" })
   await editor.fill((await editor.inputValue()).replace("Jacket", "Protected jacket draft"))
   expect(await unloadPrevented()).toBe(true)
 
-  await page.getByRole("button", { name: "Model", exact: true }).click()
-  await openCatalogModels(page)
+  await page.getByRole("button", { name: "File", exact: true }).click()
+  await openTemplates(page)
   await page.getByRole("menuitem", { name: "Cotton Fiber", exact: true }).click()
   const confirmation = page.getByRole("alertdialog")
   await confirmation.getByRole("button", { name: "Keep editing" }).click()
   await expect(editor).toHaveValue(/Protected jacket draft/)
   await expect(page.locator('[aria-label="Current model: Jacket"]:visible')).toBeVisible()
 
-  await page.getByRole("button", { name: "Model", exact: true }).click()
-  await openCatalogModels(page)
+  await page.getByRole("button", { name: "File", exact: true }).click()
+  await openTemplates(page)
   await page.getByRole("menuitem", { name: "Cotton Fiber", exact: true }).click()
   await confirmation.getByRole("button", { name: "Discard changes" }).click()
   await expect(page.locator('[aria-label="Current model: Cotton Fiber"]:visible')).toBeVisible()
   await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
   await expect(page.locator(".react-flow__node")).toHaveCount(2)
-  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
   await expect(editor).toHaveValue(/Cotton Fiber/)
   expect(await unloadPrevented()).toBe(false)
 })
@@ -314,7 +314,7 @@ test("an engine failure keeps the locally committed session model and structure 
   await mockLcaApi(page, lcaResultFixture, undefined, 0, 0, 2)
   await openWorkspace(page)
   await calculate(page)
-  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
   const editor = page.getByRole("textbox", { name: "Product graph YAML" })
   await editor.fill((await editor.inputValue()).replace("Jacket", "Locally saved jacket"))
   await page.getByRole("button", { name: "Save As..." }).click()
@@ -340,7 +340,7 @@ test("a calculation for an older applied revision cannot populate results", asyn
   await page.route("**/lca-api/api/**", async (route) => {
     const { pathname } = new URL(route.request().url())
     if (pathname.endsWith("/api/product-graphs")) {
-      await route.fulfill({ json: productGraphCatalogFixture })
+      await route.fulfill({ json: productGraphTemplatesFixture })
       return
     }
     if (pathname.endsWith("/api/health")) {
@@ -364,20 +364,20 @@ test("a calculation for an older applied revision cannot populate results", asyn
   await openWorkspace(page)
   await calculationRequested
 
-  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
   const editor = page.getByRole("textbox", { name: "Product graph YAML" })
   await editor.fill((await editor.inputValue()).replace("Jacket", "New revision"))
   await page.getByRole("button", { name: "Save As..." }).click()
   await page.getByRole("dialog").getByRole("textbox", { name: "Model name" }).fill("New revision study")
   await page.getByRole("dialog").getByRole("button", { name: "Save As", exact: true }).click()
   await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toBeVisible()
-  await expect(page.getByRole("radio", { name: "Editor", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "Edit", exact: true })).toBeChecked()
   await expectAnalysisAvailability(page, "Inventory", false)
   await page.waitForTimeout(650)
 
   await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toBeVisible()
   await expectAnalysisAvailability(page, "Inventory", false)
-  await expect(page.getByRole("radio", { name: "Editor", exact: true })).toBeChecked()
+  await expect(page.getByRole("radio", { name: "Edit", exact: true })).toBeChecked()
   await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toHaveCount(0)
   await expectAnalysisAvailability(page, "Inventory", true)
 })
@@ -421,7 +421,7 @@ test("primary switcher and Results menu support keyboard navigation", async ({ p
 
   await page.getByRole("radio", { name: "Graph", exact: true }).focus()
   await page.keyboard.press("ArrowRight")
-  const fileView = page.getByRole("radio", { name: "Editor", exact: true })
+  const fileView = page.getByRole("radio", { name: "Edit", exact: true })
   await expect(fileView).toBeFocused()
   await page.keyboard.press("Space")
   await expect(fileView).toBeChecked()
@@ -510,10 +510,10 @@ test("form controls preserve selection, clamping, and disabled behavior", async 
   await expect(decimalPlaces).toBeEnabled()
   await page.getByRole("button", { name: "Close global settings" }).click()
 
-  await page.getByRole("radio", { name: "Editor", exact: true }).click()
-  const modelMenu = page.getByRole("button", { name: "Model", exact: true })
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
+  const modelMenu = page.getByRole("button", { name: "File", exact: true })
   await modelMenu.click()
-  await openCatalogModels(page)
+  await openTemplates(page)
   await page.getByRole("menuitem", { name: "Cotton Fiber", exact: true }).click()
   await expect(page.locator('[aria-label="Current model: Cotton Fiber"]:visible')).toBeVisible()
   await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
@@ -521,11 +521,11 @@ test("form controls preserve selection, clamping, and disabled behavior", async 
   await page.getByRole("menuitem", { name: "LCA results", exact: true }).click()
   await expect(page.locator(".markdown-report")).toBeVisible()
 
-  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
   await expect(page.getByRole("textbox", { name: "Product graph YAML" })).toHaveValue(/Cotton Fiber/)
   await expect(page.getByRole("button", { name: "Save As..." })).toBeEnabled()
   await modelMenu.click()
-  await openCatalogModels(page)
+  await openTemplates(page)
   await page.getByRole("menuitem", { name: "Simple Mock Plastic Broom", exact: true }).click()
   const fullModelTitle = page.locator('[aria-label="Current model: Simple Mock Plastic Broom"]:visible')
   await expect(fullModelTitle).toBeVisible()
@@ -534,7 +534,7 @@ test("form controls preserve selection, clamping, and disabled behavior", async 
   await page.getByRole("button", { name: "Results", exact: true }).click()
   await page.getByRole("menuitem", { name: "LCA results", exact: true }).click()
   await expect(page.locator(".markdown-report")).toBeVisible()
-  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
   await expect(page.getByRole("textbox", { name: "Product graph YAML" })).toHaveValue(/Mock freight transport, small truck, direct emissions only/)
   await expect(page.getByRole("button", { name: "Save As..." })).toBeEnabled()
 })
@@ -982,7 +982,7 @@ for (const theme of ["dark", "light"] as const) {
     await screenshot(page, `${theme}-graph-settings.png`)
     await page.getByRole("button", { name: "Close graph settings" }).click()
 
-    await page.getByRole("radio", { name: "Editor", exact: true }).click()
+    await page.getByRole("radio", { name: "Edit", exact: true }).click()
     await expect(page.locator(".yaml-editor")).toBeVisible()
     await screenshot(page, `${theme}-yaml-editor.png`)
 

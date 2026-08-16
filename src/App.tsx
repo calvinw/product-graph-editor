@@ -42,14 +42,14 @@ import { layoutNodes } from "./lib/layout"
 import { chemicalFlowLabel } from "./lib/flowLabels"
 import { buildGraphFromYaml, buildInventoryRequirements, nodeScopeColors } from "./lib/yamlGraph"
 import {
-  calculateContributionGraphs, calculateLca, getBackgroundActivityDetails, getProductGraphCatalog, impactCategoryAbbreviation, impactCategoryDisplayName, lcaResultToMarkdown,
-  type ContributionGraph, type ContributionGraphNode, type LcaResult, type ProductGraphCatalogEntry,
+  calculateContributionGraphs, calculateLca, getBackgroundActivityDetails, getProductGraphTemplates, impactCategoryAbbreviation, impactCategoryDisplayName, lcaResultToMarkdown,
+  type ContributionGraph, type ContributionGraphNode, type LcaResult, type ProductGraphTemplate,
 } from "./lib/lcaApi"
 import { unitsAreCompatible } from "./lib/units"
 import { cn } from "./lib/utils"
 import { DisplaySettingsProvider, useDisplaySettings } from "./lib/displaySettings"
 import {
-  catalogEntryToDocument, safeYamlFilename,
+  templateToDocument, safeYamlFilename,
   uniqueSessionTitle, yamlFilenameStem, type ActiveDocument, type SessionDocument,
 } from "./lib/modelWorkspace"
 import {
@@ -61,7 +61,7 @@ type NodeMeta = { label: string; kind: string; detail: string; color: string; sc
 type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribution" | "sankey">
 type PendingAction =
   | { kind: "view"; view: View }
-  | { kind: "catalog"; id: string }
+  | { kind: "template"; id: string }
   | { kind: "session"; id: string }
   | { kind: "new" }
   | { kind: "upload" }
@@ -1396,15 +1396,15 @@ function CurrentModelTitle({ title, className = "" }: { title: string; className
   return <span className={cn("current-model-title", className)} aria-label={`Current model: ${title}`} title={title}>{title}</span>
 }
 
-function ModelMenu({
+function FileMenu({
   activeDocument,
-  catalog,
+  templates,
   sessionDocuments,
   canSave,
   canSaveAs,
   canDownload,
   onNew,
-  onSelectCatalog,
+  onSelectTemplate,
   onSelectSession,
   onSave,
   onSaveAs,
@@ -1412,13 +1412,13 @@ function ModelMenu({
   onDownload,
 }: {
   activeDocument: ActiveDocument | null
-  catalog: ProductGraphCatalogEntry[]
+  templates: ProductGraphTemplate[]
   sessionDocuments: SessionDocument[]
   canSave: boolean
   canSaveAs: boolean
   canDownload: boolean
   onNew: () => void
-  onSelectCatalog: (id: string) => void
+  onSelectTemplate: (id: string) => void
   onSelectSession: (id: string) => void
   onSave: () => void
   onSaveAs: () => void
@@ -1427,19 +1427,19 @@ function ModelMenu({
 }) {
   return <DropdownMenu>
     <DropdownMenuTrigger asChild>
-      <Button data-model-menu-trigger className="navbar-menu-trigger model-menu-trigger" variant="ghost" size="sm">Model<ChevronDown data-icon="inline-end" /></Button>
+      <Button data-file-menu-trigger className="navbar-menu-trigger model-menu-trigger" variant="ghost" size="sm">File<ChevronDown data-icon="inline-end" /></Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="start" className="navbar-dropdown model-menu-content">
       <DropdownMenuGroup>
-        <DropdownMenuItem onSelect={onNew}><FilePlus2 />New model</DropdownMenuItem>
+        <DropdownMenuItem onSelect={onNew}><FilePlus2 />New...</DropdownMenuItem>
       </DropdownMenuGroup>
       <DropdownMenuSeparator />
       <DropdownMenuSub>
-        <DropdownMenuSubTrigger>Catalog models</DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className="navbar-dropdown model-catalog-submenu">
-          {catalog.map((item) => {
-            const selected = activeDocument?.kind === "catalog" && activeDocument.id === item.id
-            return <DropdownMenuItem key={item.id} aria-current={selected ? "true" : undefined} onSelect={() => onSelectCatalog(item.id)}>
+        <DropdownMenuSubTrigger>Templates...</DropdownMenuSubTrigger>
+        <DropdownMenuSubContent className="navbar-dropdown template-submenu">
+          {templates.map((item) => {
+            const selected = activeDocument?.kind === "template" && activeDocument.id === item.id
+            return <DropdownMenuItem key={item.id} aria-current={selected ? "true" : undefined} onSelect={() => onSelectTemplate(item.id)}>
               <span className="model-menu-item-title" title={item.filename}>{productGraphLabel(item.name)}</span>{selected ? <Check className="model-menu-check" /> : null}
             </DropdownMenuItem>
           })}
@@ -1489,8 +1489,8 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
   const yamlDraft = useProductGraphStore((state) => state.yamlDraft)
   const appliedYaml = useProductGraphStore((state) => state.appliedYaml)
   const appliedRevision = useProductGraphStore((state) => state.appliedRevision)
-  const [productGraphs, setProductGraphs] = useState<ProductGraphCatalogEntry[]>([])
-  const [catalogState, setCatalogState] = useState<"loading" | "ready" | "unavailable">("loading")
+  const [templates, setTemplates] = useState<ProductGraphTemplate[]>([])
+  const [templateState, setTemplateState] = useState<"loading" | "ready" | "unavailable">("loading")
   const [yamlError, setYamlError] = useState("")
   const [resultsMarkdown, setResultsMarkdown] = useState("")
   const resultsError = useProductGraphStore((state) => state.calculationError)
@@ -1562,7 +1562,7 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
   useEffect(() => setGraphMaxProcesses(availableGraphProcessCount), [availableGraphProcessCount, setGraphMaxProcesses])
   useEffect(() => setReferenceAmountsVisible(false), [graphMode, selected?.id, setReferenceAmountsVisible])
   const currentModelTitle = activeDocument?.title
-    ?? (catalogState === "unavailable" ? "Catalog unavailable" : "Loading product graphs…")
+    ?? (templateState === "unavailable" ? "Templates unavailable" : "Loading templates…")
   useEffect(() => onTitleChange(currentModelTitle), [currentModelTitle, onTitleChange])
   useEffect(() => {
     if (lcaResult) setResultsMarkdown(lcaResultToMarkdown(lcaResult, decimalPlaces, showAllDecimalPlaces))
@@ -2091,26 +2091,26 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
     initialCalculationStartedRef.current = true
     void (async () => {
       try {
-        const catalog = await getProductGraphCatalog()
-        const initial = catalog.product_graphs.find((item) => item.id === WEBAPP_DEFAULT_PRODUCT_GRAPH_ID)
-          ?? catalog.product_graphs.find((item) => item.id === catalog.default_id)
-        if (!initial) throw new Error("The product-graph catalog has no default selection.")
-        setProductGraphs(catalog.product_graphs)
-        setCatalogState("ready")
+        const templateCollection = await getProductGraphTemplates()
+        const initial = templateCollection.product_graphs.find((item) => item.id === WEBAPP_DEFAULT_PRODUCT_GRAPH_ID)
+          ?? templateCollection.product_graphs.find((item) => item.id === templateCollection.default_id)
+        if (!initial) throw new Error("The product-graph templates have no default selection.")
+        setTemplates(templateCollection.product_graphs)
+        setTemplateState("ready")
         dispatchModelWorkspace({
           type: "load-document",
-          document: { ...catalogEntryToDocument(initial), title: productGraphLabel(initial.name) },
+          document: { ...templateToDocument(initial), title: productGraphLabel(initial.name) },
         })
         const revision = applyYaml(initial.product_graph)
         if (revision !== null) void calculateSource(initial.product_graph, revision)
       } catch (error) {
         const message = error instanceof Error ? error.message : "Could not load product graphs from the LCA server."
-        setCatalogState("unavailable")
+        setTemplateState("unavailable")
         setYamlError(message)
         failCalculation(message)
       }
     })()
-    // The initial catalog load and calculation must run exactly once per app mount.
+    // The initial template load and calculation must run exactly once per app mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -2155,10 +2155,10 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
     reader.readAsText(file)
   }
 
-  const loadProductGraph = (id: string) => {
-    const entry = productGraphs.find((item) => item.id === id)
+  const loadTemplate = (id: string) => {
+    const entry = templates.find((item) => item.id === id)
     if (!entry) return
-    const document = { ...catalogEntryToDocument(entry), title: productGraphLabel(entry.name) }
+    const document = { ...templateToDocument(entry), title: productGraphLabel(entry.name) }
     dispatchModelWorkspace({ type: "load-document", document })
     setYamlError("")
     setView("graph")
@@ -2193,7 +2193,7 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
 
   const suggestedSaveAsName = () => {
     let suggestion = "Untitled model"
-    if (activeDocument?.kind === "catalog" || activeDocument?.kind === "session" || activeDocument?.kind === "invalid-upload") {
+    if (activeDocument?.kind === "template" || activeDocument?.kind === "session" || activeDocument?.kind === "invalid-upload") {
       suggestion = activeDocument.title
     } else {
       try {
@@ -2244,8 +2244,8 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
       setView("yaml")
       return
     }
-    const source: SessionDocument["source"] = activeDocument?.kind === "catalog"
-      ? "catalog-copy"
+    const source: SessionDocument["source"] = activeDocument?.kind === "template"
+      ? "template-copy"
       : activeDocument?.kind === "session"
         ? "session-copy"
         : activeDocument?.kind === "invalid-upload"
@@ -2381,7 +2381,7 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
 
   function performAction(action: PendingAction) {
     if (action.kind === "view") continueToView(action.view)
-    else if (action.kind === "catalog") loadProductGraph(action.id)
+    else if (action.kind === "template") loadTemplate(action.id)
     else if (action.kind === "session") loadSessionModel(action.id)
     else if (action.kind === "new") openBlankYamlEditor()
     else navbarUploadRef.current?.click()
@@ -2436,15 +2436,15 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
     <>
       {navbarTarget ? createPortal(<div className="desktop-navbar" aria-label="Application navigation">
         <CurrentModelTitle title={currentModelTitle} className="navbar-model-title" />
-        <ModelMenu
+        <FileMenu
           activeDocument={activeDocument}
-          catalog={productGraphs}
+          templates={templates}
           sessionDocuments={sessionDocuments}
           canSave={canSave}
           canSaveAs={canSaveAs}
           canDownload={canDownload}
           onNew={() => requestAction({ kind: "new" })}
-          onSelectCatalog={(id) => requestAction({ kind: "catalog", id })}
+          onSelectTemplate={(id) => requestAction({ kind: "template", id })}
           onSelectSession={(id) => requestAction({ kind: "session", id })}
           onSave={saveSessionModel}
           onSaveAs={openSaveAsDialog}
@@ -2453,8 +2453,8 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
         />
         <input ref={navbarUploadRef} className="navbar-file-input" type="file" accept=".yaml,.yml,text/yaml" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; loadYamlFile(file) }} />
         <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && requestView(next as "graph" | "yaml")} className="desktop-primary-nav" aria-label="Primary views">
+          <ToggleGroupItem value="yaml">Edit</ToggleGroupItem>
           <ToggleGroupItem value="graph">Graph</ToggleGroupItem>
-          <ToggleGroupItem value="yaml">Editor</ToggleGroupItem>
         </ToggleGroup>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -2488,15 +2488,15 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
             <div className="view-tabs">
               <div className="navigation-model-group">
                 <CurrentModelTitle title={currentModelTitle} className="navigation-model-title" />
-                <ModelMenu
+                <FileMenu
                   activeDocument={activeDocument}
-                  catalog={productGraphs}
+                  templates={templates}
                   sessionDocuments={sessionDocuments}
                   canSave={canSave}
                   canSaveAs={canSaveAs}
                   canDownload={canDownload}
                   onNew={() => requestAction({ kind: "new" })}
-                  onSelectCatalog={(id) => requestAction({ kind: "catalog", id })}
+                  onSelectTemplate={(id) => requestAction({ kind: "template", id })}
                   onSelectSession={(id) => requestAction({ kind: "session", id })}
                   onSave={saveSessionModel}
                   onSaveAs={openSaveAsDialog}
@@ -2508,8 +2508,8 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
                 : backgroundProcessing ? <span className="calculation-message" role="status" aria-label="Background graph processing">Processing…</span> : null}
               <div className="view-tab-groups">
                 <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && requestView(next as "graph" | "yaml" | "results")} className="inline-flex items-center" aria-label="Primary views">
+                  <ToggleGroupItem value="yaml">Edit</ToggleGroupItem>
                   <ToggleGroupItem value="graph">Graph</ToggleGroupItem>
-                  <ToggleGroupItem value="yaml">Editor</ToggleGroupItem>
                   <ToggleGroupItem value="results" aria-label="Results">Results</ToggleGroupItem>
                 </ToggleGroup>
                 <ToggleGroup type="single" value={analysisView} onValueChange={(next) => next && requestView(next as AnalysisView)} className="inline-flex items-center" aria-label="Result analysis views">
@@ -2598,13 +2598,13 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
           <Button variant="ghost" className={`graph-action ${graphMode === "structure" ? "is-active" : ""}`} aria-pressed={graphMode === "structure"} onClick={() => showGraphMode("structure")}><LayoutGrid size={16} />Structure Graph</Button>
         </div></> : view === "yaml" ? <div className="yaml-editor">
           <div className="yaml-editor-head">
-            <div><strong>Product graph YAML</strong><span>{isTransient ? "Start writing YAML, or upload an existing model from the Model menu." : activeDocument?.kind === "catalog" ? "Edit this catalog example, then save a session copy." : "Edit the current session model."}</span></div>
+            <div><strong>Product graph YAML</strong><span>{isTransient ? "Start writing YAML, or upload an existing file from the File menu." : activeDocument?.kind === "template" ? "Edit this template, then save a session copy." : "Edit the current session model."}</span></div>
           </div>
           <textarea value={yamlDraft} onChange={(event) => { dispatchModelWorkspace({ type: "edit-draft", yaml: event.target.value }); setYamlError("") }} spellCheck={false} aria-label="Product graph YAML" />
           <div className="yaml-editor-foot">
-            <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (!yamlDraft.trim() ? "Start writing YAML, or upload a model from the Model menu." : isDirty ? activeDocument?.kind === "session" ? "Unsaved changes. Save to update this session model." : "Unsaved draft. Save As to create a session model." : isCalculating ? "Calculating the saved YAML…" : activeDocument?.kind === "catalog" ? "Catalog model loaded as an immutable example." : "Saved in this browser session.")}</span>
+            <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (!yamlDraft.trim() ? "Start writing YAML, or upload a file from the File menu." : isDirty ? activeDocument?.kind === "session" ? "Unsaved changes. Save to update this session model." : "Unsaved draft. Save As to create a session model." : isCalculating ? "Calculating the saved YAML…" : activeDocument?.kind === "template" ? "Template loaded as an immutable example." : "Saved in this browser session.")}</span>
             {activeDocument?.kind === "session" && isDirty ? <Button size="sm" onClick={saveSessionModel}><SaveIcon data-icon="inline-start" />Save</Button>
-              : activeDocument?.kind === "catalog" || isTransient ? <Button size="sm" disabled={!canSaveAs} onClick={openSaveAsDialog}><CopyPlus data-icon="inline-start" />Save As...</Button>
+              : activeDocument?.kind === "template" || isTransient ? <Button size="sm" disabled={!canSaveAs} onClick={openSaveAsDialog}><CopyPlus data-icon="inline-start" />Save As...</Button>
                 : null}
           </div>
         </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} loadContributionGraphs={loadContributionGraphs} /> : <div className="results-panel">
@@ -2704,7 +2704,7 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
       <Dialog open={saveAsOpen} onOpenChange={(open) => { setSaveAsOpen(open); if (!open) { setSaveAsError(""); setPendingAction(null) } }}>
         <DialogContent onCloseAutoFocus={(event) => {
           event.preventDefault()
-          const fallback = [...document.querySelectorAll<HTMLElement>("[data-model-menu-trigger]")].find((element) => element.offsetParent !== null)
+          const fallback = [...document.querySelectorAll<HTMLElement>("[data-file-menu-trigger]")].find((element) => element.offsetParent !== null)
           const target = saveAsReturnFocusRef.current?.isConnected ? saveAsReturnFocusRef.current : fallback
           target?.focus()
         }}>

@@ -1,13 +1,13 @@
 import { expect, type Locator, type Page } from "@playwright/test"
 import { lcaResultFixture } from "../fixtures/lca-result"
-import { productGraphCatalogFixture } from "../fixtures/product-graph-catalog"
+import { productGraphTemplatesFixture } from "../fixtures/product-graph-templates"
 
 export async function mockLcaApi(page: Page) {
   await page.route("**/lca-api/api/**", async (route) => {
     const { pathname } = new URL(route.request().url())
 
     if (pathname.endsWith("/api/product-graphs")) {
-      await route.fulfill({ json: productGraphCatalogFixture })
+      await route.fulfill({ json: productGraphTemplatesFixture })
       return
     }
     if (pathname.endsWith("/api/health")) {

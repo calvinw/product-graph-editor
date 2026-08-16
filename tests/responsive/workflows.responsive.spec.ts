@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test"
-import { productGraphCatalogFixture } from "../fixtures/product-graph-catalog"
+import { productGraphTemplatesFixture } from "../fixtures/product-graph-templates"
 import { calculate, expectInsideViewport, mockLcaApi, openAnalysisView, pageMetrics } from "./helpers"
 
 test.beforeEach(async ({ page }) => {
@@ -22,22 +22,22 @@ test("graph controls, settings, and node inspector remain reachable", async ({ p
 })
 
 test("editor actions and source remain reachable", async ({ page }) => {
-  await page.getByRole("radio", { name: "Editor", exact: true }).click()
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
 
   await expectInsideViewport(page.locator(".yaml-editor"), page)
   await expect(page.getByRole("textbox", { name: "Product graph YAML" })).toBeVisible()
   await expect(page.getByRole("button", { name: "Save As..." })).toBeVisible()
   await expect(page.getByText("Paste YAML", { exact: true })).toHaveCount(0)
-  await page.getByRole("button", { name: "Model", exact: true }).click()
+  await page.getByRole("button", { name: "File", exact: true }).click()
   await expect(page.getByRole("menuitem", { name: "Upload YAML..." })).toBeVisible()
-  await expectInsideViewport(page.getByRole("menu", { name: "Model", exact: true }), page)
-  await page.getByRole("menuitem", { name: "Catalog models" }).click()
-  const catalogMenu = page.getByRole("menu", { name: "Catalog models" })
-  await expectInsideViewport(catalogMenu, page)
-  await expect(catalogMenu.getByRole("menuitem")).toHaveCount(productGraphCatalogFixture.product_graphs.length)
-  await expect(catalogMenu.getByRole("menuitem", { name: "Jacket", exact: true })).toBeVisible()
-  await expect(catalogMenu.getByRole("menuitem", { name: "Cotton Fiber", exact: true })).toBeVisible()
-  await expect(catalogMenu.getByRole("menuitem", { name: "Simple Mock Plastic Broom", exact: true })).toBeVisible()
+  await expectInsideViewport(page.getByRole("menu", { name: "File", exact: true }), page)
+  await page.getByRole("menuitem", { name: "Templates..." }).click()
+  const templatesMenu = page.getByRole("menu", { name: "Templates..." })
+  await expectInsideViewport(templatesMenu, page)
+  await expect(templatesMenu.getByRole("menuitem")).toHaveCount(productGraphTemplatesFixture.product_graphs.length)
+  await expect(templatesMenu.getByRole("menuitem", { name: "Jacket", exact: true })).toBeVisible()
+  await expect(templatesMenu.getByRole("menuitem", { name: "Cotton Fiber", exact: true })).toBeVisible()
+  await expect(templatesMenu.getByRole("menuitem", { name: "Simple Mock Plastic Broom", exact: true })).toBeVisible()
 })
 
 test("analysis views contain their tables without page overflow", async ({ page }) => {

@@ -169,16 +169,16 @@ export type BackgroundActivityDetails = {
   exchanges: ActivityExchange[]
 }
 
-export type ProductGraphCatalogEntry = {
+export type ProductGraphTemplate = {
   id: string
   filename: string
   name: string
   product_graph: string
 }
 
-export type ProductGraphCatalog = {
+export type ProductGraphTemplates = {
   default_id: string
-  product_graphs: ProductGraphCatalogEntry[]
+  product_graphs: ProductGraphTemplate[]
 }
 
 type ActivitySearchResult = {
@@ -210,11 +210,11 @@ const isObject = (value: unknown): value is Record<string, unknown> => (
   typeof value === "object" && value !== null && !Array.isArray(value)
 )
 
-function readProductGraphCatalog(value: unknown): ProductGraphCatalog {
+function readProductGraphTemplates(value: unknown): ProductGraphTemplates {
   if (!isObject(value) || typeof value.default_id !== "string" || !Array.isArray(value.product_graphs)) {
-    throw new Error("The LCA server returned an invalid product-graph catalog.")
+    throw new Error("The LCA server returned invalid product-graph templates.")
   }
-  const productGraphs = value.product_graphs.map((item) => {
+  const templates = value.product_graphs.map((item) => {
     if (
       !isObject(item)
       || typeof item.id !== "string"
@@ -222,21 +222,21 @@ function readProductGraphCatalog(value: unknown): ProductGraphCatalog {
       || typeof item.name !== "string"
       || typeof item.product_graph !== "string"
     ) {
-      throw new Error("The LCA server returned an invalid product-graph catalog entry.")
+      throw new Error("The LCA server returned an invalid product-graph template.")
     }
-    return item as ProductGraphCatalogEntry
+    return item as ProductGraphTemplate
   })
-  if (!productGraphs.some((item) => item.id === value.default_id)) {
-    throw new Error("The product-graph catalog does not contain its default entry.")
+  if (!templates.some((item) => item.id === value.default_id)) {
+    throw new Error("The product-graph templates do not contain the default template.")
   }
-  if (new Set(productGraphs.map((item) => item.id)).size !== productGraphs.length) {
-    throw new Error("The product-graph catalog contains duplicate identifiers.")
+  if (new Set(templates.map((item) => item.id)).size !== templates.length) {
+    throw new Error("The product-graph templates contain duplicate identifiers.")
   }
-  return { default_id: value.default_id, product_graphs: productGraphs }
+  return { default_id: value.default_id, product_graphs: templates }
 }
 
-export async function getProductGraphCatalog(signal?: AbortSignal): Promise<ProductGraphCatalog> {
-  return readProductGraphCatalog(await readJson(
+export async function getProductGraphTemplates(signal?: AbortSignal): Promise<ProductGraphTemplates> {
+  return readProductGraphTemplates(await readJson(
     await fetch(`${apiBase}/api/product-graphs`, { signal }),
   ))
 }
