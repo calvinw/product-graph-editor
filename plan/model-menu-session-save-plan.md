@@ -1,7 +1,7 @@
 # Model Menu and Session Save Plan
 
-**Status:** Implemented on `agent-ui-responsive` on August 14, 2026. Retained as the model-workspace behavior specification; the later Zustand integration supersedes only its local-state implementation constraint.
-**Branch:** `agent-ui-responsive`
+**Status:** Implemented and merged to `main`. Retained as the model-workspace behavior specification; the later Zustand integration supersedes only its local-state implementation constraint.
+**Implemented:** August 14, 2026
 **Recorded:** August 14, 2026
 **Scope:** Model navigation, YAML editing, in-session saves, engine submission, and YAML import/export
 

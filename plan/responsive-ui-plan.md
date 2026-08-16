@@ -4,7 +4,7 @@
 **Repository:** `calvinw/product-graph-editor`
 **Intended implementation environment:** any capable coding agent running inside the project Codespace
 **Original implementation baseline:** `48de6be` (verified against `origin/main` on August 10, 2026)
-**Implementation branch:** `agent-ui-responsive`
+**Merged to:** `main` on August 16, 2026
 **Purpose:** Add agent-oriented React/shadcn development tooling and then use it to improve responsive behavior without destabilizing the existing desktop application.
 
 ---
@@ -1086,7 +1086,7 @@ Scope:
 Give the coding agent this instruction before allowing it to modify the responsive UI:
 
 ```text
-Read plan/agent-ui-responsive-plan.md and inspect the current repository.
+Read plan/responsive-ui-plan.md and inspect the current repository.
 
 First verify the current stack, existing shadcn setup, existing Skillshare setup,
 MCP installer, Playwright configuration, and current UI structure.
@@ -1135,7 +1135,7 @@ This deliberately separates **tool installation/audit** from **UI modification**
 After reviewing the audit:
 
 ```text
-Implement the responsive work from plan/agent-ui-responsive-plan.md one surface
+Implement the responsive work from plan/responsive-ui-plan.md one surface
 at a time.
 
 Start with the application shell and main graph.

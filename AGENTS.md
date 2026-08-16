@@ -4,7 +4,7 @@
 
 Use the repository skill at `.agents/skills/product-graph-editor-ui-development/SKILL.md` for UI and responsive changes. Before editing a responsive surface, read:
 
-- `plan/agent-ui-responsive-plan.md`
+- `plan/responsive-ui-plan.md`
 - `plan/responsive-audit.md`
 - `plan/responsive-baseline.md`
 

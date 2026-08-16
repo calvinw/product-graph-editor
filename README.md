@@ -28,7 +28,7 @@ Responsive work must preserve the established desktop experience while keeping e
 
 At narrow widths, prioritize graph and Sankey canvas space, keep settings and inspectors reachable through compact overlays, contain table scrolling inside the table region, and prevent page-level horizontal overflow. Preserve keyboard behavior, useful touch targets, semantic result tables, and dialogs/popovers that remain inside the viewport.
 
-Before changing a responsive surface, read `plan/agent-ui-responsive-plan.md`, `plan/responsive-audit.md`, and `plan/responsive-baseline.md`. Verify changes with:
+Before changing a responsive surface, read `plan/responsive-ui-plan.md`, `plan/responsive-audit.md`, and `plan/responsive-baseline.md`. Verify changes with:
 
 ```bash
 npm run build

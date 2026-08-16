@@ -1,7 +1,7 @@
 # Responsive UI Audit
 
 **Recorded:** August 9, 2026
-**Branch:** `agent-ui-responsive`
+**Merged to:** `main`
 **Status:** Historical pre-implementation audit; its findings were addressed by the responsive implementation and current workflows have no `fixme` or skipped tests.
 **Scope:** Original evidence and prioritization. Use `responsive-baseline.md` for the current regression ledger.
 
