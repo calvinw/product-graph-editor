@@ -213,7 +213,7 @@ npm run test:responsive
 npm run test:visual
 ```
 
-Expected baseline results are 16 responsive tests passed with 5 intentionally skipped contracts, and 20 visual tests passed with 5 accepted failures. The visual command currently exits nonzero. Compare failures with `plan/responsive-baseline.md`: previously passing tests must remain green, and accepted failures must not change or expand. Remove skips only when their contracts pass, and never update screenshot baselines without visually reviewing the actual, expected, and diff images.
+Expected baseline results are 24 responsive tests passed with no skipped contracts, and 29 visual tests passed with 3 accepted failures. The visual command currently exits nonzero. Compare failures with `plan/responsive-baseline.md`: previously passing tests must remain green, and accepted failures must not change or expand. Never update screenshot baselines without visually reviewing the actual, expected, and diff images.
 
 ---
 

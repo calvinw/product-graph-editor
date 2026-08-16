@@ -11,6 +11,9 @@ export default tseslint.config(
       "playwright-report",
       "test-results",
       "tests/visual/**/*.snapshots",
+      // Repository skills bring their own generated/tooling sources and lint
+      // contracts. Keep the application lint gate scoped to product code.
+      ".agents/skills/**/scripts/**",
     ],
   },
   {
