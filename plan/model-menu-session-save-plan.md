@@ -1,6 +1,6 @@
 # Model Menu and Session Save Plan
 
-**Status:** Proposed
+**Status:** Implemented on `agent-ui-responsive` on August 14, 2026. Retained as the model-workspace behavior specification; the later Zustand integration supersedes only its local-state implementation constraint.
 **Branch:** `agent-ui-responsive`
 **Recorded:** August 14, 2026
 **Scope:** Model navigation, YAML editing, in-session saves, engine submission, and YAML import/export
@@ -460,7 +460,7 @@ Expected baseline rules:
 
 - responsive tests continue to pass at 375 x 812, 768 x 1024, and 1440 x 900
 - no previously passing visual test may fail
-- the five accepted visual failures in `plan/responsive-baseline.md` may not change or expand
+- the accepted visual failures in `plan/responsive-baseline.md` may not change or expand
 - screenshots may not be updated without inspecting actual, expected, and diff images
 
 ## Future Persistence

@@ -1,5 +1,7 @@
 # Engine Plan: Extend LCA Results for Contribution and Sankey Views
 
+**Status:** Implemented contract/reference for the web application. The frontend validates and consumes result schema version 3, including `process_contributions`, `contribution_graphs`, and `sankey`; engine implementation history remains in the engine repository.
+
 ## Task for the Engine LLM
 
 Extend the LCA engine's `run_lca` operation and REST response so the product graph frontend can render:

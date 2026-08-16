@@ -1,9 +1,10 @@
 # Product Graph Editor — Agent Tooling and Responsive Design Implementation Plan
 
+**Status:** Implemented; retained as the responsive architecture and workflow reference. Consult `responsive-baseline.md` for current verification counts and accepted failures.
 **Repository:** `calvinw/product-graph-editor`
 **Intended implementation environment:** any capable coding agent running inside the project Codespace
-**Current `main`:** `48de6be` (verified against `origin/main` on August 10, 2026)
-**Implementation branch:** `agent-ui-responsive`; synchronized with `48de6be` before responsive UI implementation
+**Original implementation baseline:** `48de6be` (verified against `origin/main` on August 10, 2026)
+**Implementation branch:** `agent-ui-responsive`
 **Purpose:** Add agent-oriented React/shadcn development tooling and then use it to improve responsive behavior without destabilizing the existing desktop application.
 
 ---
@@ -76,7 +77,7 @@ The commands in this plan were checked on August 9, 2026. Re-check the primary d
 
 ---
 
-# 2. Current `main` Baseline
+# 2. Original `main` Baseline
 
 The application baseline was initially inspected at `3d11438` on August 8, 2026. The implementation branch was synchronized with `origin/main` at `48de6be` on August 10, incorporating the contribution-analysis simplification and Sankey path-highlighting updates before responsive UI work.
 
@@ -109,7 +110,7 @@ npm run lint
 npm run test:visual
 ```
 
-The baseline was refreshed on August 10 after merging `origin/main`. `npm run build` and `npm run lint` pass. The visual suite reports 20 passing and 5 failing tests in existing table-resizing, inspector, and screenshot assertions. The exact results and dispositions are recorded in `plan/responsive-baseline.md`.
+The original baseline was refreshed on August 10 after merging `origin/main`. At that point, `npm run build` and `npm run lint` passed and the visual suite reported 20 passing and 5 failing tests. Those historical numbers have since improved; the exact current results and dispositions are recorded in `plan/responsive-baseline.md`.
 
 Re-run and record the baseline after a clean dependency install. If Rollup reports a missing platform-specific optional package, repair the dependency installation before interpreting build or Playwright results.
 
