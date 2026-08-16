@@ -1,6 +1,6 @@
 # Product Graph Editor
 
-A full-window React application for exploring and editing product capability graphs. The interface uses shadcn-style components and Cytoscape.js for interactive graph rendering.
+A full-window React application for exploring product life-cycle graphs and LCA results. The interface uses shadcn/ui components and XYFlow for interactive graph rendering.
 
 ## Run locally
 
@@ -10,7 +10,7 @@ A full-window React application for exploring and editing product capability gra
 
 The launcher installs dependencies when needed and forwards optional arguments to Vite. For example, `./start_server.sh --host 0.0.0.0` exposes the server on your local network.
 
-Open the local URL printed by Vite. Use the left toolbar to add nodes, arrange the graph, fit it to the window, and zoom. Select any node to inspect its details in the right panel.
+Open the local URL printed by Vite. Use the graph toolbar to arrange, fit, search, and zoom the graph. Select any node to inspect its details.
 
 ## Build
 
@@ -37,7 +37,7 @@ npm run test:responsive
 npm run test:visual
 ```
 
-The current recorded baseline is 16 responsive tests passed with 5 intentionally skipped contracts, plus 20 visual tests passed with 5 accepted failures. The visual command therefore exits nonzero at the baseline. A change is acceptable only when no previously passing test regresses and the accepted visual failures do not change or expand. Do not update screenshot baselines without visually reviewing the differences.
+The current recorded baseline is 24 responsive tests passed with no skips, plus 29 visual tests passed with 3 accepted failures. The visual command therefore exits nonzero at the baseline. A change is acceptable only when no previously passing test regresses and the accepted visual failures do not change or expand. Do not update screenshot baselines without visually reviewing the differences.
 
 ## GitHub Pages
 

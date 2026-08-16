@@ -1,6 +1,6 @@
 # Responsive UI Work Handoff
 
-Continue responsive UI development on the `agent-ui-responsive` branch. Do not merge into `main` until the responsive work is reviewed and ready.
+**Status:** Responsive implementation is complete and ready for review against `main`. Continue future responsive work from the current default branch after merge.
 
 ## Read first
 
@@ -29,10 +29,10 @@ Do not add tablet-landscape or large-desktop projects unless the testing contrac
 
 - Build: passes, with Vite's existing large-chunk advisory
 - Lint: passes
-- Responsive: 21 passed, 0 skipped
-- Visual: 20 passed, 5 accepted failures
+- Responsive: 24 passed, 0 skipped
+- Visual: 29 passed, 3 accepted failures
 
-The visual suite currently exits nonzero because of the five failures recorded in `plan/responsive-baseline.md`. Responsive work must not introduce a new failure or change or expand an accepted failure. The original five responsive workflow skips have been removed after the shell, settings, editor, graph settings, and Sankey settings workflows passed at all supported viewports.
+The visual suite currently exits nonzero because of the three accepted failures recorded in `plan/responsive-baseline.md` and tracked by GitHub issues #37, #38, and #39. Responsive work must not introduce a new failure or change or expand an accepted failure. Responsive workflows have no remaining skips.
 
 ## Working rules
 
@@ -64,4 +64,4 @@ Compare visual failures with `plan/responsive-baseline.md`. Every previously pas
 
 ## Copyable handoff prompt
 
-> Continue responsive UI work on branch `agent-ui-responsive`. First read `AGENTS.md`, `.agents/skills/product-graph-editor-ui-development/SKILL.md`, `plan/responsive-audit.md`, `plan/responsive-baseline.md`, `plan/agent-ui-responsive-plan.md`, and `TODOs.md`. Use only the three supported viewport projects: 375×812, 768×1024, and 1440×900. Work one surface at a time, preserve desktop behavior, and run build, lint, responsive, and visual verification. Do not update screenshots without visual review or introduce failures beyond the recorded baseline.
+> Continue responsive UI work from the current default branch. First read `AGENTS.md`, `.agents/skills/product-graph-editor-ui-development/SKILL.md`, `plan/responsive-audit.md`, `plan/responsive-baseline.md`, `plan/agent-ui-responsive-plan.md`, and `TODOs.md`. Use only the three supported viewport projects: 375×812, 768×1024, and 1440×900. Work one surface at a time, preserve desktop behavior, and run build, lint, responsive, and visual verification. Do not update screenshots without visual review or introduce failures beyond the recorded baseline.

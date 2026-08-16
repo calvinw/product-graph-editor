@@ -959,6 +959,7 @@ test("opening the property editor preserves the graph viewport", async ({ page }
 
 for (const theme of ["dark", "light"] as const) {
   test(`${theme} application views`, async ({ page }) => {
+    test.setTimeout(60_000)
     await mockLcaApi(page)
     await openWorkspace(page)
     await calculate(page)

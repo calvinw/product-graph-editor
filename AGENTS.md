@@ -31,7 +31,7 @@ npm run test:visual
 
 The recorded baseline is:
 
-- responsive: 16 passed, 5 intentionally skipped
-- visual: 20 passed, 5 accepted failures
+- responsive: 24 passed, 0 skipped
+- visual: 29 passed, 3 accepted failures
 
-The visual suite currently exits nonzero because of those accepted failures. Compare them with `plan/responsive-baseline.md`; no previously passing visual test may fail, and no accepted failure may change or expand. Remove a responsive skip only when its workflow passes. Never update screenshots without inspecting the actual, expected, and diff images.
+The visual suite currently exits nonzero because of those accepted failures. Compare them with `plan/responsive-baseline.md`; no previously passing visual test may fail, and no accepted failure may change or expand. Never update screenshots without inspecting the actual, expected, and diff images.
