@@ -1,7 +1,7 @@
 # Responsive Work Baseline
 
-**Recorded:** August 14, 2026
-**Application baseline:** `48de6be`
+**Recorded:** August 16, 2026
+**Application baseline:** `d9d13e6`
 **Plan branch:** `agent-ui-responsive`
 **Viewport used by existing visual suite:** 1440 × 900
 **Theme coverage:** dark and light
@@ -33,7 +33,7 @@ Infrastructure failures such as a missing browser executable or shared library a
 | `npm run build` | Pass | Vite reports the existing large-chunk advisory. |
 | `npm run lint` | 40 failed | All failures are in the repository-owned `.agents/skills/extract-static-html/scripts/` files; targeted lint passes for the application and test files changed by the model-workspace implementation. |
 | `npm run test:visual` | 29 passed, 3 failed | 32 tests, one Chromium worker. The remaining failures match the accepted interaction failures below. |
-| `npm run test:responsive` | 27 passed, 0 skipped | Three viewport projects; model menus, editor actions, and analysis workflows pass at phone, tablet, and desktop sizes. |
+| `npm run test:responsive` | 24 passed, 0 skipped | Three viewport projects; shell, model menus, editor actions, graph settings and selection, analysis workflows, global settings, and Sankey pass at phone, tablet, and desktop sizes. |
 
 The production build contains no `react-grab` or `React Grab` marker; the source-context helper is development-only.
 

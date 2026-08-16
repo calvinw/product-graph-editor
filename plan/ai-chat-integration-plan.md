@@ -377,6 +377,8 @@ A model command must not directly assign the active view and bypass existing saf
 - Unsaved-work protections still apply.
 - Narrow selectors prevent unrelated view rerenders.
 
+**Status:** implemented in `product-graph-editor` on August 16, 2026. Shared navigation, selection, graph settings, model workspace, applied-source revisions, and calculation state now use `src/state/productGraphStore.ts`. Phase 3 is the next active phase.
+
 ## Phase 3: Register Product Editor Views
 
 Add an AI integration directory in the destination:

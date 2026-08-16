@@ -2,7 +2,8 @@
 
 **Recorded:** August 9, 2026
 **Branch:** `agent-ui-responsive`
-**Scope:** evidence and tooling only; no responsive UI changes are included in this audit
+**Status:** Historical pre-implementation audit; its findings were addressed by the responsive implementation and current workflows have no `fixme` or skipped tests.
+**Scope:** Original evidence and prioritization. Use `responsive-baseline.md` for the current regression ledger.
 
 ## Evidence
 
@@ -14,9 +15,11 @@ The repository-owned Playwright harness exercises three representative projects:
 | tablet portrait | 768 × 1024 |
 | desktop | 1440 × 900 |
 
-The initial shell smoke test passes at all three sizes: the app loads, the graph renders, and the document does not acquire page-level horizontal overflow. Workflow checks cover graph controls, the node inspector, YAML editing, analysis tables, global settings, and Sankey settings. Known responsive gaps are represented as narrowly scoped `fixme` contracts so the tooling baseline stays green until their implementation lands.
+The initial shell smoke test passed at all three sizes: the app loaded, the graph rendered, and the document did not acquire page-level horizontal overflow. The gaps below record the state before responsive implementation. Current workflow coverage exercises graph controls, the node inspector, YAML editing, analysis tables, global settings, and Sankey settings without `fixme` or skipped tests.
 
 ## Prioritized findings
+
+The following findings are retained as implementation history and should not be read as current defects. The three remaining accepted interaction failures are tracked separately in `responsive-baseline.md`.
 
 ### P0 — Phone navigation is not operable
 
@@ -77,6 +80,6 @@ The 1440 workflow contracts pass for the audited desktop surfaces. Responsive ch
 
 - `npm run build` and `npm run lint` pass.
 - `npm run test:responsive` passes with no responsive `fixme` entries remaining.
-- The 20 previously passing visual tests continue to pass.
-- The five failures in `plan/responsive-baseline.md` do not expand and are fixed or explicitly tracked.
+- All previously passing visual tests continue to pass.
+- The accepted failures in `plan/responsive-baseline.md` do not expand and are fixed or explicitly tracked.
 - No screenshot baseline is updated without human visual review.

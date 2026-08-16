@@ -4,6 +4,8 @@
 
 Implemented on `shadcn-conversion` on July 27, 2026.
 
+This is now a historical consistency specification. Its draft/applied revision and stale-response guarantees remain active, while the later Model menu workflow replaced Preview/Calculate with Save/Save As and the AI chat integration moved shared state into Zustand.
+
 The implementation includes the draft/applied source boundary, result revisions, request cancellation and stale-response guards, dirty-state guidance, and focused Playwright workflow coverage.
 
 ## Purpose
