@@ -1,4 +1,4 @@
-export const productGraphCatalogFixture = {
+export const productGraphTemplatesFixture = {
   default_id: "jacket",
   product_graphs: [
     {

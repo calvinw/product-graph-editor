@@ -1,7 +1,7 @@
-import type { ProductGraphCatalogEntry } from "./lcaApi"
+import type { ProductGraphTemplate } from "./lcaApi"
 
-export type CatalogDocument = {
-  kind: "catalog"
+export type TemplateDocument = {
+  kind: "template"
   id: string
   title: string
   filename: string
@@ -14,10 +14,10 @@ export type SessionDocument = {
   title: string
   filename: string
   committedYaml: string
-  source: "new" | "catalog-copy" | "upload" | "session-copy"
+  source: "new" | "template-copy" | "upload" | "session-copy"
 }
 
-export type ModelDocument = CatalogDocument | SessionDocument
+export type ModelDocument = TemplateDocument | SessionDocument
 
 type TransientDocumentBase = {
   title: string
@@ -122,9 +122,9 @@ export function modelWorkspaceReducer(
   }
 }
 
-export function catalogEntryToDocument(entry: ProductGraphCatalogEntry): CatalogDocument {
+export function templateToDocument(entry: ProductGraphTemplate): TemplateDocument {
   return {
-    kind: "catalog",
+    kind: "template",
     id: entry.id,
     title: entry.name,
     filename: entry.filename,
