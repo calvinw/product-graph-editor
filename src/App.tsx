@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useReducer, useRef, useState } from "react"
+import { Fragment, useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import dagre from "@dagrejs/dagre"
 import {
@@ -49,11 +49,15 @@ import { unitsAreCompatible } from "./lib/units"
 import { cn } from "./lib/utils"
 import { DisplaySettingsProvider, useDisplaySettings } from "./lib/displaySettings"
 import {
-  catalogEntryToDocument, initialModelWorkspace, modelWorkspaceReducer, safeYamlFilename,
+  catalogEntryToDocument, safeYamlFilename,
   uniqueSessionTitle, yamlFilenameStem, type ActiveDocument, type SessionDocument,
 } from "./lib/modelWorkspace"
+import {
+  selectHasCurrentResults,
+  useProductGraphStore,
+  type ProductGraphView as View,
+} from "./state/productGraphStore"
 type NodeMeta = { label: string; kind: string; detail: string; color: string; scope?: "foreground" | "background" }
-type View = "graph" | "yaml" | "inventory" | "impact" | "process" | "contribution" | "sankey" | "results"
 type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribution" | "sankey">
 type PendingAction =
   | { kind: "view"; view: View }
@@ -1472,34 +1476,54 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
   const graphDecimalPlaces = showAllDecimalPlaces ? 20 : decimalPlaces
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<ProcessNodeData>>(layoutNodes(initialNodes, initialEdges))
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges)
-  const [selected, setSelected] = useState<(NodeMeta & { id: string }) | null>(null)
+  const selected = useProductGraphStore((state) => state.selectedNode)
   const [query, setQuery] = useState("")
-  const [view, setView] = useState<View>("graph")
+  const view = useProductGraphStore((state) => state.activeView)
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
   const [pendingConfirmationOpen, setPendingConfirmationOpen] = useState(false)
   const [saveAsOpen, setSaveAsOpen] = useState(false)
   const [saveAsName, setSaveAsName] = useState("")
   const [saveAsError, setSaveAsError] = useState("")
-  const [modelWorkspace, dispatchModelWorkspace] = useReducer(modelWorkspaceReducer, initialModelWorkspace)
-  const { activeDocument, sessionDocuments, yamlDraft } = modelWorkspace
-  const [appliedYaml, setAppliedYaml] = useState("")
-  const [appliedRevision, setAppliedRevision] = useState(0)
+  const activeDocument = useProductGraphStore((state) => state.activeDocument)
+  const sessionDocuments = useProductGraphStore((state) => state.sessionDocuments)
+  const yamlDraft = useProductGraphStore((state) => state.yamlDraft)
+  const appliedYaml = useProductGraphStore((state) => state.appliedYaml)
+  const appliedRevision = useProductGraphStore((state) => state.appliedRevision)
   const [productGraphs, setProductGraphs] = useState<ProductGraphCatalogEntry[]>([])
   const [catalogState, setCatalogState] = useState<"loading" | "ready" | "unavailable">("loading")
   const [yamlError, setYamlError] = useState("")
   const [resultsMarkdown, setResultsMarkdown] = useState("")
-  const [resultsError, setResultsError] = useState("")
+  const resultsError = useProductGraphStore((state) => state.calculationError)
   const [contributionError, setContributionError] = useState("")
-  const [isCalculating, setIsCalculating] = useState(false)
+  const calculationStatus = useProductGraphStore((state) => state.calculationStatus)
+  const isCalculating = calculationStatus === "calculating"
   const [loadingContributionKeys, setLoadingContributionKeys] = useState<Set<string>>(() => new Set())
-  const [lcaResult, setLcaResult] = useState<LcaResult | null>(null)
-  const [calculatedRevision, setCalculatedRevision] = useState<number | null>(null)
-  const [graphMode, setGraphMode] = useState<"scaled" | "structure">("structure")
-  const [showReferenceAmounts, setShowReferenceAmounts] = useState(false)
+  const lcaResult = useProductGraphStore((state) => state.lcaResult)
+  const calculatedRevision = useProductGraphStore((state) => state.calculatedRevision)
+  const graphMode = useProductGraphStore((state) => state.graphMode)
+  const showReferenceAmounts = useProductGraphStore((state) => state.showReferenceAmounts)
   const [graphSettingsOpen, setGraphSettingsOpen] = useState(false)
-  const [graphMaxProcesses, setGraphMaxProcesses] = useState(1)
-  const [graphOrientation, setGraphOrientation] = useState<"vertical" | "horizontal">("horizontal")
-  const [graphConnectionStyle, setGraphConnectionStyle] = useState<"curved" | "straight" | "step">("curved")
+  const graphMaxProcesses = useProductGraphStore((state) => state.graphMaxProcesses)
+  const graphOrientation = useProductGraphStore((state) => state.graphOrientation)
+  const graphConnectionStyle = useProductGraphStore((state) => state.graphConnectionStyle)
+  const storeActions = useProductGraphStore((state) => state.actions)
+  const {
+    requestViewChange: setView,
+    selectNode: setSelected,
+    clearNodeSelection,
+    setGraphMode,
+    setReferenceAmountsVisible,
+    setGraphMaxProcesses,
+    setGraphOrientation,
+    setGraphConnectionStyle,
+    dispatchWorkspace: dispatchModelWorkspace,
+    applySource,
+    startCalculation,
+    completeCalculation,
+    failCalculation,
+    finishCalculation,
+    mergeContributionGraphs,
+  } = storeActions
   const inspectorOpen = selected !== null
   const foldDirectionRef = useRef<"upstream" | "downstream">("upstream")
   const nodesRef = useRef(nodes)
@@ -1535,8 +1559,8 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
     }
   })()
 
-  useEffect(() => setGraphMaxProcesses(availableGraphProcessCount), [availableGraphProcessCount])
-  useEffect(() => setShowReferenceAmounts(false), [graphMode, selected?.id])
+  useEffect(() => setGraphMaxProcesses(availableGraphProcessCount), [availableGraphProcessCount, setGraphMaxProcesses])
+  useEffect(() => setReferenceAmountsVisible(false), [graphMode, selected?.id, setReferenceAmountsVisible])
   const currentModelTitle = activeDocument?.title
     ?? (catalogState === "unavailable" ? "Catalog unavailable" : "Loading product graphs…")
   useEffect(() => onTitleChange(currentModelTitle), [currentModelTitle, onTitleChange])
@@ -2016,27 +2040,19 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
       const parsed = buildGraphFromYaml(source, "structure", undefined, graphDecimalPlaces)
       activeCalculationRef.current?.abort()
       activeCalculationRef.current = null
-      setIsCalculating(false)
-      const nextRevision = appliedRevisionRef.current + 1
+      const nextRevision = applySource(source)
       appliedRevisionRef.current = nextRevision
-      setAppliedYaml(source)
-      setAppliedRevision(nextRevision)
       foldDirectionRef.current = "upstream"
       setEdges(parsed.edges)
       setNodes(layoutNodes(parsed.nodes.map((node) => ({
         ...node,
         data: { ...node.data, canFold: parsed.edges.some((edge) => edge.target === node.id) },
       })), parsed.edges, { orientation: graphOrientation }))
-      setGraphMode("structure")
-      setSelected(null)
       setYamlError("")
       setResultsMarkdown("")
-      setResultsError("")
       setContributionError("")
       contributionRequestsRef.current.clear()
       setLoadingContributionKeys(new Set())
-      setLcaResult(null)
-      setCalculatedRevision(null)
       requestAnimationFrame(() => requestAnimationFrame(() => fitView({ padding: 0.35, maxZoom: 0.75, duration: 350 })))
       return nextRevision
     } catch (error) {
@@ -2049,25 +2065,23 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
     activeCalculationRef.current?.abort()
     const controller = new AbortController()
     activeCalculationRef.current = controller
-    setIsCalculating(true)
-    setResultsError("")
+    startCalculation()
     setContributionError("")
     contributionRequestsRef.current.clear()
     setLoadingContributionKeys(new Set())
     try {
       const result = await calculateLca(source, controller.signal)
       if (controller.signal.aborted || appliedRevisionRef.current !== revision) return
-      setLcaResult(result)
-      setCalculatedRevision(revision)
+      completeCalculation(result, revision)
       setResultsMarkdown(lcaResultToMarkdown(result, decimalPlaces, showAllDecimalPlaces))
       if (openGraphWhenReady) setView("graph")
     } catch (error) {
       if (controller.signal.aborted || appliedRevisionRef.current !== revision) return
-      setResultsError(error instanceof Error ? error.message : "Could not calculate the current product graph.")
+      failCalculation(error instanceof Error ? error.message : "Could not calculate the current product graph.")
     } finally {
       if (activeCalculationRef.current === controller) {
         activeCalculationRef.current = null
-        setIsCalculating(false)
+        finishCalculation()
       }
     }
   }
@@ -2093,7 +2107,7 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
         const message = error instanceof Error ? error.message : "Could not load product graphs from the LCA server."
         setCatalogState("unavailable")
         setYamlError(message)
-        setResultsError(message)
+        failCalculation(message)
       }
     })()
     // The initial catalog load and calculation must run exactly once per app mount.
@@ -2272,7 +2286,7 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
     window.addEventListener("beforeunload", confirmDiscard)
     return () => window.removeEventListener("beforeunload", confirmDiscard)
   }, [isDirty])
-  const hasCurrentResults = Boolean(lcaResult && calculatedRevision === appliedRevision)
+  const hasCurrentResults = useProductGraphStore(selectHasCurrentResults)
   const primaryView = view === "graph" || view === "yaml" || view === "results" ? view : ""
   const analysisView = isAnalysisView(view) ? view : ""
   if (selected) lastSelectedRef.current = selected
@@ -2312,12 +2326,7 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
       setLoadingContributionKeys((keys) => new Set(keys).add(requestKey))
       request = calculateContributionGraphs(appliedYaml, missing, current.result_id)
         .then((batch) => {
-          setLcaResult((latest) => {
-            if (!latest || latest.result_id !== batch.result_id) return latest
-            const merged = new Map(latest.contribution_graphs.map((graph) => [graph.label, graph]))
-            batch.contribution_graphs.forEach((graph) => merged.set(graph.label, graph))
-            return { ...latest, contribution_graphs: [...merged.values()] }
-          })
+          mergeContributionGraphs(batch.result_id, batch.contribution_graphs)
           setContributionError("")
           return batch.contribution_graphs
         })
@@ -2527,7 +2536,7 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
             if (node.data.scope === "background") void hydrateBackgroundNode(node.id)
           }}
           onNodeDoubleClick={(_, node) => toggleExpanded(node.id)}
-          onPaneClick={() => setSelected(null)}
+          onPaneClick={clearNodeSelection}
           minZoom={0.05}
           maxZoom={2.4}
           zoomOnScroll={false}
@@ -2613,10 +2622,10 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
 
       {view === "graph" && inspectorSelection ? <aside className={`inspector${selected ? " is-open" : ""}`} aria-hidden={!selected} inert={!selected}>
         <>
-          <div className="inspector-head"><span>NODE DETAILS</span><Button variant="ghost" size="icon" onClick={() => setSelected(null)} aria-label="Close property editor" title="Close property editor"><X size={16} /></Button></div>
+          <div className="inspector-head"><span>NODE DETAILS</span><Button variant="ghost" size="icon" onClick={clearNodeSelection} aria-label="Close property editor" title="Close property editor"><X size={16} /></Button></div>
           <div className="node-icon" style={{ background: selectedNode?.data.color ?? inspectorSelection.color }}><Box size={22} /></div>
           <h2>{selectedNode?.data.label ?? inspectorSelection.label}</h2><p>{selectedNode?.data.detail ?? inspectorSelection.detail}</p>
-          {graphMode === "structure" ? <Button variant="outline" size="sm" className="reference-amounts-toggle" aria-pressed={showReferenceAmounts} onClick={() => setShowReferenceAmounts((current) => !current)}>{showReferenceAmounts ? "Hide reference amounts" : "Reference amounts"}</Button> : null}
+          {graphMode === "structure" ? <Button variant="outline" size="sm" className="reference-amounts-toggle" aria-pressed={showReferenceAmounts} onClick={() => setReferenceAmountsVisible(!showReferenceAmounts)}>{showReferenceAmounts ? "Hide reference amounts" : "Reference amounts"}</Button> : null}
           {graphMode === "structure" && showReferenceAmounts && selectedNode ? <>
             <div className="property-section">
               <h3>Technosphere inputs</h3>
