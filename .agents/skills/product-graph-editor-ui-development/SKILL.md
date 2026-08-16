@@ -55,7 +55,7 @@ For responsive changes, repeat this loop until the affected surface passes:
 
 Before changing a responsive surface, consult:
 
-- `plan/agent-ui-responsive-plan.md`
+- `plan/responsive-ui-plan.md`
 - `plan/responsive-baseline.md`
 - `plan/responsive-audit.md` when it exists
 

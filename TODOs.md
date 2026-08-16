@@ -10,7 +10,7 @@ Use these documents in order:
 2. `.agents/skills/product-graph-editor-ui-development/SKILL.md` — UI architecture and verification rules
 3. `plan/responsive-audit.md` — known responsive problems and priorities
 4. `plan/responsive-baseline.md` — accepted failures and regression rules
-5. `plan/agent-ui-responsive-plan.md` — detailed implementation strategy
+5. `plan/responsive-ui-plan.md` — detailed implementation strategy
 6. `README.md` — general project setup and responsive overview
 
 Claude Code users should also read `CLAUDE.md`.
@@ -64,4 +64,4 @@ Compare visual failures with `plan/responsive-baseline.md`. Every previously pas
 
 ## Copyable handoff prompt
 
-> Continue responsive UI work from the current default branch. First read `AGENTS.md`, `.agents/skills/product-graph-editor-ui-development/SKILL.md`, `plan/responsive-audit.md`, `plan/responsive-baseline.md`, `plan/agent-ui-responsive-plan.md`, and `TODOs.md`. Use only the three supported viewport projects: 375×812, 768×1024, and 1440×900. Work one surface at a time, preserve desktop behavior, and run build, lint, responsive, and visual verification. Do not update screenshots without visual review or introduce failures beyond the recorded baseline.
+> Continue responsive UI work from `main`. First read `AGENTS.md`, `.agents/skills/product-graph-editor-ui-development/SKILL.md`, `plan/responsive-audit.md`, `plan/responsive-baseline.md`, `plan/responsive-ui-plan.md`, and `TODOs.md`. Use only the three supported viewport projects: 375×812, 768×1024, and 1440×900. Work one surface at a time, preserve desktop behavior, and run build, lint, responsive, and visual verification. Do not update screenshots without visual review or introduce failures beyond the recorded baseline.

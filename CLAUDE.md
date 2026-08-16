@@ -192,7 +192,7 @@ Dev container configuration.
 
 ## Responsive UI Development
 
-Use `.agents/skills/product-graph-editor-ui-development/SKILL.md` for application UI work. Before modifying a responsive surface, read `plan/agent-ui-responsive-plan.md`, `plan/responsive-audit.md`, and `plan/responsive-baseline.md`.
+Use `.agents/skills/product-graph-editor-ui-development/SKILL.md` for application UI work. Before modifying a responsive surface, read `plan/responsive-ui-plan.md`, `plan/responsive-audit.md`, and `plan/responsive-baseline.md`.
 
 Preserve the React, Vite, Tailwind CSS 4, shadcn/ui, Radix, and XYFlow architecture. Keep graph and LCA behavior intact, retain semantic result tables, inspect existing `src/components/ui/` primitives before adding components, and avoid unrelated refactors.
 

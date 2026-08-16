@@ -2,7 +2,7 @@
 
 **Recorded:** August 16, 2026
 **Application baseline:** `d9d13e6`
-**Plan branch:** `agent-ui-responsive`
+**Branch:** `main`
 **Viewport used by existing visual suite:** 1440 × 900
 **Theme coverage:** dark and light
 
