@@ -11,7 +11,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import prismLogoRound from "./assets/prism-logo-round.png"
 import {
-  ArrowRight, BarChart3, Box, Check, Component, CopyPlus, Scan, LayoutGrid, ChevronDown, Download, Factory, FilePlus2, Globe2, Leaf,
+  ArrowRight, BarChart3, Bot, Box, Check, Component, CopyPlus, Scan, LayoutGrid, ChevronDown, Download, Factory, FilePlus2, Globe2, Leaf,
   ChevronsDownUp, ChevronsUpDown, FileUp, Minus, Moon, MousePointer2, Plus, Save as SaveIcon, Search, Settings2, Sun, X,
 } from "lucide-react"
 import { parse } from "yaml"
@@ -37,6 +37,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { NumberStepper } from "@/components/NumberStepper"
+import { AiChatPanel } from "@/components/AiChatPanel"
+import type { SwitchViewOutcome } from "@/ai/viewTools"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
 import { chemicalFlowLabel } from "./lib/flowLabels"
@@ -1471,7 +1473,7 @@ function FileMenu({
   </DropdownMenu>
 }
 
-function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (title: string) => void; navbarTarget: HTMLDivElement | null; active: boolean }) {
+function GraphEditor({ onTitleChange, navbarTarget, active, chatOpen, onChatOpenChange }: { onTitleChange: (title: string) => void; navbarTarget: HTMLDivElement | null; active: boolean; chatOpen: boolean; onChatOpenChange: (open: boolean) => void }) {
   const { decimalPlaces, showAllDecimalPlaces, formatNumber, theme } = useDisplaySettings()
   const graphDecimalPlaces = showAllDecimalPlaces ? 20 : decimalPlaces
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<ProcessNodeData>>(layoutNodes(initialNodes, initialEdges))
@@ -2400,6 +2402,16 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
     requestAction({ kind: "view", view: next })
   }
 
+  const requestAssistantView = (next: View): SwitchViewOutcome => {
+    const label = next === "yaml" ? "Edit" : next === "results" ? "LCA results" : next[0].toUpperCase() + next.slice(1)
+    if (hasUncommittedWorkspace && next !== "yaml") {
+      requestView(next)
+      return { status: "confirmation_required", view: next, label, reason: "Confirm how to handle unsaved YAML changes in the application dialog." }
+    }
+    requestView(next)
+    return { status: "completed", view: next, label }
+  }
+
   const cancelPendingAction = () => {
     setPendingConfirmationOpen(false)
     setPendingAction(null)
@@ -2682,6 +2694,7 @@ function GraphEditor({ onTitleChange, navbarTarget, active }: { onTitleChange: (
           </>}
         </>
       </aside> : null}
+      <AiChatPanel open={chatOpen} onOpenChange={onChatOpenChange} activeView={view} hasCurrentResults={hasCurrentResults} onSwitchView={requestAssistantView} />
       <AlertDialog open={pendingConfirmationOpen} onOpenChange={(open) => { if (!open) cancelPendingAction() }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -2922,6 +2935,7 @@ function WelcomePage({ onExplore }: { onExplore: () => void }) {
 function AppContent() {
   const [welcomeOpen, setWelcomeOpen] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
   const [workspaceTitle, setWorkspaceTitle] = useState("Loading product graphs…")
   const [navbarTarget, setNavbarTarget] = useState<HTMLDivElement | null>(null)
   const { decimalPlaces, setDecimalPlaces, showAllDecimalPlaces, setShowAllDecimalPlaces, theme, setTheme } = useDisplaySettings()
@@ -2934,6 +2948,7 @@ function AppContent() {
           <div className="brand"><button className="brand-home" type="button" onClick={() => setWelcomeOpen(true)} aria-label="Open PRISM welcome page"><span className="brand-mark"><img src={prismLogoRound} alt="" aria-hidden="true" /></span></button><span className="brand-product-name"><span>PRISM</span><span className="brand-product-descriptor"> Life Cycle Assessment</span></span><span className="brand-separator">·</span><h1 className="brand-study-title">{workspaceTitle}</h1></div>
           <div ref={setNavbarTarget} className="navbar-portal-target" />
           <div className="top-actions">
+            <Button variant="ghost" className={`ai-chat-trigger ${chatOpen ? "is-active" : ""}`} type="button" aria-label="AI assistant" aria-expanded={chatOpen} onClick={() => setChatOpen(true)}><Bot /><span>Assistant</span></Button>
             <Popover modal open={settingsOpen} onOpenChange={setSettingsOpen}>
               <PopoverTrigger asChild>
                 <Button variant="ghost" className={`global-settings-trigger ${settingsOpen ? "is-active" : ""}`} type="button" aria-label="Global settings"><Globe2 size={16} /><span>Settings</span></Button>
@@ -2961,7 +2976,7 @@ function AppContent() {
 
         <section className="workspace" hidden={welcomeOpen}>
           <ReactFlowProvider>
-            <GraphEditor onTitleChange={setWorkspaceTitle} navbarTarget={navbarTarget} active={!welcomeOpen} />
+            <GraphEditor onTitleChange={setWorkspaceTitle} navbarTarget={navbarTarget} active={!welcomeOpen} chatOpen={chatOpen} onChatOpenChange={setChatOpen} />
           </ReactFlowProvider>
         </section>
       </main>
