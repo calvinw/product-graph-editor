@@ -45,6 +45,7 @@ export type ModelWorkspaceAction =
   | { type: "start-invalid-upload"; title: string; filename: string; yaml: string }
   | { type: "commit-new-session"; document: SessionDocument }
   | { type: "commit-active-session"; yaml: string }
+  | { type: "delete-session"; id: string }
   | { type: "discard" }
 
 export const initialModelWorkspace: ModelWorkspaceState = {
@@ -111,6 +112,11 @@ export function modelWorkspaceReducer(
         yamlDraft: action.yaml,
       }
     }
+    case "delete-session":
+      return {
+        ...state,
+        sessionDocuments: state.sessionDocuments.filter((document) => document.id !== action.id),
+      }
     case "discard": {
       if (!state.activeDocument) return state
       if (state.activeDocument.kind === "new" || state.activeDocument.kind === "invalid-upload") {

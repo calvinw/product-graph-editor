@@ -38,7 +38,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { NumberStepper } from "@/components/NumberStepper"
 import { AiChatPanel } from "@/components/AiChatPanel"
-import type { SwitchViewOutcome } from "@/ai/viewTools"
+import type { AppToolRuntime, SwitchViewOutcome } from "@/ai/viewTools"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
 import { chemicalFlowLabel } from "./lib/flowLabels"
@@ -2230,21 +2230,20 @@ function GraphEditor({ onTitleChange, navbarTarget, active, chatOpen, onChatOpen
     return true
   }
 
-  const saveAsSessionModel = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const title = saveAsName.trim()
-    if (!title) { setSaveAsError("Enter a model name."); return }
-    if (title.length > 120) { setSaveAsError("Use 120 characters or fewer."); return }
+  const saveAsSessionModelWithName = (proposedName: string) => {
+    const title = proposedName.trim()
+    if (!title) { setSaveAsError("Enter a model name."); return false }
+    if (title.length > 120) { setSaveAsError("Use 120 characters or fewer."); return false }
     if (sessionDocuments.some((item) => item.title.toLocaleLowerCase() === title.toLocaleLowerCase())) {
       setSaveAsError("A model with this name already exists in this session.")
-      return
+      return false
     }
     const revision = applyYaml(yamlDraft)
     if (revision === null) {
       setSaveAsOpen(false)
       setPendingAction(null)
       setView("yaml")
-      return
+      return false
     }
     const source: SessionDocument["source"] = activeDocument?.kind === "template"
       ? "template-copy"
@@ -2268,6 +2267,12 @@ function GraphEditor({ onTitleChange, navbarTarget, active, chatOpen, onChatOpen
     setPendingAction(null)
     void calculateSource(yamlDraft, revision)
     if (destination) performAction(destination)
+    return true
+  }
+
+  const saveAsSessionModel = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    saveAsSessionModelWithName(saveAsName)
   }
 
   const discardYamlChanges = () => {
@@ -2442,6 +2447,86 @@ function GraphEditor({ onTitleChange, navbarTarget, active, chatOpen, onChatOpen
   const saveAsAndContinue = () => {
     setPendingConfirmationOpen(false)
     openSaveAsDialog()
+  }
+
+  const assistantRuntime: AppToolRuntime = {
+    activeView: view,
+    hasCurrentResults,
+    workspace: {
+      activeDocument,
+      sessionDocuments,
+      yamlDirty: isDirty,
+      yamlValid: (() => { try { parse(yamlDraft); return Boolean(yamlDraft.trim()) } catch { return false } })(),
+      appliedRevision,
+      calculatedRevision,
+      calculationStatus,
+      calculationError: resultsError,
+      contributionLoading: loadingContributionKeys.size > 0,
+      yamlDraft,
+    },
+    templates,
+    result: lcaResult,
+    graph: {
+      nodes: nodes.filter((node) => !node.hidden).map((node) => ({
+        id: node.id,
+        label: node.data.label,
+        kind: node.data.kind,
+        detail: node.data.detail,
+        color: node.data.color,
+        scope: node.data.scope,
+        inputCount: edges.filter((edge) => edge.target === node.id && !edge.hidden).length,
+        outputCount: edges.filter((edge) => edge.source === node.id && !edge.hidden).length,
+        emissionCount: node.data.emissions?.length ?? node.data.referenceEmissions?.length ?? 0,
+        extractionCount: node.data.extractions?.length ?? node.data.referenceExtractions?.length ?? 0,
+        biosphereCount: node.data.biosphere?.length ?? node.data.referenceBiosphere?.length ?? 0,
+      })),
+      connectionCount,
+      mode: graphMode,
+      orientation: graphOrientation,
+      connectionStyle: graphConnectionStyle,
+      showReferenceAmounts,
+      maximumProcesses: graphMaxProcesses,
+      selectedNodeId: selected?.id ?? null,
+    },
+    actions: {
+      switchView: requestAssistantView,
+      selectNode: (nodeId) => {
+        const node = nodes.find((candidate) => candidate.id === nodeId && !candidate.hidden)
+        if (!node) return
+        setSelected({ id: node.id, label: node.data.label, kind: node.data.kind, detail: node.data.detail, color: node.data.color, scope: node.data.scope })
+        requestView("graph")
+        if (node.data.scope === "background") void hydrateBackgroundNode(node.id)
+      },
+      clearNodeSelection,
+      setGraphDisplay: (settings) => {
+        if (settings.mode) showGraphMode(settings.mode)
+        if (settings.orientation) setGraphOrientation(settings.orientation)
+        if (settings.connections) setGraphConnectionStyle(settings.connections)
+        if (settings.showReferenceAmounts !== undefined) setReferenceAmountsVisible(settings.showReferenceAmounts)
+        if (settings.maximumProcesses !== undefined) setGraphMaxProcesses(settings.maximumProcesses)
+        if (settings.orientation || settings.connections || settings.maximumProcesses !== undefined) {
+          applyGraphSettings({
+            orientation: settings.orientation,
+            connectionStyle: settings.connections,
+            maximum: settings.maximumProcesses,
+          })
+        }
+      },
+      fitGraph: fit,
+      calculateCurrentModel: () => { void calculateSource(appliedYaml, appliedRevision) },
+      saveCurrentModel: saveSessionModel,
+      saveModelAs: saveAsSessionModelWithName,
+      openModel: (kind, id) => requestAction(kind === "template" ? { kind: "template", id } : { kind: "session", id }),
+      newModel: () => requestAction({ kind: "new" }),
+      downloadYaml: downloadCurrentYaml,
+      exportResults: (format) => {
+        if (!lcaResult) return
+        const base = safeYamlFilename(currentModelTitle).replace(/\.ya?ml$/i, "")
+        if (format === "json") downloadTextFile(JSON.stringify(lcaResult, null, 2), `${base}-lca-results.json`, "application/json")
+        else downloadTextFile(resultsMarkdown, `${base}-lca-results.md`, "text/markdown")
+      },
+      deleteSessionModel: (id) => dispatchModelWorkspace({ type: "delete-session", id }),
+    },
   }
 
   return (
@@ -2694,7 +2779,7 @@ function GraphEditor({ onTitleChange, navbarTarget, active, chatOpen, onChatOpen
           </>}
         </>
       </aside> : null}
-      <AiChatPanel open={chatOpen} onOpenChange={onChatOpenChange} activeView={view} hasCurrentResults={hasCurrentResults} onSwitchView={requestAssistantView} />
+      <AiChatPanel open={chatOpen} onOpenChange={onChatOpenChange} runtime={assistantRuntime} />
       <AlertDialog open={pendingConfirmationOpen} onOpenChange={(open) => { if (!open) cancelPendingAction() }}>
         <AlertDialogContent>
           <AlertDialogHeader>

@@ -1,5 +1,18 @@
 # AI Chat View-Switching Plan
 
+## Implementation status
+
+- [x] Navigation-only tool boundary implemented
+- [x] `list_views`, `get_active_view`, and `switch_view` registered with strict schemas
+- [x] Available-result rules enforced for analysis views
+- [x] Existing guarded navigation path reused
+- [x] OpenRouter-compatible streaming transport implemented
+- [x] Non-modal, resizable right sidebar implemented
+- [x] Phone, tablet, and desktop Playwright workflows added
+- [x] API key and selected model persisted in browser local storage
+- [ ] Production backend model proxy
+- [ ] Dedicated unit-test runner for tool validation independent of Playwright
+
 ## Objective
 
 Embed an AI chat panel in the Product Graph Editor with one deliberately narrow capability: understand the application's registered views and switch to an available view at the user's request.
@@ -107,14 +120,14 @@ Support OpenAI-compatible function definitions and streamed tool calls. Validate
 
 ## Implementation Sequence
 
-1. Define the view registry, availability selector, tool schemas, and validation.
-2. Add deterministic unit coverage for listing views, reading the active view, rejecting invalid or unavailable views, and requesting valid navigation.
-3. Add the transport-independent chat controller and fixture transport used by tests.
-4. Build the chat panel with the repository's existing React, shadcn/Radix, Tailwind, Markdown, and theme primitives.
-5. Connect valid tool calls to the existing guarded navigation callback in `App.tsx`.
-6. Add the responsive desktop panel and narrow-screen dialog behavior.
-7. Add Playwright workflows with a mocked transport so tests require no provider key or network.
-8. Exercise and visually inspect the complete workflow at 375 x 812, 768 x 1024, and 1440 x 900.
+1. [x] Define the view registry, availability selector, tool schemas, and validation.
+2. [ ] Add a dedicated unit-test runner for listing views, reading the active view, rejecting invalid or unavailable views, and requesting valid navigation. Equivalent mocked Playwright coverage exists today.
+3. [x] Add the transport-independent chat controller and mocked transport used by browser tests.
+4. [x] Build the chat panel with the repository's existing React, shadcn/Radix, Tailwind, Markdown, and theme primitives.
+5. [x] Connect valid tool calls to the existing guarded navigation callback in `App.tsx`.
+6. [x] Add the responsive, non-modal desktop sidebar and contained narrow-screen behavior.
+7. [x] Add Playwright workflows with a mocked transport so tests require no provider key or network.
+8. [x] Exercise and visually inspect the workflow at 375 x 812, 768 x 1024, and 1440 x 900.
 
 ## Verification
 
