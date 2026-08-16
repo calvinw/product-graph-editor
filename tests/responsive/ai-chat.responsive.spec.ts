@@ -28,9 +28,21 @@ async function mockNavigationAssistant(page: Page) {
     }
 
     const prompt = body.messages.at(-1)?.content?.toLowerCase() ?? ""
-    const view = prompt.includes("sankey") ? "sankey" : "yaml"
+    const tool = prompt.includes("summarize")
+      ? { name: "get_graph_summary", arguments: "{}" }
+      : prompt.includes("impact categories")
+        ? { name: "list_impact_categories", arguments: "{}" }
+      : prompt.includes("validate yaml")
+        ? { name: "validate_yaml_draft", arguments: "{}" }
+      : prompt.includes("calculate current")
+        ? { name: "calculate_current_model", arguments: "{}" }
+      : prompt.includes("workspace status")
+        ? { name: "get_workspace_status", arguments: "{}" }
+        : prompt.includes("vertical")
+          ? { name: "set_graph_display", arguments: JSON.stringify({ orientation: "vertical" }) }
+          : { name: "switch_view", arguments: JSON.stringify({ view: prompt.includes("sankey") ? "sankey" : "yaml" }) }
     await sse(route, [{
-      choices: [{ delta: { tool_calls: [{ index: 0, id: "view-call", function: { name: "switch_view", arguments: JSON.stringify({ view }) } }] } }],
+      choices: [{ delta: { tool_calls: [{ index: 0, id: "tool-call", function: tool }] } }],
     }])
   })
 }
@@ -82,6 +94,74 @@ test("chat settings keep the API key for the next visit", async ({ page }) => {
   await page.getByRole("button", { name: "AI assistant" }).click()
   await page.getByRole("button", { name: "Chat settings" }).click()
   await expect(page.getByLabel("OpenRouter API key")).toHaveValue("test-key")
+})
+
+test("assistant reads bounded workspace and graph summaries", async ({ page }) => {
+  await configureChat(page)
+  const prompt = page.getByRole("textbox", { name: "Message", exact: true })
+  await prompt.fill("Show workspace status")
+  await prompt.press("Enter")
+  const workspaceTool = page.getByText("get_workspace_status · complete")
+  await expect(workspaceTool).toBeVisible()
+  await workspaceTool.click()
+  await expect(page.getByText(/"yamlDirty"/)).toBeVisible()
+
+  await prompt.fill("Summarize this graph")
+  await prompt.press("Enter")
+  const graphTool = page.getByText("get_graph_summary · complete")
+  await expect(graphTool).toBeVisible()
+  await graphTool.click()
+  await expect(page.getByText(/"nodeCount"/)).toBeVisible()
+})
+
+test("assistant changes registered graph presentation settings", async ({ page }) => {
+  await configureChat(page)
+  const prompt = page.getByRole("textbox", { name: "Message", exact: true })
+  await prompt.fill("Set the graph orientation to vertical")
+  await prompt.press("Enter")
+  await expect(page.getByText("set_graph_display · complete")).toBeVisible()
+  await page.getByRole("button", { name: "Close AI assistant" }).click()
+  await page.getByRole("button", { name: "Graph settings" }).click()
+  await expect(page.getByRole("combobox", { name: "Graph orientation" })).toHaveText(/Vertical/)
+})
+
+test("assistant reads bounded current LCA results", async ({ page }) => {
+  await page.unroute("**/lca-api/api/lca/base")
+  await page.reload()
+  await page.getByRole("button", { name: "Explore PRISM" }).click()
+  await expect(page.getByRole("button", { name: "Scaled Graph" })).toBeEnabled()
+  await configureChat(page)
+  const prompt = page.getByRole("textbox", { name: "Message", exact: true })
+  await prompt.fill("List the available impact categories")
+  await prompt.press("Enter")
+  const resultTool = page.getByText("list_impact_categories · complete")
+  await expect(resultTool).toBeVisible()
+  await resultTool.click()
+  await expect(page.getByText(/climate change/)).toBeVisible()
+})
+
+test("assistant validates YAML without exposing the draft", async ({ page }) => {
+  await configureChat(page)
+  const prompt = page.getByRole("textbox", { name: "Message", exact: true })
+  await prompt.fill("Validate YAML")
+  await prompt.press("Enter")
+  const validationTool = page.getByText("validate_yaml_draft · complete")
+  await expect(validationTool).toBeVisible()
+  await validationTool.click()
+  await expect(page.getByText(/"valid": true/)).toBeVisible()
+  await expect(page.getByText(/functional_unit:/)).toHaveCount(0)
+})
+
+test("assistant requires confirmation before a calculation mutation", async ({ page }) => {
+  await configureChat(page)
+  const prompt = page.getByRole("textbox", { name: "Message", exact: true })
+  await prompt.fill("Calculate current model")
+  await prompt.press("Enter")
+  const confirmation = page.getByRole("alertdialog", { name: "Confirm assistant action" })
+  await expect(confirmation).toBeVisible()
+  await expect(confirmation).toContainText("Calculate the applied revision")
+  await confirmation.getByRole("button", { name: "Confirm" }).click()
+  await expect(page.getByText("calculate_current_model · complete")).toBeVisible()
 })
 
 test("assistant sidebar is resizable without obscuring the workspace", async ({ page }) => {

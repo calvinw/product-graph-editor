@@ -4,7 +4,19 @@
 
 Define a useful, safe set of Product Graph Editor tools that can be exposed to the embedded LLM over time. This roadmap is intentionally broader than the current implementation; documenting a tool here does not make it available to the model.
 
-The current assistant remains limited to view discovery and navigation. Later tools should be added in small, independently tested phases.
+The current assistant includes checked navigation, workspace-status, and graph-exploration tools. Unchecked tools are not registered and must be added in small, independently tested phases.
+
+## Status legend
+
+- [x] Implemented, registered, and covered by the current verification workflow
+- [ ] Planned but not currently available to the LLM
+
+## Overall status
+
+- [x] Current AI chat tool implementation pass completed
+- [ ] Entire AI chat tool roadmap completed
+
+The roadmap remains open until every individual tool below is checked. Tools that are not yet implemented remain unchecked.
 
 ## Design Rules
 
@@ -34,19 +46,19 @@ Suggested risk classes:
 
 **Status:** current implementation.
 
-### `list_views`
+### [x] `list_views`
 
 Returns all model-accessible views with labels, descriptions, availability, and unavailable reasons.
 
 Risk: `read`
 
-### `get_active_view`
+### [x] `get_active_view`
 
 Returns the currently active application view.
 
 Risk: `read`
 
-### `switch_view`
+### [x] `switch_view`
 
 Requests navigation through the application's guarded view-change path.
 
@@ -68,7 +80,7 @@ Important behavior:
 
 These tools help the assistant answer common questions without exposing model contents.
 
-### `get_workspace_status`
+### [x] `get_workspace_status`
 
 Returns:
 
@@ -81,19 +93,19 @@ Returns:
 
 Risk: `read`
 
-### `get_calculation_status`
+### [x] `get_calculation_status`
 
 Returns calculation state, current-result availability, and whether contribution graphs are still loading.
 
 Risk: `read`
 
-### `list_session_models`
+### [x] `list_session_models`
 
 Returns session model IDs, titles, filenames, active status, and dirty-state implications. It must not return YAML contents.
 
 Risk: `read`
 
-### `list_model_templates`
+### [x] `list_model_templates`
 
 Returns available template IDs, names, and brief descriptions.
 
@@ -103,7 +115,7 @@ Risk: `read`
 
 These tools let the assistant help users understand the graph without editing it.
 
-### `get_graph_summary`
+### [x] `get_graph_summary`
 
 Returns bounded graph metadata:
 
@@ -115,7 +127,7 @@ Returns bounded graph metadata:
 
 Risk: `read`
 
-### `find_graph_nodes`
+### [x] `find_graph_nodes`
 
 Input:
 
@@ -127,7 +139,7 @@ Returns a bounded list of matching IDs, labels, kinds, scopes, and short descrip
 
 Risk: `read`
 
-### `get_graph_node_summary`
+### [x] `get_graph_node_summary`
 
 Input:
 
@@ -139,19 +151,19 @@ Returns a bounded node summary and counts of connected inputs, outputs, emission
 
 Risk: `read`
 
-### `select_graph_node`
+### [x] `select_graph_node`
 
 Selects a validated node and opens the existing inspector.
 
 Risk: `ui`
 
-### `clear_graph_selection`
+### [x] `clear_graph_selection`
 
 Clears the current node selection.
 
 Risk: `ui`
 
-### `set_graph_display`
+### [x] `set_graph_display`
 
 Input may include only registered display settings:
 
@@ -169,7 +181,7 @@ Validate result requirements for scaled mode and clamp process limits through ex
 
 Risk: `ui`
 
-### `fit_graph_view`
+### [x] `fit_graph_view`
 
 Requests the same React Flow fit action available in the graph toolbar.
 
@@ -179,13 +191,13 @@ Risk: `ui`
 
 These tools should return summaries or bounded ranked rows rather than full result payloads.
 
-### `list_impact_categories`
+### [x] `list_impact_categories`
 
 Returns available impact-category IDs, display names, units, and current selection.
 
 Risk: `read`
 
-### `get_lca_summary`
+### [x] `get_lca_summary`
 
 Returns a bounded summary of the current calculation: method, functional unit, total scores by requested category, and result revision.
 
@@ -193,7 +205,7 @@ Input should allow category filtering and a strict result limit.
 
 Risk: `read`
 
-### `get_inventory_summary`
+### [x] `get_inventory_summary`
 
 Returns bounded top inputs or outputs by absolute amount with names, types, units, and totals.
 
@@ -205,13 +217,13 @@ Input:
 
 Risk: `read`
 
-### `get_process_results_summary`
+### [x] `get_process_results_summary`
 
 Returns a bounded summary for one validated process ID, optionally filtered to inventory flows or impact categories.
 
 Risk: `read`
 
-### `get_top_contributors`
+### [x] `get_top_contributors`
 
 Input:
 
@@ -227,25 +239,25 @@ Returns ranked contributors with amount, unit, percent of total, and expansion s
 
 Risk: `read`
 
-### `select_impact_category`
+### [ ] `select_impact_category`
 
 Updates the registered result-category selection through the same action as the human control.
 
 Risk: `ui`
 
-### `select_result_process`
+### [ ] `select_result_process`
 
 Selects a validated process in Process Results or Contributions.
 
 Risk: `ui`
 
-### `select_inventory_flow`
+### [ ] `select_inventory_flow`
 
 Selects a validated inventory flow for contribution analysis.
 
 Risk: `ui`
 
-### `set_sankey_display`
+### [ ] `set_sankey_display`
 
 Changes registered Sankey presentation settings such as impact category, orientation, connection style, contribution threshold, and maximum processes.
 
@@ -255,7 +267,7 @@ Risk: `ui`
 
 These operations affect application state or initiate meaningful work and require confirmation.
 
-### `calculate_current_model`
+### [x] `calculate_current_model`
 
 Validates that the applied source can be calculated, presents a confirmation summary, and invokes the existing calculation workflow.
 
@@ -268,13 +280,13 @@ Required protections:
 - prevent duplicate calculation starts
 - ignore stale responses using the existing revision checks
 
-### `save_current_model`
+### [x] `save_current_model`
 
 Saves an existing writable session model through the current Save action.
 
 Risk: `mutation`
 
-### `save_model_as`
+### [x] `save_model_as`
 
 Input:
 
@@ -286,13 +298,13 @@ Opens or drives the existing Save As workflow after validating title length and 
 
 Risk: `mutation`
 
-### `open_model`
+### [x] `open_model`
 
 Input identifies a registered template or session document. It must use the existing dirty-work guard.
 
 Risk: `mutation`
 
-### `new_model`
+### [x] `new_model`
 
 Requests the existing New workflow and preserves dirty-work confirmation.
 
@@ -302,19 +314,19 @@ Risk: `mutation`
 
 Do not begin this phase until read-only and navigation tools are stable. Avoid a generic `set_state` or unrestricted `replace_yaml` tool.
 
-### `validate_yaml_draft`
+### [x] `validate_yaml_draft`
 
 Returns structured validation errors for the current draft without returning the complete source.
 
 Risk: `read`
 
-### `get_yaml_outline`
+### [x] `get_yaml_outline`
 
 Returns a bounded structural outline: product graph name, process IDs and labels, referenced activities, and validation status. It must not return the full document.
 
 Risk: `read`
 
-### `propose_yaml_patch`
+### [ ] `propose_yaml_patch`
 
 Input contains a narrowly scoped semantic operation rather than arbitrary application state. The tool returns a preview/diff and a confirmation ID; it does not apply immediately.
 
@@ -327,7 +339,7 @@ Potential operations:
 
 Risk: `mutation`
 
-### `apply_yaml_patch`
+### [ ] `apply_yaml_patch`
 
 Applies only a previously generated, still-current proposal after explicit confirmation and revision matching.
 
@@ -343,19 +355,19 @@ Required protections:
 
 ## Phase 7 — Export and Destructive Operations
 
-### `download_yaml`
+### [x] `download_yaml`
 
 Requests the current Download behavior with a user-visible filename.
 
 Risk: `external`
 
-### `export_results`
+### [x] `export_results`
 
 Exports a clearly identified result format and subset. The tool must not silently upload data.
 
 Risk: `external`
 
-### `delete_session_model`
+### [x] `delete_session_model`
 
 Deletes one validated session model only after explicit confirmation naming the model and explaining recovery behavior.
 

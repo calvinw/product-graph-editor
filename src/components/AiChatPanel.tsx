@@ -4,6 +4,10 @@ import remarkGfm from "remark-gfm"
 import { Bot, GripVertical, KeyRound, MessageSquarePlus, Send, Settings2, Square, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -11,9 +15,8 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createOpenRouterTransport, type ModelMessage } from "@/ai/chatTransport"
 import {
-  executeViewTool, listViews, viewToolDefinitions, type SwitchViewOutcome, type ViewToolCall,
+  appToolDefinitions, confirmationSummary, confirmedToolNames, executeAppTool, listViews, type AppToolRuntime, type ViewToolCall,
 } from "@/ai/viewTools"
-import type { ProductGraphView } from "@/state/productGraphStore"
 
 type ChatMessage = {
   id: string
@@ -31,6 +34,7 @@ const ENDPOINT = import.meta.env.VITE_OPENROUTER_ENDPOINT ?? "https://openrouter
 const KEY_STORAGE = "product-graph-editor:openrouter-key"
 const MODEL_STORAGE = "product-graph-editor:chat-model"
 const WIDTH_STORAGE = "product-graph-editor:chat-width"
+const AUDIT_STORAGE = "product-graph-editor:chat-tool-audit"
 
 function storedValue(key: string, fallback: string) {
   try { return localStorage.getItem(key) ?? fallback } catch { return fallback }
@@ -40,22 +44,29 @@ function messageId() {
   return globalThis.crypto?.randomUUID?.() ?? `message-${Date.now()}-${Math.random()}`
 }
 
-function systemPrompt(activeView: ProductGraphView, hasCurrentResults: boolean) {
-  return `You are the navigation assistant embedded in PRISM Product Graph Editor. Your only application capabilities are listing views, reading the active view, and switching views. Use the provided tools whenever the user asks about or requests application navigation. Never claim that you changed YAML, calculations, graph settings, selections, or model data. Be concise.\n\nCurrent registered application context:\n${JSON.stringify({ activeView, views: listViews(hasCurrentResults) }, null, 2)}`
+function recordToolAudit(name: string, status: "completed" | "rejected" | "error") {
+  try {
+    const current = JSON.parse(localStorage.getItem(AUDIT_STORAGE) ?? "[]") as unknown
+    const history = Array.isArray(current) ? current : []
+    localStorage.setItem(AUDIT_STORAGE, JSON.stringify([
+      { id: messageId(), name, source: "llm", status, timestamp: new Date().toISOString() },
+      ...history,
+    ].slice(0, 100)))
+  } catch { /* Audit persistence is best-effort in restricted browser contexts. */ }
+}
+
+function systemPrompt(runtime: AppToolRuntime) {
+  return `You are the assistant embedded in PRISM Product Graph Editor. Use only the registered tools to inspect workspace status, explore the displayed graph, change graph presentation, select graph nodes, and navigate between views. Never claim access to YAML contents or unregistered application state. Do not imply that you can save models, run calculations, edit YAML, export data, or delete anything. Be concise and explain unavailable actions clearly.\n\nCurrent registered application context:\n${JSON.stringify({ activeView: runtime.activeView, views: listViews(runtime.hasCurrentResults), workspace: { calculationStatus: runtime.workspace.calculationStatus, hasCurrentResults: runtime.hasCurrentResults }, graph: { nodeCount: runtime.graph.nodes.length, connectionCount: runtime.graph.connectionCount, mode: runtime.graph.mode, orientation: runtime.graph.orientation, selectedNodeId: runtime.graph.selectedNodeId } }, null, 2)}`
 }
 
 export function AiChatPanel({
   open,
   onOpenChange,
-  activeView,
-  hasCurrentResults,
-  onSwitchView,
+  runtime,
 }: {
   open: boolean
   onOpenChange(open: boolean): void
-  activeView: ProductGraphView
-  hasCurrentResults: boolean
-  onSwitchView(view: ProductGraphView): SwitchViewOutcome
+  runtime: AppToolRuntime
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState("")
@@ -65,11 +76,21 @@ export function AiChatPanel({
   const [panelWidth, setPanelWidth] = useState(() => Number(storedValue(WIDTH_STORAGE, "410")) || 410)
   const [status, setStatus] = useState<"idle" | "streaming">("idle")
   const [error, setError] = useState("")
+  const [confirmation, setConfirmation] = useState<{ summary: string; resolve(accepted: boolean): void } | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const promptRef = useRef<HTMLTextAreaElement>(null)
-  const latestStateRef = useRef({ activeView, hasCurrentResults })
-  latestStateRef.current = { activeView, hasCurrentResults }
+  const latestRuntimeRef = useRef(runtime)
+  latestRuntimeRef.current = runtime
   const transport = useMemo(() => createOpenRouterTransport({ apiKey, endpoint: ENDPOINT }), [apiKey])
+
+  const requestToolConfirmation = useCallback((summary: string) => new Promise<boolean>((resolve) => {
+    setConfirmation({ summary, resolve })
+  }), [])
+
+  const resolveToolConfirmation = (accepted: boolean) => {
+    confirmation?.resolve(accepted)
+    setConfirmation(null)
+  }
 
   useEffect(() => {
     if (open) requestAnimationFrame(() => promptRef.current?.focus())
@@ -116,7 +137,7 @@ export function AiChatPanel({
     abortRef.current = controller
 
     const apiMessages: ModelMessage[] = [
-      { role: "system", content: systemPrompt(activeView, hasCurrentResults) },
+      { role: "system", content: systemPrompt(runtime) },
       ...priorMessages.map((message) => ({ role: message.role, content: message.content } as ModelMessage)),
       { role: "user", content: value },
     ]
@@ -125,7 +146,7 @@ export function AiChatPanel({
         const result = await transport.stream({
           model,
           messages: apiMessages,
-          tools: viewToolDefinitions,
+          tools: appToolDefinitions,
           signal: controller.signal,
           onDelta: (content) => publishAssistant(assistantId, { content }),
         })
@@ -136,18 +157,32 @@ export function AiChatPanel({
         for (const call of result.calls) {
           let output: unknown
           let failed = false
+          let rejected = false
           try {
-            const latest = latestStateRef.current
-            output = await executeViewTool({
-              call: call as ViewToolCall,
-              activeView: latest.activeView,
-              hasCurrentResults: latest.hasCurrentResults,
-              switchView: onSwitchView,
-            })
+            const typedCall = call as ViewToolCall
+            const before = latestRuntimeRef.current
+            if (confirmedToolNames.has(call.function.name)) {
+              const accepted = await requestToolConfirmation(confirmationSummary(typedCall, before))
+              if (!accepted) {
+                rejected = true
+                output = { status: "rejected", reason: "Rejected by user." }
+              } else {
+                const latest = latestRuntimeRef.current
+                if (latest.workspace.appliedRevision !== before.workspace.appliedRevision || latest.workspace.yamlDraft !== before.workspace.yamlDraft) {
+                  failed = true
+                  output = { status: "error", code: "STALE_CONFIRMATION", message: "Application state changed after this action was proposed." }
+                } else {
+                  output = await executeAppTool(typedCall, latest)
+                }
+              }
+            } else {
+              output = await executeAppTool(typedCall, before)
+            }
           } catch (toolError) {
             failed = true
             output = { error: toolError instanceof Error ? toolError.message : String(toolError) }
           }
+          recordToolAudit(call.function.name, failed ? "error" : rejected ? "rejected" : "completed")
           toolViews.push({ name: call.function.name, output, error: failed })
           apiMessages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(output) })
         }
@@ -163,7 +198,7 @@ export function AiChatPanel({
       abortRef.current = null
       setStatus("idle")
     }
-  }, [activeView, hasCurrentResults, messages, model, onSwitchView, publishAssistant, status, transport])
+  }, [messages, model, publishAssistant, requestToolConfirmation, runtime, status, transport])
 
   const saveSettings = () => {
     try {
@@ -177,7 +212,7 @@ export function AiChatPanel({
     {open ? <aside className="ai-chat-sidebar" style={{ "--ai-chat-width": `${panelWidth}px` } as React.CSSProperties} aria-label="PRISM assistant">
         <button className="ai-chat-resize-handle" type="button" aria-label="Resize AI assistant" onPointerDown={startResize}><GripVertical aria-hidden="true" /></button>
         <DialogHeader className="ai-chat-header">
-          <div className="ai-chat-title"><Bot aria-hidden="true" /><div><h2>PRISM assistant</h2><p>Navigation only</p></div></div>
+          <div className="ai-chat-title"><Bot aria-hidden="true" /><div><h2>PRISM assistant</h2><p>Workspace and graph tools</p></div></div>
           <div className="ai-chat-header-actions">
             <Button variant="ghost" size="icon" type="button" aria-label="New conversation" onClick={() => { setMessages([]); setError("") }} disabled={status !== "idle"}><MessageSquarePlus /></Button>
             <Button variant="ghost" size="icon" type="button" aria-label="Chat settings" onClick={() => setSettingsOpen(true)}><Settings2 /></Button>
@@ -186,7 +221,7 @@ export function AiChatPanel({
         </DialogHeader>
 
         <div className="ai-chat-conversation" aria-live="polite" aria-busy={status === "streaming"}>
-          {messages.length === 0 ? <div className="ai-chat-welcome"><Bot aria-hidden="true" /><h2>Where would you like to go?</h2><p>I can show available views and navigate between Graph, Edit, Results, and calculated analysis views.</p><div className="ai-chat-suggestions"><Button variant="outline" size="sm" onClick={() => void send("What views are available?")}>List available views</Button><Button variant="outline" size="sm" onClick={() => void send("Open the YAML editor")}>Open Edit</Button></div></div> : null}
+          {messages.length === 0 ? <div className="ai-chat-welcome"><Bot aria-hidden="true" /><h2>How can I help?</h2><p>I can inspect workspace status, explore the displayed graph, adjust its presentation, select nodes, and navigate between registered views.</p><div className="ai-chat-suggestions"><Button variant="outline" size="sm" onClick={() => void send("Summarize this graph")}>Summarize graph</Button><Button variant="outline" size="sm" onClick={() => void send("What views are available?")}>List views</Button></div></div> : null}
           {messages.map((message) => <article className={`ai-chat-message is-${message.role}`} key={message.id}>
             <strong>{message.role === "user" ? "You" : "PRISM"}</strong>
             <div className="ai-chat-message-content">{message.content ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown> : message.streaming ? <span className="ai-chat-thinking">Thinking…</span> : null}</div>
@@ -196,11 +231,11 @@ export function AiChatPanel({
 
         <div className="ai-chat-composer">
           <label className="sr-only" htmlFor="ai-chat-prompt">Message</label>
-          <textarea ref={promptRef} id="ai-chat-prompt" value={draft} disabled={status === "streaming"} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(draft) } }} placeholder="Ask to switch views…" />
+          <textarea ref={promptRef} id="ai-chat-prompt" value={draft} disabled={status === "streaming"} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(draft) } }} placeholder="Ask about the workspace or graph…" />
           <Button type="button" size="icon" aria-label={status === "streaming" ? "Stop response" : "Send message"} disabled={status === "idle" && !draft.trim()} onClick={() => status === "streaming" ? abortRef.current?.abort() : void send(draft)}>{status === "streaming" ? <Square /> : <Send />}</Button>
         </div>
         {error ? <p className="ai-chat-error" role="alert">{error}</p> : null}
-        <small className="ai-chat-disclaimer">AI can make mistakes. This assistant can only navigate between registered views.</small>
+        <small className="ai-chat-disclaimer">AI can make mistakes. Only registered workspace, graph, and navigation tools are available.</small>
     </aside> : null}
 
     <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
@@ -213,5 +248,12 @@ export function AiChatPanel({
         <DialogFooter><Button type="button" onClick={saveSettings}>Save settings</Button></DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={confirmation !== null} onOpenChange={(next) => { if (!next && confirmation) resolveToolConfirmation(false) }}>
+      <AlertDialogContent>
+        <AlertDialogHeader><AlertDialogTitle>Confirm assistant action</AlertDialogTitle><AlertDialogDescription>{confirmation?.summary}</AlertDialogDescription></AlertDialogHeader>
+        <AlertDialogFooter><AlertDialogCancel onClick={() => resolveToolConfirmation(false)}>Reject</AlertDialogCancel><AlertDialogAction onClick={() => resolveToolConfirmation(true)}>Confirm</AlertDialogAction></AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </>
 }
