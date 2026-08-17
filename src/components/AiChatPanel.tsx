@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Bot, GripVertical, KeyRound, MessageSquarePlus, Send, Settings2, Square, X } from "lucide-react"
@@ -63,10 +64,12 @@ export function AiChatPanel({
   open,
   onOpenChange,
   runtime,
+  portalTarget,
 }: {
   open: boolean
   onOpenChange(open: boolean): void
   runtime: AppToolRuntime
+  portalTarget: HTMLDivElement | null
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState("")
@@ -96,6 +99,11 @@ export function AiChatPanel({
     if (open) requestAnimationFrame(() => promptRef.current?.focus())
   }, [open])
 
+  useEffect(() => {
+    if (!portalTarget) return
+    portalTarget.style.setProperty("--ai-chat-width", `${panelWidth}px`)
+  }, [panelWidth, portalTarget])
+
   const startResize = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (window.innerWidth <= 620) return
     event.preventDefault()
@@ -116,6 +124,18 @@ export function AiChatPanel({
     document.body.classList.add("is-resizing-ai-chat")
     window.addEventListener("pointermove", resize)
     window.addEventListener("pointerup", finish, { once: true })
+  }
+
+  const resizeByKeyboard = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+    event.preventDefault()
+    const maximum = Math.min(640, window.innerWidth - 360)
+    const direction = event.key === "ArrowLeft" ? 1 : -1
+    setPanelWidth((current) => {
+      const next = Math.min(maximum, Math.max(320, current + direction * 20))
+      try { localStorage.setItem(WIDTH_STORAGE, String(Math.round(next))) } catch { /* Optional preference. */ }
+      return next
+    })
   }
 
   const publishAssistant = useCallback((id: string, update: Partial<ChatMessage>) => {
@@ -208,9 +228,9 @@ export function AiChatPanel({
     setSettingsOpen(false)
   }
 
-  return <>
-    {open ? <aside className="ai-chat-sidebar" style={{ "--ai-chat-width": `${panelWidth}px` } as React.CSSProperties} aria-label="PRISM assistant">
-        <button className="ai-chat-resize-handle" type="button" aria-label="Resize AI assistant" onPointerDown={startResize}><GripVertical aria-hidden="true" /></button>
+  const panel = open && portalTarget ? createPortal(
+    <aside className="ai-chat-sidebar" aria-label="PRISM assistant">
+        <button className="ai-chat-resize-handle" type="button" aria-label="Resize AI assistant" aria-valuemin={320} aria-valuemax={Math.min(640, Math.max(320, window.innerWidth - 360))} aria-valuenow={Math.round(panelWidth)} onKeyDown={resizeByKeyboard} onPointerDown={startResize}><GripVertical aria-hidden="true" /></button>
         <DialogHeader className="ai-chat-header">
           <div className="ai-chat-title"><Bot aria-hidden="true" /><div><h2>PRISM assistant</h2><p>Workspace and graph tools</p></div></div>
           <div className="ai-chat-header-actions">
@@ -236,7 +256,12 @@ export function AiChatPanel({
         </div>
         {error ? <p className="ai-chat-error" role="alert">{error}</p> : null}
         <small className="ai-chat-disclaimer">AI can make mistakes. Only registered workspace, graph, and navigation tools are available.</small>
-    </aside> : null}
+    </aside>,
+    portalTarget,
+  ) : null
+
+  return <>
+    {panel}
 
     <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
       <DialogContent>
