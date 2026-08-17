@@ -1473,7 +1473,7 @@ function FileMenu({
   </DropdownMenu>
 }
 
-function GraphEditor({ onTitleChange, navbarTarget, active, chatOpen, onChatOpenChange }: { onTitleChange: (title: string) => void; navbarTarget: HTMLDivElement | null; active: boolean; chatOpen: boolean; onChatOpenChange: (open: boolean) => void }) {
+function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, chatOpen, onChatOpenChange }: { onTitleChange: (title: string) => void; navbarTarget: HTMLDivElement | null; chatPortalTarget: HTMLDivElement | null; active: boolean; chatOpen: boolean; onChatOpenChange: (open: boolean) => void }) {
   const { decimalPlaces, showAllDecimalPlaces, formatNumber, theme } = useDisplaySettings()
   const graphDecimalPlaces = showAllDecimalPlaces ? 20 : decimalPlaces
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<ProcessNodeData>>(layoutNodes(initialNodes, initialEdges))
@@ -1553,6 +1553,23 @@ function GraphEditor({ onTitleChange, navbarTarget, active, chatOpen, onChatOpen
       cancelAnimationFrame(fitFrame)
     }
   }, [active, fitView, view])
+  useEffect(() => {
+    if (!chatPortalTarget || view !== "graph" || !active) return
+    let fitFrame = 0
+    let previousWidth = chatPortalTarget.getBoundingClientRect().width
+    const observer = new ResizeObserver(([entry]) => {
+      const nextWidth = entry.contentRect.width
+      if (Math.abs(nextWidth - previousWidth) < 1) return
+      previousWidth = nextWidth
+      cancelAnimationFrame(fitFrame)
+      fitFrame = requestAnimationFrame(() => fitView({ padding: 0.35, maxZoom: 0.75 }))
+    })
+    observer.observe(chatPortalTarget)
+    return () => {
+      observer.disconnect()
+      cancelAnimationFrame(fitFrame)
+    }
+  }, [active, chatPortalTarget, fitView, view])
   const availableGraphProcessCount = (() => {
     try {
       return buildGraphFromYaml(appliedYaml, "structure").nodes.filter((node) => node.data.scope !== "background").length
@@ -2779,7 +2796,7 @@ function GraphEditor({ onTitleChange, navbarTarget, active, chatOpen, onChatOpen
           </>}
         </>
       </aside> : null}
-      <AiChatPanel open={chatOpen} onOpenChange={onChatOpenChange} runtime={assistantRuntime} />
+      <AiChatPanel open={chatOpen} onOpenChange={onChatOpenChange} runtime={assistantRuntime} portalTarget={chatPortalTarget} />
       <AlertDialog open={pendingConfirmationOpen} onOpenChange={(open) => { if (!open) cancelPendingAction() }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -3023,13 +3040,15 @@ function AppContent() {
   const [chatOpen, setChatOpen] = useState(false)
   const [workspaceTitle, setWorkspaceTitle] = useState("Loading product graphs…")
   const [navbarTarget, setNavbarTarget] = useState<HTMLDivElement | null>(null)
+  const [chatPortalTarget, setChatPortalTarget] = useState<HTMLDivElement | null>(null)
   const { decimalPlaces, setDecimalPlaces, showAllDecimalPlaces, setShowAllDecimalPlaces, theme, setTheme } = useDisplaySettings()
 
   return (
     <TooltipProvider delayDuration={250}>
-      <main className={`app-shell theme-${theme}`}>
+      <main className={`app-shell theme-${theme}${chatOpen ? " has-chat" : ""}`}>
         {welcomeOpen ? <WelcomePage onExplore={() => setWelcomeOpen(false)} /> : null}
-        <header className="topbar" hidden={welcomeOpen}>
+        <div className="app-main-pane">
+          <header className="topbar" hidden={welcomeOpen}>
           <div className="brand"><button className="brand-home" type="button" onClick={() => setWelcomeOpen(true)} aria-label="Open PRISM welcome page"><span className="brand-mark"><img src={prismLogoRound} alt="" aria-hidden="true" /></span></button><span className="brand-product-name"><span>PRISM</span><span className="brand-product-descriptor"> Life Cycle Assessment</span></span><span className="brand-separator">·</span><h1 className="brand-study-title">{workspaceTitle}</h1></div>
           <div ref={setNavbarTarget} className="navbar-portal-target" />
           <div className="top-actions">
@@ -3057,13 +3076,15 @@ function AppContent() {
               </PopoverContent>
             </Popover>
           </div>
-        </header>
+          </header>
 
-        <section className="workspace" hidden={welcomeOpen}>
-          <ReactFlowProvider>
-            <GraphEditor onTitleChange={setWorkspaceTitle} navbarTarget={navbarTarget} active={!welcomeOpen} chatOpen={chatOpen} onChatOpenChange={setChatOpen} />
-          </ReactFlowProvider>
-        </section>
+          <section className="workspace" hidden={welcomeOpen}>
+            <ReactFlowProvider>
+              <GraphEditor onTitleChange={setWorkspaceTitle} navbarTarget={navbarTarget} chatPortalTarget={chatPortalTarget} active={!welcomeOpen} chatOpen={chatOpen} onChatOpenChange={setChatOpen} />
+            </ReactFlowProvider>
+          </section>
+        </div>
+        <div ref={setChatPortalTarget} className="ai-chat-pane" aria-hidden={!chatOpen} />
       </main>
     </TooltipProvider>
   )

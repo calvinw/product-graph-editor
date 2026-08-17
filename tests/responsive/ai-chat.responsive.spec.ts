@@ -164,11 +164,14 @@ test("assistant requires confirmation before a calculation mutation", async ({ p
   await expect(page.getByText("calculate_current_model · complete")).toBeVisible()
 })
 
-test("assistant sidebar is resizable without obscuring the workspace", async ({ page }) => {
+test("assistant split pane resizes the workspace", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 0) <= 620, "Phone chat uses the full contained width.")
+  const workspace = page.locator(".app-main-pane")
+  const fullWorkspace = await workspace.boundingBox()
   await configureChat(page)
   const chat = page.getByRole("complementary", { name: "PRISM assistant" })
   const before = await chat.boundingBox()
+  const workspaceBefore = await workspace.boundingBox()
   const handle = page.getByRole("button", { name: "Resize AI assistant" })
   const handleBox = await handle.boundingBox()
   expect(before).not.toBeNull()
@@ -176,9 +179,19 @@ test("assistant sidebar is resizable without obscuring the workspace", async ({ 
   if (!before || !handleBox) return
   await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2)
   await page.mouse.down()
-  await page.mouse.move(handleBox.x - 80, handleBox.y + handleBox.height / 2, { steps: 5 })
+  await page.mouse.move(handleBox.x + 80, handleBox.y + handleBox.height / 2, { steps: 5 })
   await page.mouse.up()
   const after = await chat.boundingBox()
-  expect(after?.width ?? 0).toBeGreaterThan(before.width + 60)
+  const workspaceAfter = await workspace.boundingBox()
+  expect(after?.width ?? 0).toBeLessThan(before.width - 60)
+  expect(workspaceBefore?.width ?? 0).toBeLessThan((fullWorkspace?.width ?? 0) - 300)
+  expect(workspaceAfter?.width ?? 0).toBeGreaterThan((workspaceBefore?.width ?? 0) + 60)
+  await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeVisible()
   await expect(page.locator(".react-flow")).toBeVisible()
+  const graphNode = await page.locator(".react-flow__node:visible").first().boundingBox()
+  expect((graphNode?.x ?? 0) + (graphNode?.width ?? 0)).toBeLessThanOrEqual((workspaceAfter?.x ?? 0) + (workspaceAfter?.width ?? 0))
+
+  await handle.focus()
+  await handle.press("ArrowLeft")
+  await expect(handle).toHaveAttribute("aria-valuenow", String(Math.round((after?.width ?? 0) + 20)))
 })
