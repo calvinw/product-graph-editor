@@ -164,6 +164,19 @@ test("assistant requires confirmation before a calculation mutation", async ({ p
   await expect(page.getByText("calculate_current_model · complete")).toBeVisible()
 })
 
+test("assistant follows new messages to the bottom", async ({ page }) => {
+  await configureChat(page)
+  const prompt = page.getByRole("textbox", { name: "Message", exact: true })
+  for (let index = 0; index < 6; index += 1) {
+    await prompt.fill(`Open the YAML editor ${index}`)
+    await prompt.press("Enter")
+    await expect(prompt).toBeEnabled()
+  }
+
+  const viewport = page.locator('[data-slot="message-scroller-viewport"]')
+  await expect.poll(() => viewport.evaluate((element) => Math.round(element.scrollHeight - element.scrollTop - element.clientHeight))).toBeLessThanOrEqual(2)
+})
+
 test("assistant split pane resizes the workspace", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 0) <= 620, "Phone chat uses the full contained width.")
   const workspace = page.locator(".app-main-pane")
