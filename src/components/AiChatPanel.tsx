@@ -13,6 +13,10 @@ import {
 } from "@/components/ui/dialog"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import {
+  MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem,
+  MessageScrollerProvider, MessageScrollerViewport,
+} from "@/components/ui/message-scroller"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createOpenRouterTransport, type ModelMessage } from "@/ai/chatTransport"
 import {
@@ -240,14 +244,23 @@ export function AiChatPanel({
           </div>
         </DialogHeader>
 
-        <div className="ai-chat-conversation" aria-live="polite" aria-busy={status === "streaming"}>
-          {messages.length === 0 ? <div className="ai-chat-welcome"><Bot aria-hidden="true" /><h2>How can I help?</h2><p>I can inspect workspace status, explore the displayed graph, adjust its presentation, select nodes, and navigate between registered views.</p><div className="ai-chat-suggestions"><Button variant="outline" size="sm" onClick={() => void send("Summarize this graph")}>Summarize graph</Button><Button variant="outline" size="sm" onClick={() => void send("What views are available?")}>List views</Button></div></div> : null}
-          {messages.map((message) => <article className={`ai-chat-message is-${message.role}`} key={message.id}>
-            <strong>{message.role === "user" ? "You" : "PRISM"}</strong>
-            <div className="ai-chat-message-content">{message.content ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown> : message.streaming ? <span className="ai-chat-thinking">Thinking…</span> : null}</div>
-            {message.tools?.map((tool, index) => <details className="ai-chat-tool" key={`${tool.name}-${index}`}><summary>{tool.name}{tool.error ? " · error" : " · complete"}</summary><pre>{JSON.stringify(tool.output, null, 2)}</pre></details>)}
-          </article>)}
-        </div>
+        <MessageScrollerProvider autoScroll>
+          <MessageScroller className="ai-chat-conversation" aria-live="polite" aria-busy={status === "streaming"}>
+            <MessageScrollerViewport>
+              <MessageScrollerContent className="ai-chat-conversation-content">
+                {messages.length === 0 ? <div className="ai-chat-welcome"><Bot aria-hidden="true" /><h2>How can I help?</h2><p>I can inspect workspace status, explore the displayed graph, adjust its presentation, select nodes, and navigate between registered views.</p><div className="ai-chat-suggestions"><Button variant="outline" size="sm" onClick={() => void send("Summarize this graph")}>Summarize graph</Button><Button variant="outline" size="sm" onClick={() => void send("What views are available?")}>List views</Button></div></div> : null}
+                {messages.map((message) => <MessageScrollerItem key={message.id} messageId={message.id} scrollAnchor={message.role === "user"}>
+                  <article className={`ai-chat-message is-${message.role}`}>
+                    <strong>{message.role === "user" ? "You" : "PRISM"}</strong>
+                    <div className="ai-chat-message-content">{message.content ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown> : message.streaming ? <span className="ai-chat-thinking">Thinking…</span> : null}</div>
+                    {message.tools?.map((tool, index) => <details className="ai-chat-tool" key={`${tool.name}-${index}`}><summary>{tool.name}{tool.error ? " · error" : " · complete"}</summary><pre>{JSON.stringify(tool.output, null, 2)}</pre></details>)}
+                  </article>
+                </MessageScrollerItem>)}
+              </MessageScrollerContent>
+            </MessageScrollerViewport>
+            <MessageScrollerButton />
+          </MessageScroller>
+        </MessageScrollerProvider>
 
         <div className="ai-chat-composer">
           <label className="sr-only" htmlFor="ai-chat-prompt">Message</label>
