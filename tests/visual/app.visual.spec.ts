@@ -202,7 +202,7 @@ test("New starts blank and Save As creates a writable session model", async ({ p
   await page.getByRole("menuitem", { name: "New..." }).click()
 
   await expect(editor).toHaveValue("")
-  await expect(page.getByText("Start writing YAML, or upload a model from the File menu.")).toBeVisible()
+  await expect(page.getByText("Start writing YAML, or upload an existing file from the File menu.")).toBeVisible()
   await expect(page.getByRole("button", { name: "Save As..." })).toBeDisabled()
   await expect(page.getByText("Paste YAML", { exact: true })).toHaveCount(0)
 

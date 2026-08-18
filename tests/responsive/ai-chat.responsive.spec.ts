@@ -87,13 +87,13 @@ test("assistant rejects an unavailable Sankey view", async ({ page }) => {
   await expect(page.locator(".react-flow")).toBeVisible()
 })
 
-test("chat settings keep the API key for the next visit", async ({ page }) => {
+test("chat settings clear the API key on reload", async ({ page }) => {
   await configureChat(page)
   await page.reload()
   await page.getByRole("button", { name: "Explore PRISM" }).click()
   await page.getByRole("button", { name: "AI assistant" }).click()
   await page.getByRole("button", { name: "Chat settings" }).click()
-  await expect(page.getByLabel("OpenRouter API key")).toHaveValue("test-key")
+  await expect(page.getByLabel("OpenRouter API key")).toHaveValue("")
 })
 
 test("assistant reads bounded workspace and graph summaries", async ({ page }) => {
