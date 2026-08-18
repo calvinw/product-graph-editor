@@ -38,6 +38,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { NumberStepper } from "@/components/NumberStepper"
 import { AiChatPanel } from "@/components/AiChatPanel"
+import { RealtimeView } from "@/components/RealtimeView"
 import type { AppToolRuntime, SwitchViewOutcome } from "@/ai/viewTools"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
@@ -47,6 +48,7 @@ import {
   calculateContributionGraphs, calculateLca, getBackgroundActivityDetails, getProductGraphTemplates, impactCategoryAbbreviation, impactCategoryDisplayName, lcaResultToMarkdown,
   type ContributionGraph, type ContributionGraphNode, type LcaResult, type ProductGraphTemplate,
 } from "./lib/lcaApi"
+import { applyScenarioToYaml, backgroundLinks } from "./lib/realtimeScore"
 import { unitsAreCompatible } from "./lib/units"
 import { cn } from "./lib/utils"
 import { DisplaySettingsProvider, useDisplaySettings } from "./lib/displaySettings"
@@ -60,14 +62,14 @@ import {
   type ProductGraphView as View,
 } from "./state/productGraphStore"
 type NodeMeta = { label: string; kind: string; detail: string; color: string; scope?: "foreground" | "background" }
-type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribution" | "sankey">
+type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribution" | "sankey" | "realtime">
 type PendingAction =
   | { kind: "view"; view: View }
   | { kind: "template"; id: string }
   | { kind: "session"; id: string }
   | { kind: "new" }
   | { kind: "upload" }
-const analysisViews: AnalysisView[] = ["inventory", "impact", "process", "contribution", "sankey"]
+const analysisViews: AnalysisView[] = ["inventory", "impact", "process", "contribution", "sankey", "realtime"]
 const isAnalysisView = (view: View): view is AnalysisView => analysisViews.includes(view as AnalysisView)
 const WEBAPP_DEFAULT_PRODUCT_GRAPH_ID = import.meta.env.VITE_DEFAULT_PRODUCT_GRAPH_ID ?? "cotton_fiber"
 
@@ -1502,6 +1504,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
   const [loadingContributionKeys, setLoadingContributionKeys] = useState<Set<string>>(() => new Set())
   const lcaResult = useProductGraphStore((state) => state.lcaResult)
   const calculatedRevision = useProductGraphStore((state) => state.calculatedRevision)
+  const scenarioOverrides = useProductGraphStore((state) => state.scenarioOverrides)
   const graphMode = useProductGraphStore((state) => state.graphMode)
   const showReferenceAmounts = useProductGraphStore((state) => state.showReferenceAmounts)
   const [graphSettingsOpen, setGraphSettingsOpen] = useState(false)
@@ -1525,6 +1528,8 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     failCalculation,
     finishCalculation,
     mergeContributionGraphs,
+    setScenarioOverride,
+    resetScenario,
   } = storeActions
   const inspectorOpen = selected !== null
   const foldDirectionRef = useRef<"upstream" | "downstream">("upstream")
@@ -2080,6 +2085,16 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     }
   }
 
+  const commitScenario = () => {
+    if (!lcaResult) return
+    const source = applyScenarioToYaml(appliedYaml, backgroundLinks(lcaResult), scenarioOverrides)
+    if (source === appliedYaml) return
+    dispatchModelWorkspace({ type: "edit-draft", yaml: source })
+    const revision = applyYaml(source)
+    if (revision === null) return
+    void calculateSource(source, revision)
+  }
+
   const calculateSource = async (source: string, revision: number, openGraphWhenReady = false) => {
     activeCalculationRef.current?.abort()
     const controller = new AbortController()
@@ -2584,6 +2599,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
                 ["process", "Process results"],
                 ["contribution", "Contributions"],
                 ["sankey", "Sankey"],
+                ["realtime", "Realtime"],
               ] as const).map(([resultView, label]) => {
                 const selected = view === resultView
                 return <DropdownMenuItem key={resultView} aria-current={selected ? "true" : undefined} onSelect={() => requestView(resultView)} disabled={resultView !== "results" && !hasCurrentResults}>
@@ -2632,6 +2648,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
                   <ToggleGroupItem value="process" disabled={!hasCurrentResults}>Process Results</ToggleGroupItem>
                   <ToggleGroupItem value="contribution" disabled={!hasCurrentResults}>Contribution</ToggleGroupItem>
                   <ToggleGroupItem value="sankey" disabled={!hasCurrentResults}>Sankey Graph</ToggleGroupItem>
+                  <ToggleGroupItem value="realtime" disabled={!hasCurrentResults}>Realtime</ToggleGroupItem>
                 </ToggleGroup>
               </div>
             </div>
@@ -2721,7 +2738,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
               : activeDocument?.kind === "template" || isTransient ? <Button size="sm" disabled={!canSaveAs} onClick={openSaveAsDialog}><CopyPlus data-icon="inline-start" />Save As...</Button>
                 : null}
           </div>
-        </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} loadContributionGraphs={loadContributionGraphs} /> : <div className="results-panel">
+        </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} loadContributionGraphs={loadContributionGraphs} /> : view === "realtime" ? <RealtimeView result={lcaResult} isCurrent={hasCurrentResults} error={resultsError} overrides={scenarioOverrides} onOverride={setScenarioOverride} onReset={resetScenario} onCommit={commitScenario} committing={calculationInProgress} /> : <div className="results-panel">
           <div className="results-panel-head">
             <div><strong>LCA Results</strong>{isCalculating ? <span className="calculation-message">Calculating…</span> : null}</div>
           </div>

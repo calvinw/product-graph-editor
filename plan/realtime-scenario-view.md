@@ -1,6 +1,6 @@
 # Plan: Realtime Scenario View
 
-Status: awaiting the engine field; branch created  
+Status: implemented; verified against the engine on the BAFU plastic broom  
 Date: August 18, 2026  
 Branch: `realtime`, branched from `ai-chat`  
 Coordinated engine plan:
@@ -142,6 +142,38 @@ Pure functions here keep the arithmetic unit-testable without React.
 - Preview matches the engine's exact recalculation for the BAFU-linked plastic
   broom, the three-link reference case, to `1e-6` relative — not exactly; see
   the precision floor above.
+
+## Behaviour as built
+
+Dragging a slider is **pure preview**: it writes only to `scenarioOverrides` in
+the store and recomputes the category cards. `appliedYaml` is untouched, the
+graph is not rebuilt, and no request is sent. Inventory, contributions, and
+Sankey stay frozen at the last exact calculation, with a note saying so, because
+those numbers are stale the moment a slider moves.
+
+The **"Calculate exactly"** button is the only path that writes YAML. It stamps
+the slider amounts into the draft at the recorded
+`(process_index, input_index)`, dispatches `edit-draft`, and runs the normal
+calculation. It edits the draft only — nothing persists until the user saves.
+Overrides clear automatically on `applySource` and `completeCalculation`, so a
+delta can never be measured against a stale baseline.
+
+## Verification
+
+No unit-test runner exists in this repo (Playwright visual only), so the scoring
+module was verified end to end against the engine rather than by adding a test
+dependency. A fixture was generated from the Python engine for
+`bafu_examples/plastic_broom.yaml`, and `realtimeScore` was bundled and run
+against it. All eight checks pass:
+
+- baseline reproduced exactly with no overrides;
+- preview matches the engine's exact recalculation for PLA 0.52 to 0.40 —
+  `2.6e-10` relative on acidification, `4.9e-8` on climate change, the latter
+  sitting exactly on the predicted float32 floor;
+- multi-link deltas additive to `1e-15`;
+- YAML rewrite lands on the correct exchange and is a no-op with no overrides.
+
+The script is disposable; regenerate it from this plan if the module changes.
 
 ## Out of scope
 
