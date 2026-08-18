@@ -36,7 +36,6 @@ const MODELS = [
   ["openai/gpt-5.6-luna", "GPT-5.6 Luna"],
 ] as const
 const ENDPOINT = import.meta.env.VITE_OPENROUTER_ENDPOINT ?? "https://openrouter.ai/api/v1/chat/completions"
-const KEY_STORAGE = "product-graph-editor:openrouter-key"
 const MODEL_STORAGE = "product-graph-editor:chat-model"
 const WIDTH_STORAGE = "product-graph-editor:chat-width"
 const AUDIT_STORAGE = "product-graph-editor:chat-tool-audit"
@@ -61,7 +60,7 @@ function recordToolAudit(name: string, status: "completed" | "rejected" | "error
 }
 
 function systemPrompt(runtime: AppToolRuntime) {
-  return `You are the assistant embedded in PRISM Product Graph Editor. Use only the registered tools to inspect workspace status, explore the displayed graph, change graph presentation, select graph nodes, and navigate between views. Never claim access to YAML contents or unregistered application state. Do not imply that you can save models, run calculations, edit YAML, export data, or delete anything. Be concise and explain unavailable actions clearly.\n\nCurrent registered application context:\n${JSON.stringify({ activeView: runtime.activeView, views: listViews(runtime.hasCurrentResults), workspace: { calculationStatus: runtime.workspace.calculationStatus, hasCurrentResults: runtime.hasCurrentResults }, graph: { nodeCount: runtime.graph.nodes.length, connectionCount: runtime.graph.connectionCount, mode: runtime.graph.mode, orientation: runtime.graph.orientation, selectedNodeId: runtime.graph.selectedNodeId } }, null, 2)}`
+  return `You are the assistant embedded in PRISM Product Graph Editor. Use only the registered tools. You can inspect bounded workspace, graph, YAML-structure, and LCA-result summaries; change graph presentation and selection; navigate views; and propose registered model, calculation, download, export, and deletion actions. Actions marked for confirmation must be approved by the user in the application before they run. Never claim access to complete YAML contents or unregistered application state, and never claim an action succeeded until its tool result confirms it. Be concise and explain unavailable actions clearly.\n\nCurrent registered application context:\n${JSON.stringify({ activeView: runtime.activeView, views: listViews(runtime.hasCurrentResults), workspace: { calculationStatus: runtime.workspace.calculationStatus, hasCurrentResults: runtime.hasCurrentResults }, graph: { nodeCount: runtime.graph.nodes.length, connectionCount: runtime.graph.connectionCount, mode: runtime.graph.mode, orientation: runtime.graph.orientation, selectedNodeId: runtime.graph.selectedNodeId } }, null, 2)}`
 }
 
 export function AiChatPanel({
@@ -77,7 +76,7 @@ export function AiChatPanel({
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState("")
-  const [apiKey, setApiKey] = useState(() => storedValue(KEY_STORAGE, ""))
+  const [apiKey, setApiKey] = useState("")
   const [model, setModel] = useState(() => storedValue(MODEL_STORAGE, MODELS[0][0]))
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [panelWidth, setPanelWidth] = useState(() => Number(storedValue(WIDTH_STORAGE, "410")) || 410)
@@ -226,7 +225,6 @@ export function AiChatPanel({
 
   const saveSettings = () => {
     try {
-      localStorage.setItem(KEY_STORAGE, apiKey.trim())
       localStorage.setItem(MODEL_STORAGE, model)
     } catch { /* Storage can be unavailable in restricted browser contexts. */ }
     setSettingsOpen(false)
@@ -278,7 +276,7 @@ export function AiChatPanel({
 
     <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
       <DialogContent>
-        <DialogHeader><DialogTitle>Chat settings</DialogTitle><DialogDescription>The API key is saved in this browser on this device so it is available next time. Production deployments should use a backend proxy.</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>Chat settings</DialogTitle><DialogDescription>Your OpenRouter API key is kept in memory for this tab and cleared when the page reloads. Production deployments can route requests through a backend by configuring the OpenRouter endpoint.</DialogDescription></DialogHeader>
         <FieldGroup>
           <Field><FieldLabel htmlFor="openrouter-key">OpenRouter API key</FieldLabel><div className="ai-chat-key-field"><KeyRound aria-hidden="true" /><Input id="openrouter-key" type="password" autoComplete="off" value={apiKey} onChange={(event) => setApiKey(event.target.value)} /></div></Field>
           <Field><FieldLabel htmlFor="ai-chat-model">Model</FieldLabel><Select value={model} onValueChange={setModel}><SelectTrigger id="ai-chat-model" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{MODELS.map(([id, label]) => <SelectItem value={id} key={id}>{label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
