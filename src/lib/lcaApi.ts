@@ -122,6 +122,20 @@ export type SankeyLink = {
   unit: string
 }
 
+export type BackgroundLinkIntensity = {
+  link_id: string
+  process_index: number
+  input_index: number
+  process_name: string
+  flow: string
+  database: string
+  code: string
+  location: string | null
+  amount: number
+  unit: string
+  intensities: Record<string, number>
+}
+
 export type LcaResult = {
   result_id: string
   name: string
@@ -140,6 +154,9 @@ export type LcaResult = {
     links: SankeyLink[]
     available_units: string[]
   }
+  // Present only when the engine runs with its background intensity cache
+  // enabled. Absence is a normal fallback, not an error.
+  background_link_intensities?: BackgroundLinkIntensity[]
 }
 
 export type ContributionBatchResult = {
@@ -256,6 +273,9 @@ function readLcaResult(value: unknown): LcaResult {
   }
   if (value.contribution_graphs !== undefined && !Array.isArray(value.contribution_graphs)) {
     throw new Error("The LCA calculation response contains invalid contribution graphs.")
+  }
+  if (value.background_link_intensities !== undefined && !Array.isArray(value.background_link_intensities)) {
+    throw new Error("The LCA calculation response contains invalid background link intensities.")
   }
   return {
     ...value,

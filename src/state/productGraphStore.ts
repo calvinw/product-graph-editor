@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import type { LcaResult } from "@/lib/lcaApi"
+import type { ScenarioOverrides } from "@/lib/realtimeScore"
 import {
   initialModelWorkspace,
   modelWorkspaceReducer,
@@ -7,7 +8,7 @@ import {
   type ModelWorkspaceState,
 } from "@/lib/modelWorkspace"
 
-export type ProductGraphView = "graph" | "yaml" | "inventory" | "impact" | "process" | "contribution" | "sankey" | "results"
+export type ProductGraphView = "graph" | "yaml" | "inventory" | "impact" | "process" | "contribution" | "sankey" | "results" | "realtime"
 export type GraphMode = "scaled" | "structure"
 export type GraphOrientation = "vertical" | "horizontal"
 export type GraphConnectionStyle = "curved" | "straight" | "step"
@@ -38,6 +39,8 @@ type ProductGraphActions = {
   failCalculation: (message: string) => void
   finishCalculation: () => void
   mergeContributionGraphs: (resultId: string, graphs: LcaResult["contribution_graphs"]) => void
+  setScenarioOverride: (linkId: string, amount: number) => void
+  resetScenario: () => void
   reset: () => void
 }
 
@@ -55,6 +58,7 @@ export type ProductGraphState = ModelWorkspaceState & {
   calculationError: string
   lcaResult: LcaResult | null
   calculatedRevision: number | null
+  scenarioOverrides: ScenarioOverrides
   actions: ProductGraphActions
 }
 
@@ -73,6 +77,7 @@ const initialProductGraphState = {
   calculationError: "",
   lcaResult: null,
   calculatedRevision: null,
+  scenarioOverrides: {},
 }
 
 export const useProductGraphStore = create<ProductGraphState>()((set, get) => ({
@@ -99,6 +104,7 @@ export const useProductGraphStore = create<ProductGraphState>()((set, get) => ({
         calculationError: "",
         lcaResult: null,
         calculatedRevision: null,
+        scenarioOverrides: {},
       })
       return appliedRevision
     },
@@ -109,6 +115,8 @@ export const useProductGraphStore = create<ProductGraphState>()((set, get) => ({
       calculatedRevision,
       calculationStatus: "complete",
       calculationError: "",
+      // A fresh baseline must never inherit deltas measured against the old one.
+      scenarioOverrides: {},
     }),
     failCalculation: (calculationError) => set({ calculationStatus: "error", calculationError }),
     finishCalculation: () => set((state) => ({
@@ -120,6 +128,10 @@ export const useProductGraphStore = create<ProductGraphState>()((set, get) => ({
       graphs.forEach((graph) => merged.set(graph.label, graph))
       return { lcaResult: { ...state.lcaResult, contribution_graphs: [...merged.values()] } }
     }),
+    setScenarioOverride: (linkId, amount) => set((state) => ({
+      scenarioOverrides: { ...state.scenarioOverrides, [linkId]: amount },
+    })),
+    resetScenario: () => set({ scenarioOverrides: {} }),
     reset: () => set(initialProductGraphState),
   },
 }))
