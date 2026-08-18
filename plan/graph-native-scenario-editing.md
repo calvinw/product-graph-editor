@@ -203,17 +203,59 @@ and the deltas are spent.
 Add an `ImpactCategorySection` to the inspector, styled as the existing
 `property-section` blocks.
 
-What can honestly be shown depends on the selection:
+### Every foreground node can carry a live cumulative score
 
-| Selection | Shown | Exact? |
+An earlier draft of this plan claimed per-node foreground cumulative scores were
+not locally derivable. **That was wrong.** The decomposition closes with data
+already in hand:
+
+```text
+A_FF^T y_F  =  direct_char  +  Σ (background amount × y_B)
+
+per-node cumulative  =  supply_amount × y_F(p)
+```
+
+- `A_FF` comes from the YAML: reference outputs on the diagonal, negated
+  foreground-to-foreground input amounts off it.
+- `direct_char(p) = direct_score(p) / scaling_vector(p)`, both already in the
+  Call 1 response. Guard the division for `s_F(p) == 0`.
+- The background term is the Tier 2 payload.
+
+During a background-input drag `s_F`, `direct_char`, and `y_B` are all
+invariant; only the right-hand side moves. Re-solving is an `n x n` dense solve
+where `n` is the foreground process count — 5 for the jacket, microseconds.
+
+Verified against the deployed engine: every foreground node of `jacket.yaml`
+(5 processes) and `polyester_tshirt.yaml` (3 processes) matched the server's own
+`contribution_graphs` node `cumulative_score` to between `0` and `5.7e-08`, the
+float32 floor.
+
+Implement this as `solveForegroundCumulative` in `lib/realtimeScore.ts`.
+
+### What the inspector shows
+
+| Selection | Shown | Live and exact? |
 |---|---|---|
-| Background node | That branch's own live contribution per category, `amount x s_F x intensity` | yes |
-| Any node | System total per category, baseline arrow preview | yes |
-| Foreground node | System total only | per-node cumulative is **not** locally derivable |
+| Foreground node | Its cumulative score per category | yes |
+| Background node | That branch's contribution, `amount x s_F x intensity` | yes |
+| Any selection | System total per category, with baseline preview | yes |
 
-The last row matters. Per-node cumulative scores for foreground processes come
-from `process_contributions` on the server. The section must label what it is
-showing rather than implying every node has a live score.
+Because cumulative scores are live for every foreground node, they are also
+worth rendering on the nodes themselves during a drag, not only in the
+inspector. Decide that in Phase 7.
+
+### What still requires the release-time calculation
+
+| Quantity | Source |
+|---|---|
+| Elementary flow inventory (`lci`) | server |
+| Background activity direct scores | server — the background supply vector changes |
+| Full contribution graph including background nodes | server traversal |
+| Sankey | server |
+
+So the drag is exact for every score on the foreground, and the release-time
+call fills in inventory, background detail, and Sankey. The two-stage model
+holds, but with more landing on the live side than first assumed.
 
 ## Phase 7 — wire the loop
 
