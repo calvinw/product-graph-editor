@@ -1,6 +1,8 @@
 # Plan: Realtime Scenario View
 
-Status: implemented; verified against the engine on the BAFU plastic broom  
+Status: implemented and working; verified against the engine on the BAFU
+plastic broom and confirmed by hand against an independently running copy of
+the webapp  
 Date: August 18, 2026  
 Branch: `realtime`, branched from `ai-chat`  
 Coordinated engine plan:
@@ -158,6 +160,32 @@ calculation. It edits the draft only — nothing persists until the user saves.
 Overrides clear automatically on `applySource` and `completeCalculation`, so a
 delta can never be measured against a stale baseline.
 
+## Running it locally
+
+The Vite dev proxy points `/lca-api` at production, and production still runs
+the Tier 1 engine, which does not return `background_link_intensities`. Against
+production the view therefore shows its "Live preview unavailable" state, which
+is correct behaviour rather than a bug. Testing Realtime needs a local engine:
+
+```bash
+# engine, from the life-cycle-assessment-mcp repo
+BRIGHTWAY_PROJECT=lca_server BRIGHTWAY2_DIR=$PWD/brightway_data \
+  LCA_BACKGROUND_INTENSITY_CACHE=on PORT=9000 .venv/bin/python sse_server.py
+
+# editor
+VITE_LCA_API_BASE=http://localhost:9000 npm run dev
+```
+
+`http://localhost:5173` is already in the engine's CORS allow-list, so
+`vite.config.ts` needs no edit. Load `plastic_broom` (three links); the
+catalogue default, `jacket`, has no background links and lands on the empty
+state.
+
+Templates carrying background links: `plastic_broom` (3),
+`mock_plastic_broom` (2), `mock_plastic_broom_simple` (2),
+`polyester_tshirt_bafu_linked` (2), `cotton_fiber_bafu_linked` (1),
+`wool_yarn_bafu_linked` (1).
+
 ## Verification
 
 No unit-test runner exists in this repo (Playwright visual only), so the scoring
@@ -174,6 +202,23 @@ against it. All eight checks pass:
 - YAML rewrite lands on the correct exchange and is a no-op with no overrides.
 
 The script is disposable; regenerate it from this plan if the module changes.
+
+### Confirmed by hand
+
+The slider preview was compared against a separately running copy of the webapp
+in which the same amount change was made through the ordinary YAML edit and full
+calculation path. The two agree. This exercises the whole chain — engine
+payload, local arithmetic, and rendering — independently of the fixture above.
+
+## Still open
+
+- No unit-test runner in this repo, so `realtimeScore` has no standing
+  regression test. Adding Vitest would give one; it was left out to avoid a
+  dependency change inside this plan.
+- Realtime is unusable against the deployed engine until Tier 2 ships, which is
+  itself blocked on Tier 1 merging to `main`.
+- Slider bounds are a flat 0 to 2x baseline. Graphs with very small or very
+  large amounts may want per-unit ranges.
 
 ## Out of scope
 
