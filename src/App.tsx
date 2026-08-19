@@ -49,6 +49,11 @@ import {
   type ContributionGraph, type ContributionGraphNode, type LcaResult, type ProductGraphTemplate,
 } from "./lib/lcaApi"
 import { applyScenarioToYaml, backgroundLinks } from "./lib/realtimeScore"
+import { ResizableTableHeader } from "@/components/common/ResizableTable"
+import {
+  cleanImpactProcessName, impactFactor, inventoryFlowName, isInventoryInput,
+  normalizedFlow, productGraphLabel, type ImpactYaml,
+} from "./lib/resultFormatting"
 import { unitsAreCompatible } from "./lib/units"
 import { cn } from "./lib/utils"
 import { DisplaySettingsProvider, useDisplaySettings } from "./lib/displaySettings"
@@ -130,18 +135,6 @@ const targetExpandedInputRows = (nodes: Node<ProcessNodeData>[], edges: Edge[]) 
       ? { ...edge, targetHandle: inputHandleIdFor(edge.id) }
       : edge
   })
-}
-const productGraphLabel = (name: string) => name.replace(/\s+—\s+1\s+.*$/, "")
-
-const isInventoryInput = (type: string) => /resource|extraction|input/i.test(type)
-const inventoryFlowName = (name: string) => {
-  const base = name.split(/[|,]/)[0].trim()
-  const symbol = chemicalFlowLabel(base)
-    .replaceAll("₂", "2")
-    .replaceAll("₃", "3")
-    .replaceAll("₄", "4")
-    .replaceAll("ₓ", "x")
-  return symbol === base ? name : `${name} (${symbol})`
 }
 
 function InventoryView({ result, yaml, isCurrent, error }: {
@@ -240,34 +233,6 @@ function InventoryView({ result, yaml, isCurrent, error }: {
       </tbody></table></div>
     </details>
   </div>
-}
-
-type ImpactYaml = {
-  processes?: Array<{
-    name: string
-    emissions?: Array<{ flow: string; amount: number; unit?: string }>
-    extractions?: Array<{ flow: string; amount: number; unit?: string }>
-    resources?: Array<{ flow: string; amount: number; unit?: string }>
-    resource_inputs?: Array<{ flow: string; amount: number; unit?: string }>
-  }>
-}
-
-const cleanImpactProcessName = (name: string) => name.replace(/^(?:p?\d+)\s*[:.\-–—]\s*/i, "").trim()
-const normalizedFlow = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
-const impactFactor = (category: string, flow: string) => {
-  const indicator = impactCategoryAbbreviation(category).toUpperCase()
-  const normalizedCategory = normalizedFlow(category)
-  const normalized = normalizedFlow(flow)
-  const isGlobalWarming = /^GWP(?:\d+)?$/.test(indicator) || /global warming|climate change/.test(normalizedCategory)
-  if (isGlobalWarming) {
-    if (/carbon dioxide|\bco2\b/.test(normalized)) return 1
-    if (/methane|\bch4\b/.test(normalized)) return 25
-  }
-  if (indicator === "EP" && /nitrogen oxides?|\bnox\b/.test(normalized)) return 0.04429
-  if (indicator === "AP" && /nitrogen oxides?|\bnox\b/.test(normalized)) return 0.7
-  if (indicator === "PMFP" && /nitrogen oxides?|\bnox\b/.test(normalized)) return 0.00722
-  if (indicator === "MIR" && /nitrogen oxides?|\bnox\b/.test(normalized)) return 24.79359
-  return null
 }
 
 function ImpactAnalysisView({ result, yaml, isCurrent, error, loadContributionGraphs }: {
@@ -695,69 +660,6 @@ function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string 
       <div className="process-impact-table-wrap"><table className="process-impact-table" style={{ width: Math.max(930, impactColumnWidths.reduce((sum, width) => sum + width, 0)) }}><ResizableTableHeader labels={["Contribution", "Impact category", "Upstream incl. direct", "Direct", "Unit"]} widths={impactColumnWidths} onWidthsChange={setImpactColumnWidths} /><tbody>{impactRows.map((row) => <tr key={row.category.id || row.category.label}><td><span className="process-result-bar"><i style={{ width: `${Math.min(100, Math.abs(row.contribution))}%` }} /></span>{formatPercent(row.contribution)}</td><td>{impactCategoryDisplayName(row.category.label)}</td><td>{formatNumber(row.upstream)}</td><td>{formatNumber(row.direct)}</td><td>{row.category.unit}</td></tr>)}</tbody></table></div>
     </details>
   </div>
-}
-
-function ColumnResizeHandle({ label, width, onResize }: {
-  label: string
-  width: number
-  onResize: (width: number) => void
-}) {
-  const drag = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null)
-  const resize = (nextWidth: number) => onResize(Math.max(80, Math.round(nextWidth)))
-
-  return <span
-    className="column-resize-handle"
-    role="separator"
-    aria-label={`Resize ${label} column`}
-    aria-orientation="vertical"
-    aria-valuemin={80}
-    aria-valuenow={width}
-    tabIndex={0}
-    onPointerDown={(event) => {
-      event.preventDefault()
-      drag.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: width }
-      event.currentTarget.setPointerCapture(event.pointerId)
-    }}
-    onPointerMove={(event) => {
-      if (drag.current?.pointerId !== event.pointerId) return
-      resize(drag.current.startWidth + event.clientX - drag.current.startX)
-    }}
-    onPointerUp={(event) => {
-      if (drag.current?.pointerId !== event.pointerId) return
-      drag.current = null
-      event.currentTarget.releasePointerCapture(event.pointerId)
-    }}
-    onPointerCancel={() => { drag.current = null }}
-    onKeyDown={(event) => {
-      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
-      event.preventDefault()
-      const step = event.shiftKey ? 40 : 10
-      resize(width + (event.key === "ArrowRight" ? step : -step))
-    }}
-  />
-}
-
-function ResizableTableHeader({ labels, widths, onWidthsChange }: {
-  labels: string[]
-  widths: number[]
-  onWidthsChange: (widths: number[]) => void
-}) {
-  const resizeColumn = (index: number, requestedWidth: number) => {
-    const nextWidths = [...widths]
-    const adjacentWidth = widths[index + 1]
-    if (adjacentWidth === undefined) {
-      nextWidths[index] = requestedWidth
-    } else {
-      const delta = Math.min(requestedWidth - widths[index], adjacentWidth - 80)
-      nextWidths[index] = widths[index] + delta
-      nextWidths[index + 1] = adjacentWidth - delta
-    }
-    onWidthsChange(nextWidths)
-  }
-  return <>
-    <colgroup>{widths.map((width, index) => <col key={`${index}:${labels[index]}`} style={{ width }} />)}</colgroup>
-    <thead><tr>{labels.map((label, index) => <th key={`${index}:${label}`}>{label}<ColumnResizeHandle label={label} width={widths[index]} onResize={(width) => resizeColumn(index, width)} /></th>)}</tr></thead>
-  </>
 }
 
 function ContributionView({ result, yaml, isCurrent, error, loadContributionGraphs }: {
