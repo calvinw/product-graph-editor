@@ -1,6 +1,10 @@
 # Plan: Graph-Native Scenario Editing
 
-Status: not started  
+Status: **delivered** and live. See
+[`DELIVERED_2026-08-19_scenario_editing.md`](DELIVERED_2026-08-19_scenario_editing.md)
+for what shipped, what was deliberately left, and the one open question.
+
+Original status: not started  
 Date: August 18, 2026  
 Depends on: engine Tier 2 (`background_link_intensities`), deployed August 18, 2026  
 Related: [`realtime-scenario-view.md`](realtime-scenario-view.md)
