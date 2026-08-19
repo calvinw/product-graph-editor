@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type RefObject } from "react"
+import { useCallback, useRef, useState } from "react"
 import {
   calculateContributionGraphs, calculateLca, lcaResultToMarkdown,
   type ContributionGraph,
@@ -20,11 +20,9 @@ import { useProductGraphStore } from "@/state/productGraphStore"
  * ref that guards against out-of-order responses, and two callbacks.
  */
 export function useCalculation({
-  appliedRevisionRef,
   onResultsMarkdown,
   onOpenGraph,
 }: {
-  appliedRevisionRef: RefObject<number>
   onResultsMarkdown: (markdown: string) => void
   onOpenGraph: () => void
 }) {
@@ -38,6 +36,13 @@ export function useCalculation({
     startCalculation, completeCalculation, failCalculation, finishCalculation,
     mergeContributionGraphs,
   } = useProductGraphStore((state) => state.actions)
+
+  // Tracks the revision a response must still match to be applied. applyYaml
+  // advances it through markRevision, which is why it lives here rather than
+  // with the graph model: putting it there would make the two hooks circular.
+  const appliedRevisionRef = useRef(appliedRevision)
+  appliedRevisionRef.current = appliedRevision
+  const markRevision = useCallback((revision: number) => { appliedRevisionRef.current = revision }, [])
 
   const [contributionError, setContributionError] = useState("")
   const [loadingContributionKeys, setLoadingContributionKeys] = useState<Set<string>>(() => new Set())
@@ -129,6 +134,7 @@ export function useCalculation({
   return {
     calculateSource,
     loadContributionGraphs,
+    markRevision,
     resetCalculationState,
     setContributionError,
     contributionError,

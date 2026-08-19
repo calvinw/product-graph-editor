@@ -144,11 +144,9 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
   const foldDirectionRef = useRef<"upstream" | "downstream">("upstream")
   const nodesRef = useRef(nodes)
   const edgesRef = useRef(edges)
-  const appliedRevisionRef = useRef(appliedRevision)
   const lastSelectedRef = useRef<(NodeMeta & { id: string }) | null>(null)
   nodesRef.current = nodes
   edgesRef.current = edges
-  appliedRevisionRef.current = appliedRevision
   const { fitView, zoomIn, zoomOut } = useReactFlow()
 
   useEffect(() => {
@@ -207,9 +205,8 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
   const {
     calculateSource, loadContributionGraphs, resetCalculationState,
     setContributionError, contributionError, loadingContributionKeys,
-    isCalculating, calculationInProgress, calculationStatus,
+    isCalculating, calculationInProgress, calculationStatus, markRevision,
   } = useCalculation({
-    appliedRevisionRef,
     onResultsMarkdown: setResultsMarkdown,
     onOpenGraph: () => setView("graph"),
   })
@@ -482,7 +479,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
       const parsed = buildGraphFromYaml(source, "structure", undefined, graphDecimalPlaces)
       resetCalculationState()
       const nextRevision = applySource(source)
-      appliedRevisionRef.current = nextRevision
+      markRevision(nextRevision)
       foldDirectionRef.current = "upstream"
       setEdges(parsed.edges)
       setNodes(layoutNodes(parsed.nodes.map((node) => ({
