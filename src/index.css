@@ -800,5 +800,7 @@ html[data-theme="light"] .scenario-panel { background: #fff; box-shadow: 0 18px 
 .scenario-toggle-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; opacity: .35; }
 .scenario-toggle.is-on .scenario-toggle-dot { opacity: 1; }
 .scenario-score-name { display: inline-flex; align-items: center; gap: 6px; }
-.pg-node-impacts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.08); font-size: 15px; line-height: 1.2; font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.pg-node-impacts { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.08); font-size: 30px; line-height: 1.15; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
 html[data-theme="light"] .pg-node-impacts { border-top-color: rgba(23,32,51,.1); }
+
+.pg-node:has(.pg-node-impacts) { min-width: 240px; }
