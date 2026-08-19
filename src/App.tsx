@@ -43,6 +43,7 @@ import { UnsavedChangesDialog } from "@/components/workspace/UnsavedChangesDialo
 import { useCalculation } from "@/hooks/useCalculation"
 import { GraphCanvas } from "@/components/graph/GraphCanvas"
 import { Inspector } from "@/components/graph/Inspector"
+import { ScenarioPanel } from "@/components/graph/ScenarioPanel"
 import { useGraphModel } from "@/hooks/useGraphModel"
 import { useModelWorkspace } from "@/hooks/useModelWorkspace"
 import { safeYamlFilename } from "./lib/modelWorkspace"
@@ -112,7 +113,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     toggleExpanded, setAllExpanded,
     applyGraphSettings, showGraphMode, applyYaml, applyAndCalculateYaml,
     hydrateBackgroundNode, commitScenario, scenarioEditCount,
-    foregroundImpacts, backgroundImpacts, categoryTotals,
+    categoryTotals,
   } = useGraphModel({
     resetCalculationState, markRevision, calculateSource,
     onResultsMarkdown: setResultsMarkdown, loadContributionGraphs,
@@ -465,16 +466,13 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
               : <div className="results-placeholder"><div className="results-empty-icon"><BarChart3 size={22} /></div><strong>No LCA results yet</strong><p>Save a valid model to analyze its product graph.</p></div>}
           </div>
         </div>}
-        {view === "graph" && scenarioEditCount > 0 ? <div className="scenario-bar" role="status">
-          <span className="scenario-bar-count">
-            {scenarioEditCount} input{scenarioEditCount === 1 ? "" : "s"} changed
-          </span>
-          <span className="scenario-bar-note">Scores are exact. Inventory and contributions need a calculation.</span>
-          <Button variant="ghost" size="sm" onClick={resetScenario} disabled={calculationInProgress}>Reset</Button>
-          <Button size="sm" onClick={commitScenario} disabled={calculationInProgress}>
-            {calculationInProgress ? "Calculating…" : "Done"}
-          </Button>
-        </div> : null}
+        {view === "graph" && scenarioEditCount > 0 ? <ScenarioPanel
+          editCount={scenarioEditCount}
+          categoryTotals={categoryTotals}
+          calculating={calculationInProgress}
+          onReset={resetScenario}
+          onCommit={commitScenario}
+        /> : null}
         {view === "graph" ? <div className="graph-meta">{nodes.length} nodes&nbsp;&nbsp;·&nbsp;&nbsp;{connectionCount} connections</div> : null}
       </div>
 
@@ -488,10 +486,6 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
         showReferenceAmounts={showReferenceAmounts}
         setReferenceAmountsVisible={setReferenceAmountsVisible}
         clearNodeSelection={clearNodeSelection}
-        nodeImpacts={selectedNode?.data.scope === "background"
-          ? backgroundImpacts[selectedNode.data.label] ?? []
-          : foregroundImpacts[selectedNode?.data.label ?? ""] ?? []}
-        categoryTotals={categoryTotals}
       /> : null}
       <AiChatPanel open={chatOpen} onOpenChange={onChatOpenChange} runtime={assistantRuntime} portalTarget={chatPortalTarget} />
       <UnsavedChangesDialog

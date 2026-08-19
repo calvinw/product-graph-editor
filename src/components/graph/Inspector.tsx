@@ -3,7 +3,6 @@ import type { Node } from "@xyflow/react"
 import { Button } from "@/components/ui/button"
 import type { ProcessNodeData } from "@/components/ProcessNode"
 import { useDisplaySettings } from "@/lib/displaySettings"
-import { impactCategoryDisplayName } from "@/lib/lcaApi"
 import type { SelectedGraphNode } from "@/state/productGraphStore"
 
 /**
@@ -12,12 +11,9 @@ import type { SelectedGraphNode } from "@/state/productGraphStore"
  * `inspectorSelection` is the last selection rather than the live one, so the
  * panel keeps its contents while animating closed.
  */
-export type InspectorImpact = { label: string; unit: string; cumulative: number; percentage: number | null }
-
 export function Inspector({
   selected, inspectorSelection, selectedNode, inputNodes, outputNodes,
   graphMode, showReferenceAmounts, setReferenceAmountsVisible, clearNodeSelection,
-  nodeImpacts, categoryTotals,
 }: {
   selected: SelectedGraphNode | null
   inspectorSelection: SelectedGraphNode
@@ -28,37 +24,15 @@ export function Inspector({
   showReferenceAmounts: boolean
   setReferenceAmountsVisible: (visible: boolean) => void
   clearNodeSelection: () => void
-  nodeImpacts: InspectorImpact[]
-  categoryTotals: Array<{ label: string; unit: string; baseline: number; preview: number; delta: number }>
 }) {
   const { formatNumber } = useDisplaySettings()
-  const scope = selectedNode?.data.scope
   return (
     <aside className={`inspector${selected ? " is-open" : ""}`} aria-hidden={!selected} inert={!selected}>
   <>
     <div className="inspector-head"><span>NODE DETAILS</span><Button variant="ghost" size="icon" onClick={clearNodeSelection} aria-label="Close property editor" title="Close property editor"><X size={16} /></Button></div>
     <div className="node-icon" style={{ background: selectedNode?.data.color ?? inspectorSelection.color }}><Box size={22} /></div>
     <h2>{selectedNode?.data.label ?? inspectorSelection.label}</h2><p>{selectedNode?.data.detail ?? inspectorSelection.detail}</p>
-    {graphMode === "scaled" && nodeImpacts.length ? <div className="property-section is-impact">
-      <h3>{scope === "background" ? "Branch contribution" : "Cumulative impact"}</h3>
-      {nodeImpacts.map((impact) => <div className="property-row" key={impact.label}>
-        <span>{impactCategoryDisplayName(impact.label)}</span>
-        <strong>
-          {formatNumber(impact.cumulative)} <small>{impact.unit}</small>
-          {impact.percentage === null ? null : <em className="property-share">{impact.percentage.toFixed(1)}%</em>}
-        </strong>
-      </div>)}
-    </div> : null}
-    {graphMode === "scaled" && categoryTotals.length ? <div className="property-section is-impact">
-      <h3>System total</h3>
-      {categoryTotals.map((total) => <div className="property-row" key={total.label}>
-        <span>{impactCategoryDisplayName(total.label)}</span>
-        <strong>
-          {total.delta ? <em className="property-was">{formatNumber(total.baseline)}</em> : null}
-          {formatNumber(total.preview)} <small>{total.unit}</small>
-        </strong>
-      </div>)}
-    </div> : null}
+
     {graphMode === "structure" ? <Button variant="outline" size="sm" className="reference-amounts-toggle" aria-pressed={showReferenceAmounts} onClick={() => setReferenceAmountsVisible(!showReferenceAmounts)}>{showReferenceAmounts ? "Hide reference amounts" : "Reference amounts"}</Button> : null}
     {graphMode === "structure" && showReferenceAmounts && selectedNode ? <>
       <div className="property-section">
