@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
   ReactFlow, ReactFlowProvider, Background, BackgroundVariant,
-  Position, useNodesState, useEdgesState, useReactFlow,
+  useNodesState, useEdgesState, useReactFlow,
   type Node, type Edge,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
@@ -38,10 +38,9 @@ import { RealtimeView } from "@/components/RealtimeView"
 import type { AppToolRuntime, SwitchViewOutcome } from "@/ai/viewTools"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
-import { chemicalFlowLabel } from "./lib/flowLabels"
-import { buildGraphFromYaml, nodeScopeColors } from "./lib/yamlGraph"
+import { buildGraphFromYaml } from "./lib/yamlGraph"
 import {
-  calculateContributionGraphs, calculateLca, getBackgroundActivityDetails, getProductGraphTemplates, lcaResultToMarkdown,
+  calculateContributionGraphs, calculateLca, getProductGraphTemplates, lcaResultToMarkdown,
   type ContributionGraph, type ProductGraphTemplate,
 } from "./lib/lcaApi"
 import { applyScenarioToYaml, backgroundLinks } from "./lib/realtimeScore"
@@ -52,6 +51,7 @@ import { InventoryView } from "@/components/views/InventoryView"
 import { ProcessResultsView } from "@/components/views/ProcessResultsView"
 import { SankeyView } from "@/components/views/SankeyView"
 import { FileMenu } from "@/components/workspace/FileMenu"
+import { useBackgroundHydration } from "@/hooks/useBackgroundHydration"
 import { WelcomePage } from "@/components/welcome/WelcomePage"
 import { productGraphLabel } from "./lib/resultFormatting"
 import { DisplaySettingsProvider, useDisplaySettings } from "./lib/displaySettings"
@@ -241,6 +241,11 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     }
   }, [appliedRevision, appliedYaml, calculatedRevision, graphDecimalPlaces, graphMode, lcaResult, setEdges])
 
+  const { hydrateBackgroundNode, toggleBackgroundBranch } = useBackgroundHydration({
+    nodesRef, edgesRef, setNodes, setEdges,
+    formatNumber, graphOrientation, graphConnectionStyle,
+  })
+
   const removeNode = useCallback((id: string) => {
     const folded = new Set<string>()
     const visit = (nodeId: string) => {
@@ -327,221 +332,6 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     setEdges((current) => current.map((edge) => ({ ...edge, style: { ...edge.style, opacity: connectedIds.has(edge.source) && connectedIds.has(edge.target) ? 1 : 0.12 } })))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query])
-
-  const hydrateBackgroundNode = useCallback(async (nodeId: string) => {
-    const node = nodesRef.current.find((candidate) => candidate.id === nodeId)
-    if (!node || node.data.scope !== "background" || !node.data.database || node.data.backgroundLoaded || node.data.backgroundLoading) return
-    setNodes((current) => current.map((candidate) => candidate.id === nodeId
-      ? { ...candidate, data: { ...candidate.data, backgroundLoading: true, backgroundError: undefined } }
-      : candidate))
-    try {
-      const details = await getBackgroundActivityDetails({
-        database: node.data.database,
-        code: node.data.code,
-        name: node.data.label,
-        location: node.data.location,
-      })
-      const production = details.exchanges.find((exchange) => exchange.exchange_type === "production")
-      const productionAmount = production?.amount ?? 1
-      if (productionAmount === 0) throw new Error("The background activity has a zero production amount and cannot be scaled.")
-      const activityScale = node.data.showAmounts ? (node.data.backgroundDemand ?? 0) / productionAmount : null
-      const displayAmount = (amount: number) => activityScale === null ? undefined : Number((amount * activityScale).toPrecision(8))
-      const inputs = details.exchanges.filter((exchange) => exchange.exchange_type === "technosphere").map((exchange) => ({
-        label: exchange.input_name,
-        kind: "background input",
-        color: nodeScopeColors.background,
-        amount: displayAmount(exchange.amount),
-        unit: exchange.unit ?? undefined,
-      }))
-      const outputs = details.exchanges.filter((exchange) => exchange.exchange_type === "production").map((exchange) => ({
-        label: exchange.input_product ?? exchange.input_name,
-        kind: "reference output",
-        color: nodeScopeColors.background,
-        amount: displayAmount(exchange.amount),
-        unit: exchange.unit ?? details.unit ?? node.data.backgroundDemandUnit,
-      }))
-      const biosphere = details.exchanges.filter((exchange) => exchange.exchange_type === "biosphere").map((exchange) => ({
-        label: chemicalFlowLabel(exchange.input_name),
-        amount: displayAmount(exchange.amount),
-        unit: exchange.unit ?? "",
-      }))
-      const referenceInputs = details.exchanges.filter((exchange) => exchange.exchange_type === "technosphere").map((exchange) => ({
-        label: exchange.input_name, kind: "background input", color: nodeScopeColors.background,
-        amount: exchange.amount, unit: exchange.unit ?? undefined,
-      }))
-      const referenceOutputs = details.exchanges.filter((exchange) => exchange.exchange_type === "production").map((exchange) => ({
-        label: exchange.input_product ?? exchange.input_name, kind: "reference output", color: nodeScopeColors.background,
-        amount: exchange.amount, unit: exchange.unit ?? details.unit ?? node.data.backgroundDemandUnit,
-      }))
-      const referenceBiosphere = details.exchanges.filter((exchange) => exchange.exchange_type === "biosphere").map((exchange) => ({
-        label: chemicalFlowLabel(exchange.input_name), amount: exchange.amount, unit: exchange.unit ?? "",
-      }))
-      setNodes((current) => current.map((candidate) => candidate.id === nodeId && candidate.data.showAmounts === node.data.showAmounts
-        ? { ...candidate, data: {
-            ...candidate.data,
-            label: details.name,
-            detail: `Background activity · ${details.database}${details.location ? ` · ${details.location}` : ""}`,
-            code: details.code,
-            location: details.location ?? undefined,
-            inputs,
-            outputs,
-            biosphere,
-            referenceInputs,
-            referenceOutputs,
-            referenceBiosphere,
-            backgroundLoading: false,
-            backgroundLoaded: true,
-          } }
-        : candidate))
-    } catch (error) {
-      setNodes((current) => current.map((candidate) => candidate.id === nodeId && candidate.data.showAmounts === node.data.showAmounts
-        ? { ...candidate, data: {
-            ...candidate.data,
-            backgroundLoading: false,
-            backgroundError: error instanceof Error ? error.message : "Could not load this background activity.",
-          } }
-        : candidate))
-    }
-  }, [setNodes])
-
-  const toggleBackgroundBranch = useCallback(async (nodeId: string) => {
-    const node = nodesRef.current.find((candidate) => candidate.id === nodeId)
-    if (!node || node.data.scope !== "background" || !node.data.database || node.data.backgroundExploring) return
-
-    if (node.data.backgroundExplored) {
-      const descendants = new Set<string>()
-      let changed = true
-      while (changed) {
-        changed = false
-        nodesRef.current.forEach((candidate) => {
-          if (candidate.data.backgroundParentId === nodeId || (candidate.data.backgroundParentId && descendants.has(candidate.data.backgroundParentId))) {
-            if (!descendants.has(candidate.id)) { descendants.add(candidate.id); changed = true }
-          }
-        })
-      }
-      const nextNodes = nodesRef.current
-        .filter((candidate) => !descendants.has(candidate.id))
-        .map((candidate) => candidate.id === nodeId ? { ...candidate, data: { ...candidate.data, backgroundExplored: false } } : candidate)
-      const nextEdges = edgesRef.current.filter((edge) => !descendants.has(edge.source) && !descendants.has(edge.target))
-      setNodes(nextNodes)
-      setEdges(nextEdges)
-      return
-    }
-
-    setNodes((current) => current.map((candidate) => candidate.id === nodeId
-      ? { ...candidate, data: { ...candidate.data, backgroundLoading: true, backgroundExploring: true, backgroundError: undefined } }
-      : candidate))
-    try {
-      const details = await getBackgroundActivityDetails({
-        database: node.data.database,
-        code: node.data.code,
-        name: node.data.label,
-        location: node.data.location,
-      })
-      const production = details.exchanges.find((exchange) => exchange.exchange_type === "production")
-      const productionAmount = production?.amount ?? 1
-      if (productionAmount === 0) throw new Error("The background activity has a zero production amount and cannot be scaled.")
-      const activityScale = (node.data.backgroundDemand ?? 1) / productionAmount
-      const scaled = (amount: number) => Number((amount * activityScale).toPrecision(8))
-      const technosphere = details.exchanges.filter((exchange) => exchange.exchange_type === "technosphere")
-      const childNodes: Node<ProcessNodeData>[] = technosphere.map((exchange, index) => {
-        const crossAxisOffset = (index - (technosphere.length - 1) / 2) * 420
-        return {
-          id: `${nodeId}::background::${exchange.input_database}::${exchange.input_code}`,
-          type: "process",
-          position: graphOrientation === "vertical"
-            ? { x: node.position.x + crossAxisOffset, y: node.position.y + 650 }
-            : { x: node.position.x - 650, y: node.position.y + crossAxisOffset },
-          sourcePosition: graphOrientation === "vertical" ? Position.Top : Position.Right,
-          targetPosition: graphOrientation === "vertical" ? Position.Bottom : Position.Left,
-          data: {
-          label: exchange.input_name,
-          kind: "process",
-          detail: `Background activity · ${exchange.input_database}${exchange.input_location ? ` · ${exchange.input_location}` : ""}`,
-          color: nodeScopeColors.background,
-          scope: "background",
-          database: exchange.input_database,
-          code: exchange.input_code,
-          location: exchange.input_location ?? undefined,
-          backgroundDemand: scaled(exchange.amount),
-          backgroundDemandUnit: exchange.unit ?? undefined,
-          backgroundParentId: nodeId,
-          },
-        }
-      })
-      const childEdges: Edge[] = technosphere.map((exchange, index) => {
-        const amount = scaled(exchange.amount)
-        return {
-          id: `${nodeId}::background-edge::${index}::${exchange.input_code}`,
-          source: `${nodeId}::background::${exchange.input_database}::${exchange.input_code}`,
-          target: nodeId,
-          label: `${exchange.input_product ?? exchange.input_name} · ${formatNumber(amount)}${exchange.unit ? ` ${exchange.unit}` : ""}`,
-          type: graphConnectionStyle === "curved" ? "default" : graphConnectionStyle === "straight" ? "straight" : "smoothstep",
-          style: { stroke: "#2563eb", strokeWidth: 1.5 },
-          labelStyle: { fill: "#9aa2ae", fontSize: 12, fontWeight: 650 },
-          labelBgStyle: { fill: "#111318", fillOpacity: .92 },
-          labelBgPadding: [5, 3],
-          labelBgBorderRadius: 4,
-        }
-      })
-      const inputs = technosphere.map((exchange) => ({
-        label: exchange.input_name, kind: "background input", color: nodeScopeColors.background,
-        amount: scaled(exchange.amount), unit: exchange.unit ?? undefined,
-      }))
-      const outputs = details.exchanges.filter((exchange) => exchange.exchange_type === "production").map((exchange) => ({
-        label: exchange.input_product ?? exchange.input_name, kind: "reference output", color: nodeScopeColors.background,
-        amount: scaled(exchange.amount), unit: exchange.unit ?? details.unit ?? node.data.backgroundDemandUnit,
-      }))
-      const biosphere = details.exchanges.filter((exchange) => exchange.exchange_type === "biosphere").map((exchange) => ({
-        label: chemicalFlowLabel(exchange.input_name), amount: scaled(exchange.amount), unit: exchange.unit ?? "",
-      }))
-      const referenceInputs = technosphere.map((exchange) => ({
-        label: exchange.input_name, kind: "background input", color: nodeScopeColors.background,
-        amount: exchange.amount, unit: exchange.unit ?? undefined,
-      }))
-      const referenceOutputs = details.exchanges.filter((exchange) => exchange.exchange_type === "production").map((exchange) => ({
-        label: exchange.input_product ?? exchange.input_name, kind: "reference output", color: nodeScopeColors.background,
-        amount: exchange.amount, unit: exchange.unit ?? details.unit ?? node.data.backgroundDemandUnit,
-      }))
-      const referenceBiosphere = details.exchanges.filter((exchange) => exchange.exchange_type === "biosphere").map((exchange) => ({
-        label: chemicalFlowLabel(exchange.input_name), amount: exchange.amount, unit: exchange.unit ?? "",
-      }))
-      const currentNodes = nodesRef.current.filter((candidate) => candidate.id !== nodeId && candidate.data.backgroundParentId !== nodeId)
-      const updatedParent: Node<ProcessNodeData> = {
-        ...node,
-        data: {
-          ...node.data,
-          label: details.name,
-          detail: `Background activity · ${details.database}${details.location ? ` · ${details.location}` : ""}`,
-          code: details.code,
-          location: details.location ?? undefined,
-          inputs,
-          outputs,
-          biosphere,
-          referenceInputs,
-          referenceOutputs,
-          referenceBiosphere,
-          backgroundLoading: false,
-          backgroundExploring: false,
-          backgroundLoaded: true,
-          backgroundExplored: true,
-        },
-      }
-      const nextNodes = [...currentNodes, updatedParent, ...childNodes]
-      const nextEdges = [...edgesRef.current.filter((edge) => !edge.id.startsWith(`${nodeId}::background-edge::`)), ...childEdges]
-      setNodes(nextNodes)
-      setEdges(nextEdges)
-    } catch (error) {
-      setNodes((current) => current.map((candidate) => candidate.id === nodeId
-        ? { ...candidate, data: {
-            ...candidate.data,
-            backgroundLoading: false,
-            backgroundExploring: false,
-            backgroundError: error instanceof Error ? error.message : "Could not load this background activity.",
-          } }
-        : candidate))
-    }
-  }, [formatNumber, graphConnectionStyle, graphOrientation, setEdges, setNodes])
 
   useEffect(() => {
     setNodes((current) => {
