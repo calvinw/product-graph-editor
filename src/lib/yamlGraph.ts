@@ -90,21 +90,56 @@ export function buildGraphFromYaml(
   const reference = graph.processes.find((process) => process.name === graph.reference_process)
   if (!reference) throw new Error(`Reference process “${graph.reference_process}” was not found.`)
 
-  const scales = new Map<string, number>([[reference.name, (graph.functional_unit?.amount ?? 1) / reference.reference_output.amount]])
-  const queue = [reference]
-  while (queue.length) {
-    const consumer = queue.shift()!
-    const consumerScale = scales.get(consumer.name) ?? 0
+  // Demand on a provider is the SUM of what every consumer needs, not the
+  // largest single requirement. Walking in topological order guarantees a
+  // consumer's own scale is final before it distributes demand upstream.
+  const byName = new Map(graph.processes.map((process) => [process.name, process]))
+  const providerEdges = new Map<string, Array<{ provider: YamlProcess; amount: number }>>()
+  const reachable = new Set<string>([reference.name])
+  const discovery = [reference]
+  while (discovery.length) {
+    const consumer = discovery.pop()!
+    const edges: Array<{ provider: YamlProcess; amount: number }> = []
     for (const input of consumer.inputs ?? []) {
       if (input.database) continue
       const provider = providers.get(input.flow)
       if (!provider) continue
-      const requiredScale = consumerScale * input.amount / provider.reference_output.amount
-      if (requiredScale > (scales.get(provider.name) ?? 0)) {
-        scales.set(provider.name, requiredScale)
-        queue.push(provider)
+      edges.push({ provider, amount: input.amount })
+      if (!reachable.has(provider.name)) {
+        reachable.add(provider.name)
+        discovery.push(provider)
       }
     }
+    providerEdges.set(consumer.name, edges)
+  }
+
+  const remainingConsumers = new Map<string, number>([...reachable].map((name) => [name, 0]))
+  for (const name of reachable) {
+    for (const edge of providerEdges.get(name) ?? []) {
+      remainingConsumers.set(edge.provider.name, (remainingConsumers.get(edge.provider.name) ?? 0) + 1)
+    }
+  }
+
+  const requiredOutput = new Map<string, number>([[reference.name, graph.functional_unit?.amount ?? 1]])
+  const scales = new Map<string, number>()
+  const ready = [...reachable].filter((name) => (remainingConsumers.get(name) ?? 0) === 0)
+  while (ready.length) {
+    const consumer = byName.get(ready.shift()!)!
+    const scale = (requiredOutput.get(consumer.name) ?? 0) / consumer.reference_output.amount
+    scales.set(consumer.name, scale)
+    for (const { provider, amount } of providerEdges.get(consumer.name) ?? []) {
+      requiredOutput.set(provider.name, (requiredOutput.get(provider.name) ?? 0) + scale * amount)
+      const remaining = (remainingConsumers.get(provider.name) ?? 0) - 1
+      remainingConsumers.set(provider.name, remaining)
+      if (remaining === 0) ready.push(provider.name)
+    }
+  }
+  // A foreground cycle leaves nodes unresolved; show the demand accumulated so
+  // far rather than nothing. The engine remains the authority for scaled mode.
+  for (const name of reachable) {
+    if (scales.has(name)) continue
+    const process = byName.get(name)!
+    scales.set(name, (requiredOutput.get(name) ?? 0) / process.reference_output.amount)
   }
 
   if (mode === "scaled") {

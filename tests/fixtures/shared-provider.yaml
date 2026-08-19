@@ -1,0 +1,32 @@
+name: Shared Provider Test — 1 unit
+goal: Two processes draw on one shared foreground provider.
+functional_unit: { description: 1 assembly, amount: 1.0, unit: unit }
+products:
+  - { name: Assembly, unit: unit }
+  - { name: Part A, unit: unit }
+  - { name: Part B, unit: unit }
+  - { name: Shared material, unit: kg }
+elementary_flows:
+  emissions:
+    - { name: Carbon dioxide, compartment: air, unit: kg }
+processes:
+  - name: Shared material production
+    reference_output: { flow: Shared material, amount: 1.0, unit: kg }
+    inputs:
+      - { flow: "Mock polypropylene granulate, at plant", location: MOCK, database: mock_background, amount: 0.5, unit: kilogram }
+    emissions: [{ flow: Carbon dioxide, amount: 1.0 }]
+  - name: Part A production
+    reference_output: { flow: Part A, amount: 1.0, unit: unit }
+    inputs: [{ flow: Shared material, amount: 2.0, unit: kg }]
+  - name: Part B production
+    reference_output: { flow: Part B, amount: 1.0, unit: unit }
+    inputs: [{ flow: Shared material, amount: 3.0, unit: kg }]
+  - name: Assembly
+    reference_output: { flow: Assembly, amount: 1.0, unit: unit }
+    inputs:
+      - { flow: Part A, amount: 1.0, unit: unit }
+      - { flow: Part B, amount: 1.0, unit: unit }
+reference_process: "Assembly"
+lcia:
+  method_name: "TRACI v2.1"
+  categories: [climate change]
