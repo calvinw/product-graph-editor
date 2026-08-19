@@ -283,10 +283,32 @@ Behaviour:
 The drag writes `scenarioOverrides` in the store. Nothing else changes during
 the drag.
 
-Accessibility and precision: a canvas drag on a small label is fiddly, and the
-freight edge on the broom is 1.4% of the total. Pair the drag with the existing
-`NumberStepper` in the inspector so there is a keyboard-reachable, precise path
-to the same value. The drag is the demo; the stepper is the tool.
+### The label is the drag handle
+
+Scaled edge labels now show the amount and unit alone, without the flow name,
+so the target is a compact chip rather than a sentence. The flow name is
+already on the node the edge leaves.
+
+`pointerdown` must call `stopPropagation`, or React Flow pans the canvas
+instead of changing the value. Only edges carrying a `link_id` use this edge
+type; foreground edges keep the default renderer, and dragging is scaled mode
+only, since structure mode has no scaling vector behind it.
+
+### Bounds, and why the NumberStepper is required
+
+The drag runs from `0` to `2x` the baseline amount carried by the current
+result's `background_link_intensities`. Zero is a legitimate scenario -- not
+using that material at all -- and the score there is a real floor worth seeing.
+
+Bounds are anchored per result, so the range is stable while dragging. They do
+ratchet across commits: commit at 2x and the next range runs to 4x. That is
+accepted rather than solved, because the escape hatch is the `NumberStepper` in
+the inspector, which takes a precise unbounded value and is keyboard reachable.
+
+This makes the stepper **required, not optional**. Bounded dragging is only
+reasonable because an unbounded precise path sits beside it. The drag is for
+exploration; the stepper is for intent. Shipping the drag alone would leave
+values beyond 2x unreachable and the interaction unusable without a pointer.
 
 ## Phase 5 — a store action that survives recalculation
 
