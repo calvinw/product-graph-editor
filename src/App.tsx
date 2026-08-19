@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
-  ReactFlow, ReactFlowProvider, Background, BackgroundVariant,
+  ReactFlowProvider,
   type Node,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
@@ -27,7 +27,7 @@ import { NumberStepper } from "@/components/NumberStepper"
 import { AiChatPanel } from "@/components/AiChatPanel"
 import { RealtimeView } from "@/components/RealtimeView"
 import type { AppToolRuntime } from "@/ai/viewTools"
-import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
+import type { ProcessNodeData } from "./components/ProcessNode"
 import {
   lcaResultToMarkdown,
 } from "./lib/lcaApi"
@@ -42,6 +42,7 @@ import { FileMenu } from "@/components/workspace/FileMenu"
 import { SaveAsDialog } from "@/components/workspace/SaveAsDialog"
 import { UnsavedChangesDialog } from "@/components/workspace/UnsavedChangesDialog"
 import { useCalculation } from "@/hooks/useCalculation"
+import { GraphCanvas } from "@/components/graph/GraphCanvas"
 import { Inspector } from "@/components/graph/Inspector"
 import { useGraphModel } from "@/hooks/useGraphModel"
 import { useModelWorkspace } from "@/hooks/useModelWorkspace"
@@ -57,7 +58,6 @@ type NodeMeta = { label: string; kind: string; detail: string; color: string; sc
 type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribution" | "sankey" | "realtime">
 
 
-const nodeTypes = { process: ProcessNode }
 
 
 function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, chatOpen, onChatOpenChange }: { onTitleChange: (title: string) => void; navbarTarget: HTMLDivElement | null; chatPortalTarget: HTMLDivElement | null; active: boolean; chatOpen: boolean; onChatOpenChange: (open: boolean) => void }) {
@@ -394,28 +394,13 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           </div>
         </div>
         {view === "graph" ? <div className="search graph-search"><Search size={16} /><Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a node…" aria-label="Find a node" /><kbd>⌘ K</kbd></div> : null}
-        {view === "graph" ? <><div className={`graph-viewport${inspectorOpen ? " has-inspector" : ""}`}><ReactFlow
-          className="reactflow-canvas"
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onNodeClick={(_, node) => {
-            setSelected({ id: node.id, label: node.data.label, kind: node.data.kind, detail: node.data.detail, color: node.data.color, scope: node.data.scope })
-            if (node.data.scope === "background") void hydrateBackgroundNode(node.id)
-          }}
-          onNodeDoubleClick={(_, node) => toggleExpanded(node.id)}
-          onPaneClick={clearNodeSelection}
-          minZoom={0.05}
-          maxZoom={2.4}
-          zoomOnScroll={false}
-          panOnScroll
-          onInit={(instance) => requestAnimationFrame(() => requestAnimationFrame(() => instance.fitView({ padding: 0.35, maxZoom: 0.75 })))}
-          proOptions={{ hideAttribution: true }}
-        >
-          <Background variant={BackgroundVariant.Dots} gap={22} size={1} color={theme === "dark" ? "#242831" : "#cbd5e1"} />
-        </ReactFlow></div>
+        {view === "graph" ? <><GraphCanvas
+          nodes={nodes} edges={edges}
+          onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
+          inspectorOpen={inspectorOpen} theme={theme}
+          setSelected={setSelected} clearNodeSelection={clearNodeSelection}
+          hydrateBackgroundNode={hydrateBackgroundNode} toggleExpanded={toggleExpanded}
+        />
         <div className="graph-toolbar" aria-label="Graph tools">
           <div className="toolbar-group">
             <Popover modal open={graphSettingsOpen} onOpenChange={setGraphSettingsOpen}>
