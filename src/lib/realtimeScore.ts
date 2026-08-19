@@ -22,6 +22,17 @@ import type { BackgroundLinkIntensity, LcaResult } from "./lcaApi"
 
 export type ScenarioOverrides = Record<string, number>
 
+/**
+ * The key a scenario override is stored under.
+ *
+ * The engine's `link_id` is a hash the browser cannot reproduce, but the graph
+ * already identifies each edge by the same `(process_index, input_index)` pair
+ * the engine keys providers on. Deriving the key from those two indices lets
+ * an edge and a payload row agree without either needing the other's id.
+ */
+export const scenarioKey = (link: { process_index: number; input_index: number }) =>
+  `${link.process_index}:${link.input_index}`
+
 export type CategoryPreview = {
   label: string
   unit: string
@@ -46,7 +57,7 @@ export function scenarioAmount(
   link: BackgroundLinkIntensity,
   overrides: ScenarioOverrides,
 ): number {
-  const override = overrides[link.link_id]
+  const override = overrides[scenarioKey(link)]
   return Number.isFinite(override) ? override : link.amount
 }
 
@@ -99,7 +110,7 @@ export function applyScenarioToYaml(
   }
   let changed = false
   for (const link of links) {
-    const amount = overrides[link.link_id]
+    const amount = overrides[scenarioKey(link)]
     if (!Number.isFinite(amount) || amount === link.amount) continue
     const exchange = document.processes?.[link.process_index]?.inputs?.[link.input_index]
     if (!exchange) continue

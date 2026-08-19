@@ -5,6 +5,7 @@ import { useDisplaySettings } from "@/lib/displaySettings"
 import { impactCategoryDisplayName, type LcaResult } from "@/lib/lcaApi"
 import {
   backgroundLinks,
+  scenarioKey,
   scenarioAmount,
   scoreScenario,
   sliderBounds,
@@ -140,7 +141,7 @@ export function RealtimeView({
               step={step}
               value={amount}
               aria-label={`${link.flow} amount in ${link.unit}`}
-              onChange={(event) => onOverride(link.link_id, Number(event.target.value))}
+              onChange={(event) => onOverride(scenarioKey(link), Number(event.target.value))}
             />
             <div className="realtime-slider-scale">
               <span>{formatNumber(min)}</span>

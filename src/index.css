@@ -750,3 +750,11 @@ html[data-theme="light"] .process-flow-table .empty-row td { color: #6b7280; }
 .realtime-slider input[type="range"] { width: 100%; accent-color: #38bdf8; }
 .realtime-slider-scale { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #6d747f; font-size: 9px; font-variant-numeric: tabular-nums; }
 .realtime-note { margin: 0; color: #6d747f; font-size: 10px; line-height: 1.6; }
+
+/* Draggable scenario edge label */
+.scenario-edge-label { position: absolute; z-index: 5; padding: 3px 7px; border: 1px solid var(--panel-border, #343941); border-radius: 6px; color: #d7dae0; background: #111318; font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: all; }
+.scenario-edge-label.is-draggable { cursor: ew-resize; touch-action: none; border-color: #38bdf8; }
+.scenario-edge-label.is-draggable:hover, .scenario-edge-label.is-draggable:focus-visible { border-color: #7dd3fc; box-shadow: 0 0 0 3px rgba(56,189,248,.18); outline: none; }
+.scenario-edge-label.is-edited { color: #0b1220; background: #38bdf8; border-color: #38bdf8; }
+html[data-theme="light"] .scenario-edge-label { color: #172033; background: #ffffff; border-color: #cbd5e1; }
+html[data-theme="light"] .scenario-edge-label.is-edited { color: #05263a; background: #7dd3fc; border-color: #38bdf8; }
