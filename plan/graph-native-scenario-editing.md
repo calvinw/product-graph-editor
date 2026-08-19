@@ -126,11 +126,10 @@ state, returning a narrow interface.
 
 | Hook | Absorbs |
 |---|---|
-| `useGraphModel` | `nodes`/`edges` state, `layoutNodes`, `removeNode`, `restoreNode`, `toggleExpanded`, `setAllExpanded`, `relayout`, `fit`, `applyGraphSettings`, `showGraphMode` |
+| `useGraphModel` | `nodes`/`edges` state, `layoutNodes`, `removeNode`, `restoreNode`, `toggleExpanded`, `setAllExpanded`, `relayout`, `fit`, `applyGraphSettings`, `showGraphMode`, `applyYaml` |
 | `useBackgroundHydration` | `hydrateBackgroundNode`, `toggleBackgroundBranch`, and their refs |
 | `useCalculation` | `calculateSource`, `loadContributionGraphs`, `activeCalculationRef`, `contributionRequestsRef`, `loadingContributionKeys` |
-| `useWorkspaceDocuments` | templates, `loadTemplate`, `loadSessionModel`, `loadYamlFile`, save / save-as / discard / download |
-| `useViewRouting` | `pendingAction`, `requestAction`, `requestView`, `continueToView`, `openAnalysisView`, the unsaved-changes dialog |
+| `useModelWorkspace` | templates, `loadTemplate`, `loadSessionModel`, `loadYamlFile`, save / save-as / discard / download, **and** `pendingAction`, `requestAction`, `requestView`, `continueToView`, `openAnalysisView`, the unsaved-changes dialog |
 | `useInspectorSelection` | `selected`, `lastSelectedRef`, `selectedNode`, `inputNodes`, `outputNodes` |
 
 Then extract the remaining JSX:
@@ -147,6 +146,20 @@ src/components/graph/
 Do these one hook per commit, running the visual suite each time. A single
 "extract everything" commit is not reviewable and not bisectable.
 
+### Revision: workspace and view routing are one hook, not two
+
+The original plan split these. They cannot be split cleanly.
+`saveAsSessionModelWithName` reads `pendingAction` and calls `performAction`,
+because "save before switching view" is simultaneously a document operation and
+a navigation operation. Separating them forces `pendingAction`,
+`setPendingAction`, and `performAction` through the workspace hook's parameter
+list on top of `applyYaml`, `applyAndCalculateYaml`, `calculateSource`, and
+`setView` — a seven-callback interface that is worse than the monolith it
+replaces.
+
+Extract them together as `useModelWorkspace`. A hook whose parameter list is
+that wide is telling you the seam is in the wrong place.
+
 Gate: zero snapshot diff after each commit.
 
 ### Also fix while here
@@ -157,6 +170,23 @@ is wrong for a product consumed by more than one process. It does not affect
 this feature, which uses the server's `scaling_vector`, but it is a live defect
 sitting in the file Phase 3 restructures. Fix it with a test graph that has a
 shared foreground provider.
+
+### Progress, August 18 2026
+
+| Step | `App.tsx` |
+|---|---|
+| Session start | 3095 |
+| Phase 1 complete | 1563 |
+| `useBackgroundHydration` | 1352 |
+| `useCalculation` | 1278 |
+
+Remaining: `useModelWorkspace`, `useInspectorSelection`, `useGraphModel`, then
+the `GraphCanvas` / `GraphToolbar` / `Inspector` split.
+
+`useGraphModel` should be done **last**. It owns `nodes`/`edges` and is
+interleaved with several effects, and both extracted hooks currently take graph
+state as parameters — `useBackgroundHydration` takes seven. Those signatures
+should shrink once `useGraphModel` exists. If they do not, the seams are wrong.
 
 ## Phase 3 — split structure from amounts
 
