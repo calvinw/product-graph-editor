@@ -769,3 +769,26 @@ html[data-theme="light"] .scenario-bar { background: #ffffff; box-shadow: 0 14px
 .property-section.is-impact .property-row strong { display: flex; align-items: baseline; gap: 6px; }
 .property-share { color: #737b88; font-style: normal; font-size: 10px; }
 .property-was { color: #6d747f; font-style: normal; font-size: 10px; text-decoration: line-through; }
+
+/* Scenario impact panel — present only while edits are pending */
+.scenario-panel { position: absolute; z-index: 6; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(560px, calc(100% - 56px)); border: 1px solid #38bdf8; border-radius: 12px; background: var(--panel-background, rgba(16,18,22,.97)); box-shadow: 0 18px 48px rgba(0,0,0,.42); overflow: hidden; }
+.scenario-panel > header { display: flex; align-items: center; gap: 10px; cursor: move; touch-action: none; user-select: none; padding: 11px 15px; border-bottom: 1px solid var(--panel-header-border, #2b2f36); background: var(--panel-header-background, rgba(56,189,248,.08)); }
+.scenario-panel > header strong { color: #38bdf8; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+.scenario-panel > header span { color: #737b88; font-size: 11px; }
+.scenario-panel-scores { display: grid; gap: 8px; padding: 13px 15px; }
+.scenario-score { display: grid; grid-template-columns: 1fr auto auto; align-items: baseline; gap: 12px; }
+.scenario-score-name { color: #9aa2ae; font-size: 11px; }
+.scenario-score-values { display: flex; align-items: baseline; gap: 6px; font-variant-numeric: tabular-nums; }
+.scenario-score-values em { color: #6d747f; font-style: normal; font-size: 11px; text-decoration: line-through; }
+.scenario-score-values strong { font-size: 14px; }
+.scenario-score-values strong.is-down { color: #4ade80; }
+.scenario-score-values strong.is-up { color: #fbbf24; }
+.scenario-score-values small { color: #737b88; font-size: 10px; }
+.scenario-score-delta { min-width: 54px; text-align: right; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.scenario-score-delta.is-down { color: #4ade80; }
+.scenario-score-delta.is-up { color: #fbbf24; }
+.scenario-panel > footer { display: flex; align-items: center; gap: 10px; padding: 10px 11px 10px 15px; border-top: 1px solid var(--panel-header-border, #2b2f36); }
+.scenario-panel > footer span { flex: 1; color: #6d747f; font-size: 10px; line-height: 1.45; }
+html[data-theme="light"] .scenario-panel { background: #fff; box-shadow: 0 18px 48px rgba(41,51,68,.2); }
+
+.scenario-panel-grip { color: #4b525d; flex: none; }
