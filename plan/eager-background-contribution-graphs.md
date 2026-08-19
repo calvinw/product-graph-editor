@@ -1,6 +1,13 @@
 # Eager Background Contribution Graphs
 
-Status: Proposed
+Status: **Superseded** by the lazy two-call design that shipped
+(`../../life-cycle-assessment-mcp/plans/lazy-calculate-lca-engine-plan.md`,
+which supersedes the framing of this plan's engine partner). Retained for its
+cutoff, topology, and rendering-budget analysis, which remain accurate. See
+`graph-native-scenario-editing.md` for why frequent parameter change argues
+against reviving eager delivery.
+
+Original status: Proposed
 
 Date: July 27, 2026
 
