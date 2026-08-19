@@ -88,6 +88,39 @@ They are not fully green, and the team decided to proceed anyway:
   `page.mouse.click(700, 700)`, which is position-sensitive. Expect the
   occasional false alarm.
 
+### Test repairs, August 19 2026
+
+The suite went from 27 passed / 5 failed to **31 / 1**. Four of the five were
+worth fixing and three were real defects, not stale expectations:
+
+- Two whole-page snapshots predated the AI chat work, showing the old
+  Model / Graph / Editor navbar with no Assistant button. Refreshed after
+  inspecting the rendered output.
+- Mouse column resize did nothing on sticky-header tables; the handle
+  protruded into the next header cell, which paints over it. Keyboard resize
+  always worked, hiding the fault.
+- The closed property editor stayed in the hit-testing and accessibility tree,
+  hidden by opacity alone.
+- A column could not grow once its neighbour hit its 80px minimum. This one was
+  masked: the horizontal-scroll test passed only because the last handle
+  protruded 5px past the table edge.
+
+### Open: does the property editor move the graph?
+
+`900 opening the inspector keeps the selected jacket node visible` still fails.
+Clicking a right-edge node leaves it about 118px underneath the panel.
+
+This is a product decision, not a defect with an obvious fix, because two tests
+encode opposite intentions:
+
+- `900` wants the selected node to stay clear when the panel opens.
+- `938` asserts the graph viewport transform is **unchanged** when it opens.
+
+`.graph-viewport.has-inspector { right: 322px }` narrows the container but
+nothing re-fits, so a right-edge node ends up behind the panel. Satisfying 900
+means panning the graph, which contradicts 938 as written. Deliberately left
+open; decide the intended behaviour before changing either test.
+
 **Working gate for Phases 1-2:** the 27 currently passing visual tests must stay
 passing. Watch for *new* failures rather than a green run. Re-check `542` in
 isolation before believing it.
