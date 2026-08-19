@@ -235,7 +235,7 @@ export function buildGraphFromYaml(
       const unit = input.unit ?? productUnits.get(input.flow)
       edges.push({
         id: `${source}-${ids.get(consumer.name)}-${consumerIndex}-${inputIndex}`,
-        source, target: ids.get(consumer.name)!, label: mode === "scaled" ? `${input.flow} · ${displayNumber(amount)}${unit ? ` ${unit}` : ""}` : input.flow,
+        source, target: ids.get(consumer.name)!, label: mode === "scaled" ? `${displayNumber(amount)}${unit ? ` ${unit}` : ""}` : input.flow,
         style: { stroke: "#343941", strokeWidth: 1.5 },
         labelStyle: { fill: "#9aa2ae", fontSize: 12, fontWeight: 650 },
         labelBgStyle: { fill: "#111318", fillOpacity: 0.92 }, labelBgPadding: [5, 3], labelBgBorderRadius: 4,
