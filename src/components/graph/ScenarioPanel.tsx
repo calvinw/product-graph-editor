@@ -3,7 +3,7 @@ import { ArrowRight, GripHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useDisplaySettings } from "@/lib/displaySettings"
 import { impactCategoryDisplayName } from "@/lib/lcaApi"
-import type { CategoryPreview } from "@/lib/realtimeScore"
+import { impactColor, type CategoryPreview } from "@/lib/realtimeScore"
 
 /**
  * Impact of the pending scenario, shown only while edits are outstanding.
@@ -15,12 +15,16 @@ import type { CategoryPreview } from "@/lib/realtimeScore"
  */
 export function ScenarioPanel({
   editCount, categoryTotals, calculating, onReset, onCommit,
+  categoryOrder, visibleCategories, onToggleCategory,
 }: {
   editCount: number
   categoryTotals: CategoryPreview[]
   calculating: boolean
   onReset: () => void
   onCommit: () => void
+  categoryOrder: string[]
+  visibleCategories: string[]
+  onToggleCategory: (label: string) => void
 }) {
   const { formatNumber } = useDisplaySettings()
   const [offset, setOffset] = useState({ x: 0, y: 0 })
@@ -63,12 +67,33 @@ export function ScenarioPanel({
         <span>{editCount} input{editCount === 1 ? "" : "s"} changed</span>
       </header>
 
+      <div className="scenario-panel-toggles" role="group" aria-label="Categories shown on the graph">
+        {categoryOrder.map((label, index) => {
+          const on = visibleCategories.includes(label)
+          return (
+            <button
+              key={label}
+              type="button"
+              className={`scenario-toggle${on ? " is-on" : ""}`}
+              aria-pressed={on}
+              onClick={() => onToggleCategory(label)}
+              style={on ? { borderColor: impactColor(index), color: impactColor(index) } : undefined}
+            >
+              <span className="scenario-toggle-dot" style={{ background: impactColor(index) }} />
+              {impactCategoryDisplayName(label)}
+            </button>
+          )
+        })}
+      </div>
       <div className="scenario-panel-scores">
         {categoryTotals.map((total) => {
           const direction = total.delta < 0 ? "down" : total.delta > 0 ? "up" : "flat"
           return (
             <div className="scenario-score" key={total.label}>
-              <span className="scenario-score-name">{impactCategoryDisplayName(total.label)}</span>
+              <span className="scenario-score-name">
+                <span className="scenario-toggle-dot" style={{ background: impactColor(categoryOrder.indexOf(total.label)) }} />
+                {impactCategoryDisplayName(total.label)}
+              </span>
               <span className="scenario-score-values">
                 <em>{formatNumber(total.baseline)}</em>
                 <ArrowRight size={12} />

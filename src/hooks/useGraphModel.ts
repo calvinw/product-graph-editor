@@ -8,7 +8,7 @@ import { layoutNodes } from "@/lib/layout"
 import { buildGraphFromYaml, buildGraphStructure, decorateAmounts, nodeScopeColors } from "@/lib/yamlGraph"
 import {
   applyScenarioToYaml, backgroundLinks, scenarioAmount, scenarioKey, scoreScenario,
-  solveForegroundCumulative, type ForegroundProcess,
+  impactColor, solveForegroundCumulative, type ForegroundProcess,
 } from "@/lib/realtimeScore"
 import {
   incomingEdgesFor, inputHandleIdFor, populateExpandedConnections, targetExpandedInputRows,
@@ -49,6 +49,9 @@ export function useGraphModel({
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges)
   const [query, setQuery] = useState("")
   const [yamlError, setYamlError] = useState("")
+  // Which categories are drawn on the graph. Empty until a result arrives,
+  // then all of them, which is what a first-time viewer wants to see.
+  const [visibleImpactCategories, setVisibleImpactCategories] = useState<string[]>([])
   const appliedYaml = useProductGraphStore((state) => state.appliedYaml)
   const appliedRevision = useProductGraphStore((state) => state.appliedRevision)
   const calculatedRevision = useProductGraphStore((state) => state.calculatedRevision)
@@ -388,6 +391,42 @@ export function useGraphModel({
     [lcaResult, scenarioOverrides],
   )
 
+  const categoryOrder = useMemo(() => Object.keys(lcaResult?.lcia ?? {}), [lcaResult])
+  useEffect(() => { setVisibleImpactCategories(categoryOrder) }, [categoryOrder])
+  const toggleImpactCategory = useCallback((label: string) => {
+    setVisibleImpactCategories((current) => current.includes(label)
+      ? current.filter((item) => item !== label)
+      : categoryOrder.filter((item) => current.includes(item) || item === label))
+  }, [categoryOrder])
+
+  // Paint each activity's own contribution onto its node. Impacts are merged
+  // into existing node data rather than rebuilding nodes, so positions and
+  // expansion state survive.
+  useEffect(() => {
+    const active = graphMode === "scaled" ? visibleImpactCategories : []
+    setNodes((current) => {
+      let changed = false
+      const next = current.map((node) => {
+        const rows = node.data.scope === "background"
+          ? backgroundImpacts[node.data.label] ?? []
+          : foregroundImpacts[node.data.label] ?? []
+        const impacts = active.length
+          ? rows.filter((row) => active.includes(row.label)).map((row) => ({
+              label: row.label,
+              value: row.cumulative.toFixed(graphDecimalPlaces > 6 ? 6 : graphDecimalPlaces),
+              color: impactColor(categoryOrder.indexOf(row.label)),
+            }))
+          : undefined
+        const before = JSON.stringify(node.data.impacts ?? null)
+        const after = JSON.stringify(impacts ?? null)
+        if (before === after) return node
+        changed = true
+        return { ...node, data: { ...node.data, impacts } }
+      })
+      return changed ? next : current
+    })
+  }, [backgroundImpacts, categoryOrder, foregroundImpacts, graphDecimalPlaces, graphMode, nodes, setNodes, visibleImpactCategories])
+
   const scenario = useMemo(() => {
     const rows = lcaResult?.background_link_intensities ?? []
     return {
@@ -716,6 +755,7 @@ export function useGraphModel({
     applyGraphSettings, showGraphMode, applyYaml, applyAndCalculateYaml,
     commitScenario, scenarioEditCount,
     foregroundImpacts, backgroundImpacts, categoryTotals,
+    visibleImpactCategories, toggleImpactCategory, categoryOrder,
     hydrateBackgroundNode, toggleBackgroundBranch,
   }
 }

@@ -113,7 +113,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     toggleExpanded, setAllExpanded,
     applyGraphSettings, showGraphMode, applyYaml, applyAndCalculateYaml,
     hydrateBackgroundNode, commitScenario, scenarioEditCount,
-    categoryTotals,
+    categoryTotals, visibleImpactCategories, toggleImpactCategory, categoryOrder,
   } = useGraphModel({
     resetCalculationState, markRevision, calculateSource,
     onResultsMarkdown: setResultsMarkdown, loadContributionGraphs,
@@ -472,6 +472,9 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           calculating={calculationInProgress}
           onReset={resetScenario}
           onCommit={commitScenario}
+          categoryOrder={categoryOrder}
+          visibleCategories={visibleImpactCategories}
+          onToggleCategory={toggleImpactCategory}
         /> : null}
         {view === "graph" ? <div className="graph-meta">{nodes.length} nodes&nbsp;&nbsp;·&nbsp;&nbsp;{connectionCount} connections</div> : null}
       </div>

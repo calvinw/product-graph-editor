@@ -41,6 +41,8 @@ export type ProcessNodeData = {
   onRestore?: (id: string) => void
   canRestore?: boolean
   canFold?: boolean
+  /** Per-category contribution of this activity, shown while a scenario is live. */
+  impacts?: Array<{ label: string; value: string; color: string }>
 }
 
 function ProcessNodeImpl({ id, data, selected, sourcePosition = Position.Right, targetPosition = Position.Left }: NodeProps & { data: ProcessNodeData }) {
@@ -128,6 +130,11 @@ function ProcessNodeImpl({ id, data, selected, sourcePosition = Position.Right, 
           <span className="pg-node-label">{data.label}</span>
         </>
       )}
+      {data.impacts?.length ? <div className="pg-node-impacts">
+        {data.impacts.map((impact) => (
+          <span key={impact.label} style={{ color: impact.color }} title={impact.label}>{impact.value}</span>
+        ))}
+      </div> : null}
       <Handle type="source" position={sourcePosition} className="pg-handle" />
     </div>
   )

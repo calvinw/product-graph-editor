@@ -42,6 +42,16 @@ export type CategoryPreview = {
   relativeDelta: number | null
 }
 
+/**
+ * Colours for impact categories, assigned by their order in the result.
+ *
+ * The same colour marks a category in the scenario panel and on every node, so
+ * a number on the graph can be traced back to the category it belongs to
+ * without a label beside it.
+ */
+export const IMPACT_COLORS = ["#38bdf8", "#f472b6", "#a78bfa", "#fbbf24", "#4ade80", "#fb923c"]
+export const impactColor = (index: number) => IMPACT_COLORS[index % IMPACT_COLORS.length]
+
 /** Bounded by float32 storage of technosphere amounts (eps 1.19e-7). */
 export const RELATIVE_DRIFT_TOLERANCE = 1e-6
 
