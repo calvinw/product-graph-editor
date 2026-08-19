@@ -8,8 +8,12 @@ Related: [`realtime-scenario-view.md`](realtime-scenario-view.md)
 ## Goal
 
 Let the user drag background input amounts **directly on the scaled product
-graph**, see impact-category scores update live in the property editor, and have
-the exact server calculation run on release and refresh the scaled graph.
+graph**, see impact-category scores update live in the property editor and on
+expanded activity cards, and have the exact server calculation run after release
+to refresh inventory, contributions, and Sankey.
+
+The standalone Realtime view was a test harness for the Tier 2 payload and is
+retired once these surfaces exist.
 
 The prerequisite is a codebase that can absorb this without making `App.tsx`
 worse. This project will carry several more tools, so Phases 1 and 2 decompose
@@ -232,7 +236,13 @@ float32 floor.
 
 Implement this as `solveForegroundCumulative` in `lib/realtimeScore.ts`.
 
-### What the inspector shows
+### Two surfaces
+
+Impact numbers appear in two places. Both read the same locally solved values,
+so they stay consistent and cost one solve per frame between them.
+
+**1. The property editor.** A new `ImpactCategorySection`, styled as the
+existing `property-section` blocks.
 
 | Selection | Shown | Live and exact? |
 |---|---|---|
@@ -240,9 +250,33 @@ Implement this as `solveForegroundCumulative` in `lib/realtimeScore.ts`.
 | Background node | That branch's contribution, `amount x s_F x intensity` | yes |
 | Any selection | System total per category, with baseline preview | yes |
 
-Because cumulative scores are live for every foreground node, they are also
-worth rendering on the nodes themselves during a drag, not only in the
-inspector. Decide that in Phase 7.
+**2. Expanded activity cards.** When a node card is expanded, show its impact
+contribution on the card itself.
+
+`ProcessNode` already renders the expanded body as a series of titled row
+blocks — `pg-flow-section`, `pg-biosphere`, `pg-extractions`, `pg-emissions`.
+An impacts block is the same shape and slots in beside them:
+
+```text
+ProcessNodeData gains:
+  impacts?: Array<{
+    label: string
+    score: number
+    unit: string
+    percentage?: number   // share of the system total
+  }>
+```
+
+Rendered as a `pg-impacts` section, only when `data.expanded` is true.
+Collapsed cards stay as they are — label and toggle only.
+
+`decorateAmounts` populates `impacts` from the local solve, which is why the
+Phase 3 split matters here: expanding a card mid-drag must not require a server
+call or show a stale number.
+
+Show cumulative score for foreground nodes and branch contribution for
+background boundary nodes. Both are exact; label them so the distinction is
+visible rather than implied.
 
 ### What still requires the release-time calculation
 
@@ -408,10 +442,19 @@ scaling background subtrees live means holding a large tree in memory.
 
 ## Open decisions
 
-**What happens to the Realtime tab?** Once the graph is editable, the tab is
-either redundant or becomes the "no-graph" fallback. Options: retire it, keep it
-as a list-style alternative for accessibility, or fold it into a panel. Worth
-deciding before Phase 7, not after.
+**The Realtime tab is transitional and will be removed.** It existed to prove
+the Tier 2 payload end to end, and it did that. Once impact numbers appear in
+the property editor and on expanded cards, retire it: delete
+`RealtimeView.tsx`, its `"realtime"` entry in `ProductGraphView`, the view
+switcher entries in `App.tsx`, the `viewTools.ts` registration, and the
+`.realtime-*` CSS.
+
+Keep `lib/realtimeScore.ts` — the name is now misleading but the module is the
+scoring core for this feature. Rename it `lib/scenarioScore.ts` when the view
+goes, in the same commit, so the two never drift.
+
+Do the removal **after** Phase 6 lands and is verified, not before. Until then
+it is the reference implementation to check the new surfaces against.
 
 **Structure mode.** Dragging is defined here only for `scaled` mode, because it
 depends on the server's `scaling_vector`. Structure mode has no calculation
