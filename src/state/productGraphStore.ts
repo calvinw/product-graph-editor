@@ -59,6 +59,8 @@ export type ProductGraphState = ModelWorkspaceState & {
   calculationError: string
   lcaResult: LcaResult | null
   calculatedRevision: number | null
+  /** Revision of an in-flight scenario commit, whose scaling vector is still valid. */
+  scenarioCommitRevision: number | null
   scenarioOverrides: ScenarioOverrides
   actions: ProductGraphActions
 }
@@ -78,6 +80,7 @@ const initialProductGraphState = {
   calculationError: "",
   lcaResult: null,
   calculatedRevision: null,
+  scenarioCommitRevision: null,
   scenarioOverrides: {},
 }
 
@@ -105,6 +108,7 @@ export const useProductGraphStore = create<ProductGraphState>()((set, get) => ({
         calculationError: "",
         lcaResult: null,
         calculatedRevision: null,
+        scenarioCommitRevision: null,
         scenarioOverrides: {},
       })
       return appliedRevision
@@ -119,7 +123,11 @@ export const useProductGraphStore = create<ProductGraphState>()((set, get) => ({
      */
     applyScenarioSource: (appliedYaml) => {
       const appliedRevision = get().appliedRevision + 1
-      set({ appliedYaml, appliedRevision, calculationError: "" })
+      // A background-amount change leaves the foreground scaling vector
+      // untouched, so the previous result stays usable while the exact
+      // calculation runs. Without this the graph drops to structure mode and
+      // the labels flip to flow names until the response arrives.
+      set({ appliedYaml, appliedRevision, scenarioCommitRevision: appliedRevision, calculationError: "" })
       return appliedRevision
     },
     startCalculation: () => set({ calculationStatus: "calculating", calculationError: "" }),
@@ -129,6 +137,7 @@ export const useProductGraphStore = create<ProductGraphState>()((set, get) => ({
       calculatedRevision,
       calculationStatus: "complete",
       calculationError: "",
+      scenarioCommitRevision: null,
       // A fresh baseline must never inherit deltas measured against the old one.
       scenarioOverrides: {},
     }),
