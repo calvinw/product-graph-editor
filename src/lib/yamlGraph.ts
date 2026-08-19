@@ -1,6 +1,20 @@
 import { MarkerType, type Edge, type Node } from "@xyflow/react"
 import { parse } from "yaml"
 import type { ProcessNodeData } from "../components/ProcessNode"
+
+/**
+ * Makes background-input edges draggable.
+ *
+ * `draggableKeys` lists the links the engine published intensities for; only
+ * those can be scored locally, so only those become scenario edges.
+ */
+export type ScenarioDecoration = {
+  overrides: Record<string, number>
+  draggableKeys: Set<string>
+  baselineAmounts: Record<string, number>
+  onChange?: (key: string, amount: number) => void
+  onCommit?: () => void
+}
 import { chemicalFlowLabel } from "./flowLabels"
 
 type FlowAmount = {
@@ -111,14 +125,23 @@ export function buildGraphStructure(source: string): GraphStructure {
  */
 export function decorateAmounts(
   structure: GraphStructure,
-  { mode = "structure", scalingVector, decimalPlaces = 5 }: {
+  { mode = "structure", scalingVector, decimalPlaces = 5, scenario }: {
     mode?: "scaled" | "structure"
     scalingVector?: Record<string, number>
     decimalPlaces?: number
+    scenario?: ScenarioDecoration
   } = {},
 ): { name: string; nodes: Node<ProcessNodeData>[]; edges: Edge[] } {
   const { graph, ids, providers, backgroundInputs, productUnits, reference, byName } = structure
   const displayNumber = (value: number) => value.toFixed(decimalPlaces)
+  // An override stands in for the spec amount at every point it is consumed:
+  // background demand, node rows, and edge labels. Showing it in one place only
+  // would leave the rest of the graph disagreeing with the number being dragged.
+  const amountFor = (processIndex: number, inputIndex: number, input: FlowAmount) => {
+    if (!input.database || !scenario) return input.amount
+    const override = scenario.overrides[`${processIndex}:${inputIndex}`]
+    return Number.isFinite(override) ? override : input.amount
+  }
 
   // Demand on a provider is the SUM of what every consumer needs, not the
   // largest single requirement. Walking in topological order guarantees a
@@ -177,12 +200,12 @@ export function decorateAmounts(
   }
 
   const backgroundDemands = new Map<string, { amount: number; unit?: string }>()
-  graph.processes.forEach((consumer) => (consumer.inputs ?? []).forEach((input) => {
+  graph.processes.forEach((consumer, consumerIndex) => (consumer.inputs ?? []).forEach((input, inputIndex) => {
     if (!input.database) return
     const key = backgroundKeyFor(input)
     const current = backgroundDemands.get(key)
     backgroundDemands.set(key, {
-      amount: (current?.amount ?? 0) + input.amount * (scales.get(consumer.name) ?? 0),
+      amount: (current?.amount ?? 0) + amountFor(consumerIndex, inputIndex, input) * (scales.get(consumer.name) ?? 0),
       unit: current?.unit ?? input.unit,
     })
   }))
@@ -204,11 +227,11 @@ export function decorateAmounts(
           ? `Scaled contribution: ${displayNumber(outputAmount)} ${outputUnit} ${process.reference_output.flow}`
           : `Output flow: ${process.reference_output.flow}`,
         showAmounts: mode === "scaled",
-        referenceInputs: (process.inputs ?? []).map((input) => ({
+        referenceInputs: (process.inputs ?? []).map((input, inputIndex) => ({
           label: input.flow,
           kind: input.database ? "background input" : "foreground input",
           color: input.database ? nodeScopeColors.background : nodeScopeColors.foreground,
-          amount: input.amount,
+          amount: amountFor(graph.processes.indexOf(process), inputIndex, input),
           unit: input.unit ?? productUnits.get(input.flow),
         })),
         referenceOutputs: [{
@@ -260,11 +283,28 @@ export function decorateAmounts(
       const provider = input.database ? undefined : providers.get(input.flow)
       const source = input.database ? backgroundIdFor(input) : provider ? ids.get(provider.name)! : undefined
       if (!source) continue
-      const amount = round(input.amount * (scales.get(consumer.name) ?? 0))
+      const scenarioKey = `${consumerIndex}:${inputIndex}`
+      const currentAmount = amountFor(consumerIndex, inputIndex, input)
+      const amount = round(currentAmount * (scales.get(consumer.name) ?? 0))
       const unit = input.unit ?? productUnits.get(input.flow)
+      const label = mode === "scaled" ? `${displayNumber(amount)}${unit ? ` ${unit}` : ""}` : input.flow
+      const draggable = mode === "scaled" && Boolean(scenario?.draggableKeys.has(scenarioKey))
       edges.push({
+        ...(draggable ? {
+          type: "scenario",
+          data: {
+            scenarioKey,
+            baselineAmount: scenario!.baselineAmounts[scenarioKey] ?? input.amount,
+            amount: currentAmount,
+            unit,
+            scale: scales.get(consumer.name) ?? 0,
+            label,
+            onScenarioChange: scenario!.onChange,
+            onScenarioCommit: scenario!.onCommit,
+          },
+        } : {}),
         id: `${source}-${ids.get(consumer.name)}-${consumerIndex}-${inputIndex}`,
-        source, target: ids.get(consumer.name)!, label: mode === "scaled" ? `${displayNumber(amount)}${unit ? ` ${unit}` : ""}` : input.flow,
+        source, target: ids.get(consumer.name)!, label: draggable ? undefined : label,
         style: { stroke: "#343941", strokeWidth: 1.5 },
         labelStyle: { fill: "#9aa2ae", fontSize: 12, fontWeight: 650 },
         labelBgStyle: { fill: "#111318", fillOpacity: 0.92 }, labelBgPadding: [5, 3], labelBgBorderRadius: 4,
