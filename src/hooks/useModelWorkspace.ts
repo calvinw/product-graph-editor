@@ -9,9 +9,10 @@ import {
 import { productGraphLabel } from "@/lib/resultFormatting"
 import { useProductGraphStore, type ProductGraphView as View } from "@/state/productGraphStore"
 
-// The BAFU broom is the default because it is the only bundled graph with
-// several background links, so scenario dragging is available on first open.
-const WEBAPP_DEFAULT_PRODUCT_GRAPH_ID = import.meta.env.VITE_DEFAULT_PRODUCT_GRAPH_ID ?? "plastic_broom"
+// The cotton tote is the default: four foreground stages, six background
+// links, and one provider shared by three of them, so scenario dragging and
+// impact propagation are both visible on first open.
+const WEBAPP_DEFAULT_PRODUCT_GRAPH_ID = import.meta.env.VITE_DEFAULT_PRODUCT_GRAPH_ID ?? "cotton_tote_bafu_linked"
 
 type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribution" | "sankey" | "realtime">
 const analysisViews: AnalysisView[] = ["inventory", "impact", "process", "contribution", "sankey", "realtime"]
