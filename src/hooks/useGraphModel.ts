@@ -6,7 +6,7 @@ import { chemicalFlowLabel } from "@/lib/flowLabels"
 import { getBackgroundActivityDetails } from "@/lib/lcaApi"
 import { layoutNodes } from "@/lib/layout"
 import { buildGraphFromYaml, buildGraphStructure, decorateAmounts, nodeScopeColors } from "@/lib/yamlGraph"
-import { scenarioKey } from "@/lib/realtimeScore"
+import { applyScenarioToYaml, backgroundLinks, scenarioKey } from "@/lib/realtimeScore"
 import {
   incomingEdgesFor, inputHandleIdFor, populateExpandedConnections, targetExpandedInputRows,
 } from "@/lib/graphNodes"
@@ -14,6 +14,9 @@ import { useProductGraphStore } from "@/state/productGraphStore"
 
 const initialEdges: Edge[] = []
 const initialNodes: Node<ProcessNodeData>[] = []
+
+/** Idle window after the last drag release before the exact calculation runs. */
+const COMMIT_IDLE_MS = 1500
 
 /**
  * The product graph's data model: nodes and edges, the operations that mutate
@@ -32,11 +35,13 @@ export function useGraphModel({
   markRevision,
   calculateSource,
   onResultsMarkdown,
+  loadContributionGraphs,
 }: {
   resetCalculationState: () => void
   markRevision: (revision: number) => void
   calculateSource: (source: string, revision: number, openGraphWhenReady?: boolean) => void | Promise<void>
   onResultsMarkdown: (markdown: string) => void
+  loadContributionGraphs: (categories: string[]) => Promise<unknown>
 }) {
   const { decimalPlaces, showAllDecimalPlaces, formatNumber } = useDisplaySettings()
   const graphDecimalPlaces = showAllDecimalPlaces ? 20 : decimalPlaces
@@ -55,8 +60,8 @@ export function useGraphModel({
   const selected = useProductGraphStore((state) => state.selectedNode)
   const scenarioOverrides = useProductGraphStore((state) => state.scenarioOverrides)
   const {
-    applySource, setGraphMode, setGraphMaxProcesses, setReferenceAmountsVisible,
-    requestViewChange: setView, setScenarioOverride,
+    applySource, applyScenarioSource, setGraphMode, setGraphMaxProcesses, setReferenceAmountsVisible,
+    requestViewChange: setView, setScenarioOverride, dispatchWorkspace,
   } = useProductGraphStore((state) => state.actions)
 
   const foldDirectionRef = useRef<"upstream" | "downstream">("upstream")
@@ -296,6 +301,52 @@ export function useGraphModel({
     try { return buildGraphStructure(appliedYaml) } catch { return null }
   }, [appliedYaml])
 
+  // Releasing a drag does not calculate immediately. A person nudging a value
+  // back and forth would otherwise queue one 800ms calculation per release, so
+  // a short idle window collapses a burst into one, and the result is usually
+  // ready before they switch to a view that needs it.
+  const commitTimerRef = useRef<number | null>(null)
+  useEffect(() => () => { if (commitTimerRef.current) window.clearTimeout(commitTimerRef.current) }, [])
+
+  // Everything the commit needs is read through a ref rather than captured in
+  // the dependency list. calculateSource and loadContributionGraphs are new
+  // functions on every render, so depending on them would make commitScenario
+  // unstable, which would make the scenario memo unstable, which would make
+  // the decoration effect setEdges on every render -- an infinite loop.
+  const commitInputsRef = useRef({
+    appliedYaml, lcaResult, scenarioOverrides,
+    calculateSource, loadContributionGraphs, dispatchWorkspace,
+    applyScenarioSource, markRevision,
+  })
+  commitInputsRef.current = {
+    appliedYaml, lcaResult, scenarioOverrides,
+    calculateSource, loadContributionGraphs, dispatchWorkspace,
+    applyScenarioSource, markRevision,
+  }
+
+  const commitScenario = useCallback(() => {
+    if (commitTimerRef.current) window.clearTimeout(commitTimerRef.current)
+    commitTimerRef.current = window.setTimeout(() => {
+      commitTimerRef.current = null
+      const current = commitInputsRef.current
+      if (!current.lcaResult) return
+      const source = applyScenarioToYaml(
+        current.appliedYaml, backgroundLinks(current.lcaResult), current.scenarioOverrides,
+      )
+      if (source === current.appliedYaml) return
+      // The new result_id correctly invalidates these, so remember what was
+      // loaded and ask for it again; otherwise an open Contribution view goes
+      // blank after every commit.
+      const loadedCategories = current.lcaResult.contribution_graphs.map((graph) => graph.label)
+      current.dispatchWorkspace({ type: "edit-draft", yaml: source })
+      const revision = current.applyScenarioSource(source)
+      current.markRevision(revision)
+      void Promise.resolve(current.calculateSource(source, revision)).then(() => {
+        if (loadedCategories.length) void current.loadContributionGraphs(loadedCategories).catch(() => {})
+      })
+    }, COMMIT_IDLE_MS)
+  }, [])
+
   // Only links the engine published intensities for can be scored locally, so
   // only those become draggable.
   const scenario = useMemo(() => {
@@ -305,8 +356,9 @@ export function useGraphModel({
       draggableKeys: new Set(rows.map(scenarioKey)),
       baselineAmounts: Object.fromEntries(rows.map((row) => [scenarioKey(row), row.amount])),
       onChange: setScenarioOverride,
+      onCommit: commitScenario,
     }
-  }, [lcaResult, scenarioOverrides, setScenarioOverride])
+  }, [commitScenario, lcaResult, scenarioOverrides, setScenarioOverride])
 
   useEffect(() => {
     if (!structure) return
