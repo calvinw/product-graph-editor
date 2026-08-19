@@ -59,6 +59,7 @@ export function useGraphModel({
   const graphConnectionStyle = useProductGraphStore((state) => state.graphConnectionStyle)
   const selected = useProductGraphStore((state) => state.selectedNode)
   const scenarioOverrides = useProductGraphStore((state) => state.scenarioOverrides)
+  const scenarioCommitRevision = useProductGraphStore((state) => state.scenarioCommitRevision)
   const {
     applySource, applyScenarioSource, setGraphMode, setGraphMaxProcesses, setReferenceAmountsVisible,
     requestViewChange: setView, setScenarioOverride, dispatchWorkspace,
@@ -363,7 +364,10 @@ export function useGraphModel({
   useEffect(() => {
     if (!structure) return
     try {
-      const currentResult = calculatedRevision === appliedRevision ? lcaResult : null
+      // Hold the previous result while a scenario commit is in flight; its
+      // scaling vector is unchanged by a background-amount edit.
+      const resultIsUsable = calculatedRevision === appliedRevision || scenarioCommitRevision === appliedRevision
+      const currentResult = resultIsUsable ? lcaResult : null
       const mode = graphMode === "scaled" && currentResult ? "scaled" : "structure"
       const refreshed = decorateAmounts(structure, {
         mode,
@@ -381,7 +385,7 @@ export function useGraphModel({
     } catch {
       // Keep the currently displayed graph intact if the applied source cannot be rebuilt.
     }
-  }, [appliedRevision, calculatedRevision, graphDecimalPlaces, graphMode, lcaResult, scenario, setEdges, structure])
+  }, [appliedRevision, calculatedRevision, graphDecimalPlaces, graphMode, lcaResult, scenario, scenarioCommitRevision, setEdges, structure])
 
 
 
