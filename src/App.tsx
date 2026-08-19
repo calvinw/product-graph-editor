@@ -14,19 +14,11 @@ import {
 } from "lucide-react"
 import { parse } from "yaml"
 import { Button } from "@/components/ui/button"
-import {
-  AlertDialog, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog"
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
@@ -47,6 +39,8 @@ import { InventoryView } from "@/components/views/InventoryView"
 import { ProcessResultsView } from "@/components/views/ProcessResultsView"
 import { SankeyView } from "@/components/views/SankeyView"
 import { FileMenu } from "@/components/workspace/FileMenu"
+import { SaveAsDialog } from "@/components/workspace/SaveAsDialog"
+import { UnsavedChangesDialog } from "@/components/workspace/UnsavedChangesDialog"
 import { useCalculation } from "@/hooks/useCalculation"
 import { Inspector } from "@/components/graph/Inspector"
 import { useGraphModel } from "@/hooks/useGraphModel"
@@ -508,51 +502,22 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
         clearNodeSelection={clearNodeSelection}
       /> : null}
       <AiChatPanel open={chatOpen} onOpenChange={onChatOpenChange} runtime={assistantRuntime} portalTarget={chatPortalTarget} />
-      <AlertDialog open={pendingConfirmationOpen} onOpenChange={(open) => { if (!open) cancelPendingAction() }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Unsaved YAML changes</AlertDialogTitle>
-            <AlertDialogDescription>
-              {activeDocument?.kind === "session"
-                ? `Save changes to "${activeDocument.title}" before continuing?`
-                : "Save a copy before continuing?"}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={cancelPendingAction}>Keep editing</AlertDialogCancel>
-            <Button variant="destructive" onClick={discardAndContinue}>Discard changes</Button>
-            {activeDocument?.kind === "session"
-              ? <Button onClick={saveAndContinue}>Save</Button>
-              : <Button disabled={!canSaveAs} onClick={saveAsAndContinue}>Save As...</Button>}
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      <Dialog open={saveAsOpen} onOpenChange={(open) => { setSaveAsOpen(open); if (!open) { setSaveAsError(""); setPendingAction(null) } }}>
-        <DialogContent onCloseAutoFocus={(event) => {
-          event.preventDefault()
-          const fallback = [...document.querySelectorAll<HTMLElement>("[data-file-menu-trigger]")].find((element) => element.offsetParent !== null)
-          const target = saveAsReturnFocusRef.current?.isConnected ? saveAsReturnFocusRef.current : fallback
-          target?.focus()
-        }}>
-          <form className="save-as-form" onSubmit={saveAsSessionModel}>
-            <DialogHeader>
-              <DialogTitle>Save model as</DialogTitle>
-              <DialogDescription>Create a writable model for this browser session. It will not survive a page refresh.</DialogDescription>
-            </DialogHeader>
-            <FieldGroup>
-              <Field data-invalid={Boolean(saveAsError)}>
-                <FieldLabel htmlFor="save-as-model-name">Model name</FieldLabel>
-                <Input id="save-as-model-name" value={saveAsName} maxLength={120} aria-invalid={Boolean(saveAsError)} autoFocus onChange={(event) => { setSaveAsName(event.target.value); setSaveAsError("") }} />
-                <FieldError>{saveAsError}</FieldError>
-              </Field>
-            </FieldGroup>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => { setSaveAsOpen(false); setPendingAction(null) }}>Cancel</Button>
-              <Button type="submit">Save As</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <UnsavedChangesDialog
+        pendingConfirmationOpen={pendingConfirmationOpen}
+        activeDocument={activeDocument} canSaveAs={canSaveAs}
+        cancelPendingAction={cancelPendingAction}
+        discardAndContinue={discardAndContinue}
+        saveAndContinue={saveAndContinue}
+        saveAsAndContinue={saveAsAndContinue}
+      />
+      <SaveAsDialog
+        saveAsOpen={saveAsOpen} setSaveAsOpen={setSaveAsOpen}
+        saveAsName={saveAsName} setSaveAsName={setSaveAsName}
+        saveAsError={saveAsError} setSaveAsError={setSaveAsError}
+        saveAsReturnFocusRef={saveAsReturnFocusRef}
+        saveAsSessionModel={saveAsSessionModel}
+        setPendingAction={setPendingAction}
+      />
     </>
   )
 }
