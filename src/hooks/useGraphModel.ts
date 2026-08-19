@@ -375,13 +375,21 @@ export function useGraphModel({
   const backgroundImpacts = useMemo(() => {
     const out: Record<string, Array<{ label: string; unit: string; cumulative: number; percentage: number | null }>> = {}
     if (!lcaResult) return out
+    // A provider consumed by several processes gets the SUM of those links.
+    // Grid electricity in the cotton tote feeds three stages; assigning rather
+    // than accumulating would show only the last of them.
     for (const link of backgroundLinks(lcaResult)) {
       const scale = lcaResult.scaling_vector[link.process_name] ?? 0
       const amount = scenarioAmount(link, scenarioOverrides)
-      out[link.flow] = Object.entries(lcaResult.lcia).map(([label, impact]) => {
-        const cumulative = scale * amount * (link.intensities[label] ?? 0)
-        return { label, unit: impact.unit, cumulative, percentage: impact.score ? (cumulative / impact.score) * 100 : null }
-      })
+      const rows = out[link.flow] ?? Object.entries(lcaResult.lcia).map(([label, impact]) => (
+        { label, unit: impact.unit, cumulative: 0, percentage: null as number | null }
+      ))
+      for (const row of rows) {
+        row.cumulative += scale * amount * (link.intensities[row.label] ?? 0)
+        const total = lcaResult.lcia[row.label]?.score ?? 0
+        row.percentage = total ? (row.cumulative / total) * 100 : null
+      }
+      out[link.flow] = rows
     }
     return out
   }, [lcaResult, scenarioOverrides])
