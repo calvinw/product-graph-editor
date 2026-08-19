@@ -112,6 +112,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     toggleExpanded, setAllExpanded,
     applyGraphSettings, showGraphMode, applyYaml, applyAndCalculateYaml,
     hydrateBackgroundNode, commitScenario, scenarioEditCount,
+    foregroundImpacts, backgroundImpacts, categoryTotals,
   } = useGraphModel({
     resetCalculationState, markRevision, calculateSource,
     onResultsMarkdown: setResultsMarkdown, loadContributionGraphs,
@@ -487,6 +488,10 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
         showReferenceAmounts={showReferenceAmounts}
         setReferenceAmountsVisible={setReferenceAmountsVisible}
         clearNodeSelection={clearNodeSelection}
+        nodeImpacts={selectedNode?.data.scope === "background"
+          ? backgroundImpacts[selectedNode.data.label] ?? []
+          : foregroundImpacts[selectedNode?.data.label ?? ""] ?? []}
+        categoryTotals={categoryTotals}
       /> : null}
       <AiChatPanel open={chatOpen} onOpenChange={onChatOpenChange} runtime={assistantRuntime} portalTarget={chatPortalTarget} />
       <UnsavedChangesDialog

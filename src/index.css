@@ -764,3 +764,8 @@ html[data-theme="light"] .scenario-edge-label.is-edited { color: #05263a; backgr
 .scenario-bar-count { color: #38bdf8; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .scenario-bar-note { color: #737b88; font-size: 10px; white-space: nowrap; }
 html[data-theme="light"] .scenario-bar { background: #ffffff; box-shadow: 0 14px 38px rgba(41,51,68,.18); }
+
+/* Impact rows in the property editor */
+.property-section.is-impact .property-row strong { display: flex; align-items: baseline; gap: 6px; }
+.property-share { color: #737b88; font-style: normal; font-size: 10px; }
+.property-was { color: #6d747f; font-style: normal; font-size: 10px; text-decoration: line-through; }
