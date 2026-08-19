@@ -63,13 +63,22 @@ const backgroundIdFor = (input: FlowAmount) => {
   return `background-${slug}-${stableHash(backgroundKeyFor(input))}`
 }
 
-export function buildGraphFromYaml(
-  source: string,
-  mode: "scaled" | "structure" = "structure",
-  scalingVector?: Record<string, number>,
-  decimalPlaces = 5,
-): { name: string; nodes: Node<ProcessNodeData>[]; edges: Edge[] } {
-  const displayNumber = (value: number) => value.toFixed(decimalPlaces)
+export type GraphStructure = {
+  graph: ProductGraph
+  ids: Map<string, string>
+  providers: Map<string, YamlProcess>
+  backgroundInputs: Map<string, FlowAmount>
+  productUnits: Map<string, string>
+  reference: YamlProcess
+  byName: Map<string, YamlProcess>
+}
+
+/**
+ * Parse and index the product graph. This is the expensive half -- it reads
+ * YAML -- and it depends on nothing that a scenario drag changes, so it runs
+ * once when new source is applied rather than once per frame.
+ */
+export function buildGraphStructure(source: string): GraphStructure {
   const graph = parse(source) as ProductGraph
   if (!graph || !Array.isArray(graph.processes) || !graph.processes.length) throw new Error("YAML must include a non-empty processes list.")
   if (!graph.reference_process) throw new Error("YAML must define reference_process.")
@@ -89,11 +98,31 @@ export function buildGraphFromYaml(
   const productUnits = new Map((graph.products ?? []).map((product) => [product.name, product.unit]))
   const reference = graph.processes.find((process) => process.name === graph.reference_process)
   if (!reference) throw new Error(`Reference process “${graph.reference_process}” was not found.`)
+  const byName = new Map(graph.processes.map((process) => [process.name, process]))
+  return { graph, ids, providers, backgroundInputs, productUnits, reference, byName }
+}
+
+/**
+ * Fill in every amount-derived value: scales, background demand, node data and
+ * edge labels. Cheap, and safe to run on each frame of a drag.
+ *
+ * Node ids and ordering are stable across calls, so a caller may merge the
+ * returned `data` onto already-positioned nodes without re-running layout.
+ */
+export function decorateAmounts(
+  structure: GraphStructure,
+  { mode = "structure", scalingVector, decimalPlaces = 5 }: {
+    mode?: "scaled" | "structure"
+    scalingVector?: Record<string, number>
+    decimalPlaces?: number
+  } = {},
+): { name: string; nodes: Node<ProcessNodeData>[]; edges: Edge[] } {
+  const { graph, ids, providers, backgroundInputs, productUnits, reference, byName } = structure
+  const displayNumber = (value: number) => value.toFixed(decimalPlaces)
 
   // Demand on a provider is the SUM of what every consumer needs, not the
   // largest single requirement. Walking in topological order guarantees a
   // consumer's own scale is final before it distributes demand upstream.
-  const byName = new Map(graph.processes.map((process) => [process.name, process]))
   const providerEdges = new Map<string, Array<{ provider: YamlProcess; amount: number }>>()
   const reachable = new Set<string>([reference.name])
   const discovery = [reference]
@@ -244,5 +273,14 @@ export function buildGraphFromYaml(
     }
   }
 
-  return { name: graph.name ?? "Product graph", nodes, edges }
+  return { name: graph.name ?? "Product graph", nodes, edges }}
+
+/** Backwards-compatible one-shot build: structure then decoration. */
+export function buildGraphFromYaml(
+  source: string,
+  mode: "scaled" | "structure" = "structure",
+  scalingVector?: Record<string, number>,
+  decimalPlaces = 5,
+): { name: string; nodes: Node<ProcessNodeData>[]; edges: Edge[] } {
+  return decorateAmounts(buildGraphStructure(source), { mode, scalingVector, decimalPlaces })
 }
