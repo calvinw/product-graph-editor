@@ -51,9 +51,13 @@ export function ResizableTableHeader({ labels, widths, onWidthsChange }: {
     if (adjacentWidth === undefined) {
       nextWidths[index] = requestedWidth
     } else {
-      const delta = Math.min(requestedWidth - widths[index], adjacentWidth - 80)
-      nextWidths[index] = widths[index] + delta
-      nextWidths[index + 1] = adjacentWidth - delta
+      // Honour the requested width, and let the neighbour absorb as much of the
+      // change as it can without dropping below its minimum. Once it bottoms
+      // out the table grows instead, which is what the wrapper scrolls.
+      const change = requestedWidth - widths[index]
+      const absorbed = Math.min(change, adjacentWidth - 80)
+      nextWidths[index] = requestedWidth
+      nextWidths[index + 1] = adjacentWidth - absorbed
     }
     onWidthsChange(nextWidths)
   }
