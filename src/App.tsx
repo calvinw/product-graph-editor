@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
   ReactFlow, ReactFlowProvider, Background, BackgroundVariant,
-  useNodesState, useEdgesState, useReactFlow,
-  type Node, type Edge,
+  type Node,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
 import ReactMarkdown from "react-markdown"
@@ -37,8 +36,6 @@ import { AiChatPanel } from "@/components/AiChatPanel"
 import { RealtimeView } from "@/components/RealtimeView"
 import type { AppToolRuntime } from "@/ai/viewTools"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
-import { layoutNodes } from "./lib/layout"
-import { buildGraphFromYaml } from "./lib/yamlGraph"
 import {
   lcaResultToMarkdown,
 } from "./lib/lcaApi"
@@ -50,8 +47,8 @@ import { InventoryView } from "@/components/views/InventoryView"
 import { ProcessResultsView } from "@/components/views/ProcessResultsView"
 import { SankeyView } from "@/components/views/SankeyView"
 import { FileMenu } from "@/components/workspace/FileMenu"
-import { useBackgroundHydration } from "@/hooks/useBackgroundHydration"
 import { useCalculation } from "@/hooks/useCalculation"
+import { useGraphModel } from "@/hooks/useGraphModel"
 import { useModelWorkspace } from "@/hooks/useModelWorkspace"
 import { safeYamlFilename } from "./lib/modelWorkspace"
 import { WelcomePage } from "@/components/welcome/WelcomePage"
@@ -64,50 +61,13 @@ import {
 type NodeMeta = { label: string; kind: string; detail: string; color: string; scope?: "foreground" | "background" }
 type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribution" | "sankey" | "realtime">
 
-const initialEdges: Edge[] = []
-const initialNodes: Node<ProcessNodeData>[] = []
 
 const nodeTypes = { process: ProcessNode }
-const inputHandleIdFor = (edgeId: string) => `input-${edgeId}`
-const incomingEdgesFor = (nodeId: string, edges: Edge[], nodesById: Map<string, Node<ProcessNodeData>>) => (
-  edges.filter((edge) => edge.target === nodeId).sort((left, right) => (
-    (nodesById.get(left.source)?.position.y ?? 0) - (nodesById.get(right.source)?.position.y ?? 0)
-  ))
-)
-const populateExpandedConnections = (nodes: Node<ProcessNodeData>[], edges: Edge[]) => {
-  const nodesById = new Map(nodes.map((node) => [node.id, node]))
-  const flowItem = (id: string) => {
-    const connected = nodesById.get(id)
-    return connected ? { label: connected.data.label, kind: connected.data.scope ?? connected.data.kind, color: connected.data.color } : null
-  }
-  return nodes.map((node) => {
-    if (!node.data.expanded || node.data.scope === "background") return node
-    const inputs = incomingEdgesFor(node.id, edges, nodesById).map((edge) => {
-      const item = flowItem(edge.source)
-      return item ? { ...item, handleId: inputHandleIdFor(edge.id) } : null
-    }).filter((item): item is NonNullable<typeof item> => item !== null)
-    const outputs = edges.filter((edge) => edge.source === node.id).map((edge) => flowItem(edge.target)).filter((item): item is NonNullable<typeof item> => item !== null)
-    return { ...node, data: { ...node.data, inputs, outputs } }
-  })
-}
-const targetExpandedInputRows = (nodes: Node<ProcessNodeData>[], edges: Edge[]) => {
-  const nodesById = new Map(nodes.map((node) => [node.id, node]))
-  return edges.map((edge) => {
-    const target = nodesById.get(edge.target)
-    return target?.data.expanded && target.data.scope !== "background"
-      ? { ...edge, targetHandle: inputHandleIdFor(edge.id) }
-      : edge
-  })
-}
 
 
 function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, chatOpen, onChatOpenChange }: { onTitleChange: (title: string) => void; navbarTarget: HTMLDivElement | null; chatPortalTarget: HTMLDivElement | null; active: boolean; chatOpen: boolean; onChatOpenChange: (open: boolean) => void }) {
   const { decimalPlaces, showAllDecimalPlaces, formatNumber, theme } = useDisplaySettings()
-  const graphDecimalPlaces = showAllDecimalPlaces ? 20 : decimalPlaces
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node<ProcessNodeData>>(layoutNodes(initialNodes, initialEdges))
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges)
   const selected = useProductGraphStore((state) => state.selectedNode)
-  const [query, setQuery] = useState("")
   const view = useProductGraphStore((state) => state.activeView)
   const activeDocument = useProductGraphStore((state) => state.activeDocument)
   const sessionDocuments = useProductGraphStore((state) => state.sessionDocuments)
@@ -130,24 +90,40 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     requestViewChange: setView,
     selectNode: setSelected,
     clearNodeSelection,
-    setGraphMode,
     setReferenceAmountsVisible,
     setGraphMaxProcesses,
     setGraphOrientation,
     setGraphConnectionStyle,
     dispatchWorkspace: dispatchModelWorkspace,
-    applySource,
     setScenarioOverride,
     resetScenario,
   } = storeActions
   const inspectorOpen = selected !== null
-  const foldDirectionRef = useRef<"upstream" | "downstream">("upstream")
-  const nodesRef = useRef(nodes)
-  const edgesRef = useRef(edges)
   const lastSelectedRef = useRef<(NodeMeta & { id: string }) | null>(null)
-  nodesRef.current = nodes
-  edgesRef.current = edges
-  const { fitView, zoomIn, zoomOut } = useReactFlow()
+
+  const {
+    calculateSource, loadContributionGraphs, resetCalculationState,
+    setContributionError, contributionError, loadingContributionKeys,
+    isCalculating, calculationInProgress, calculationStatus, markRevision,
+  } = useCalculation({
+    onResultsMarkdown: setResultsMarkdown,
+    onOpenGraph: () => setView("graph"),
+  })
+
+  const {
+    nodes, edges, onNodesChange, onEdgesChange,
+    query, setQuery, yamlError, setYamlError,
+    availableGraphProcessCount,
+    fitView, zoomIn, zoomOut, fit, relayout,
+    toggleExpanded, setAllExpanded,
+    applyGraphSettings, showGraphMode, applyYaml, applyAndCalculateYaml,
+    hydrateBackgroundNode,
+  } = useGraphModel({ resetCalculationState, markRevision, calculateSource, onResultsMarkdown: setResultsMarkdown })
+
+  // Re-render the markdown report when display precision changes.
+  useEffect(() => {
+    if (lcaResult) setResultsMarkdown(lcaResultToMarkdown(lcaResult, decimalPlaces, showAllDecimalPlaces))
+  }, [decimalPlaces, showAllDecimalPlaces, lcaResult])
 
   useEffect(() => {
     if (view !== "graph" || !active) return
@@ -177,40 +153,6 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
       cancelAnimationFrame(fitFrame)
     }
   }, [active, chatPortalTarget, fitView, view])
-  const availableGraphProcessCount = (() => {
-    try {
-      return buildGraphFromYaml(appliedYaml, "structure").nodes.filter((node) => node.data.scope !== "background").length
-    } catch {
-      return Math.max(1, graphMaxProcesses)
-    }
-  })()
-
-  useEffect(() => setGraphMaxProcesses(availableGraphProcessCount), [availableGraphProcessCount, setGraphMaxProcesses])
-  useEffect(() => setReferenceAmountsVisible(false), [graphMode, selected?.id, setReferenceAmountsVisible])
-  useEffect(() => {
-    if (lcaResult) setResultsMarkdown(lcaResultToMarkdown(lcaResult, decimalPlaces, showAllDecimalPlaces))
-  }, [decimalPlaces, showAllDecimalPlaces, lcaResult])
-  useEffect(() => {
-    try {
-      const currentResult = calculatedRevision === appliedRevision ? lcaResult : null
-      const mode = graphMode === "scaled" && currentResult ? "scaled" : "structure"
-      const refreshedEdges = buildGraphFromYaml(appliedYaml, mode, currentResult?.scaling_vector, graphDecimalPlaces).edges
-      const labelsById = new Map(refreshedEdges.map((edge) => [edge.id, edge.label]))
-      setEdges((current) => current.map((edge) => labelsById.has(edge.id) ? { ...edge, label: labelsById.get(edge.id) } : edge))
-    } catch {
-      // Keep the currently displayed graph intact if the applied source cannot be rebuilt.
-    }
-  }, [appliedRevision, appliedYaml, calculatedRevision, graphDecimalPlaces, graphMode, lcaResult, setEdges])
-
-  const {
-    calculateSource, loadContributionGraphs, resetCalculationState,
-    setContributionError, contributionError, loadingContributionKeys,
-    isCalculating, calculationInProgress, calculationStatus, markRevision,
-  } = useCalculation({
-    onResultsMarkdown: setResultsMarkdown,
-    onOpenGraph: () => setView("graph"),
-  })
-
   const cumulativeCategories = (() => {
     try {
       const source = parse(appliedYaml) as {
@@ -228,274 +170,6 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
       : []
   })()
 
-  const { hydrateBackgroundNode, toggleBackgroundBranch } = useBackgroundHydration({
-    nodesRef, edgesRef, setNodes, setEdges,
-    formatNumber, graphOrientation, graphConnectionStyle,
-  })
-
-  const removeNode = useCallback((id: string) => {
-    const folded = new Set<string>()
-    const visit = (nodeId: string) => {
-      edgesRef.current.filter((edge) => foldDirectionRef.current === "upstream" ? edge.target === nodeId : edge.source === nodeId).forEach((edge) => {
-        const nextId = foldDirectionRef.current === "upstream" ? edge.source : edge.target
-        if (!folded.has(nextId)) { folded.add(nextId); visit(nextId) }
-      })
-    }
-    visit(id)
-    if (!folded.size) return
-    setNodes((current) => current.map((node) => node.id === id
-      ? { ...node, data: { ...node.data, canRestore: true } }
-      : folded.has(node.id) ? { ...node, hidden: true } : node))
-    setEdges((current) => current.map((edge) => folded.has(edge.source) || folded.has(edge.target) ? { ...edge, hidden: true } : edge))
-  }, [setNodes, setEdges])
-
-  const restoreNode = useCallback((id: string) => {
-    const depths = new Map<string, number>()
-    const queue: Array<{ id: string; depth: number }> = [{ id, depth: 0 }]
-    while (queue.length) {
-      const current = queue.shift()!
-      edgesRef.current.filter((edge) => foldDirectionRef.current === "upstream" ? edge.target === current.id : edge.source === current.id).forEach((edge) => {
-        const nextId = foldDirectionRef.current === "upstream" ? edge.source : edge.target
-        const nextDepth = current.depth + 1
-        const knownDepth = depths.get(nextId)
-        if (knownDepth === undefined || nextDepth < knownDepth) {
-          depths.set(nextId, nextDepth)
-          queue.push({ id: nextId, depth: nextDepth })
-        }
-      })
-    }
-    const hiddenDownstream = nodesRef.current.filter((node) => node.hidden && depths.has(node.id))
-    if (!hiddenDownstream.length) return
-    const nextDepth = Math.min(...hiddenDownstream.map((node) => depths.get(node.id)!))
-    const revealIds = new Set(hiddenDownstream.filter((node) => depths.get(node.id) === nextDepth).map((node) => node.id))
-    const remainingAfterReveal = hiddenDownstream.some((node) => !revealIds.has(node.id))
-    const hiddenAfterReveal = new Set(nodesRef.current.filter((node) => node.hidden && !revealIds.has(node.id)).map((node) => node.id))
-
-    setNodes((current) => current.map((node) => node.id === id
-      ? { ...node, data: { ...node.data, canRestore: remainingAfterReveal } }
-      : revealIds.has(node.id) ? {
-          ...node,
-          hidden: false,
-          data: {
-            ...node.data,
-            canRestore: edgesRef.current.some((edge) => foldDirectionRef.current === "upstream"
-              ? edge.target === node.id && hiddenAfterReveal.has(edge.source)
-              : edge.source === node.id && hiddenAfterReveal.has(edge.target)),
-          },
-        } : node))
-    setEdges((current) => current.map((edge) => depths.has(edge.source) || depths.has(edge.target) || (foldDirectionRef.current === "upstream" ? edge.target === id : edge.source === id)
-      ? { ...edge, hidden: hiddenAfterReveal.has(edge.source) || hiddenAfterReveal.has(edge.target) }
-      : edge))
-  }, [setEdges, setNodes])
-
-  useEffect(() => {
-    setNodes((current) => current.map((node) => (
-      node.data.onRemove === removeNode && node.data.onRestore === restoreNode && node.data.canFold === edges.some((edge) => (
-        foldDirectionRef.current === "upstream" ? edge.target === node.id : edge.source === node.id
-      ))
-        ? node
-        : { ...node, data: {
-            ...node.data,
-            onRemove: removeNode,
-            onRestore: restoreNode,
-            canFold: edges.some((edge) => foldDirectionRef.current === "upstream" ? edge.target === node.id : edge.source === node.id),
-          } }
-    )))
-  }, [edges, removeNode, restoreNode, setNodes])
-
-  useEffect(() => {
-    const term = query.trim().toLowerCase()
-    if (!term) {
-      setNodes((current) => current.map((node) => (node.data.faded ? { ...node, data: { ...node.data, faded: false } } : node)))
-      setEdges((current) => current.map((edge) => (edge.style?.opacity ? { ...edge, style: { ...edge.style, opacity: 1 } } : edge)))
-      return
-    }
-    const matchedIds = new Set(nodes.filter((node) => node.data.label.toLowerCase().includes(term)).map((node) => node.id))
-    const connectedIds = new Set(matchedIds)
-    edges.forEach((edge) => {
-      if (matchedIds.has(edge.source) || matchedIds.has(edge.target)) { connectedIds.add(edge.source); connectedIds.add(edge.target) }
-    })
-    setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, faded: !connectedIds.has(node.id) } })))
-    setEdges((current) => current.map((edge) => ({ ...edge, style: { ...edge.style, opacity: connectedIds.has(edge.source) && connectedIds.has(edge.target) ? 1 : 0.12 } })))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query])
-
-  useEffect(() => {
-    setNodes((current) => {
-      let changed = false
-      const next = current.map((node) => {
-        if (node.data.scope !== "background" || node.data.onToggleBackground === toggleBackgroundBranch) return node
-        changed = true
-        return { ...node, data: { ...node.data, onToggleBackground: toggleBackgroundBranch } }
-      })
-      return changed ? next : current
-    })
-  }, [nodes, setNodes, toggleBackgroundBranch])
-
-  const toggleExpanded = useCallback((nodeId: string) => {
-    const target = nodesRef.current.find((node) => node.id === nodeId)
-    const expanding = !target?.data.expanded
-    setNodes((current) => {
-      const byId = new Map(current.map((node) => [node.id, node]))
-      return current.map((node) => {
-        if (node.id !== nodeId) return node
-        if (node.data.scope === "background") return { ...node, data: { ...node.data, expanded: !node.data.expanded } }
-        const flowItem = (id: string) => {
-          const connected = byId.get(id)
-          return connected ? { label: connected.data.label, kind: connected.data.scope ?? connected.data.kind, color: connected.data.color } : null
-        }
-        const inputs = incomingEdgesFor(nodeId, edges, byId).map((edge) => {
-          const item = flowItem(edge.source)
-          return item ? { ...item, handleId: inputHandleIdFor(edge.id) } : null
-        }).filter((item): item is NonNullable<typeof item> => item !== null)
-        const outputs = edges.filter((edge) => edge.source === nodeId).map((edge) => flowItem(edge.target)).filter((item): item is NonNullable<typeof item> => item !== null)
-        return { ...node, data: { ...node.data, expanded: !node.data.expanded, inputs, outputs } }
-      })
-    })
-    if (target?.data.scope !== "background") {
-      setEdges((current) => current.map((edge) => edge.target === nodeId
-        ? { ...edge, targetHandle: expanding ? inputHandleIdFor(edge.id) : undefined }
-        : edge))
-    }
-    if (target?.data.scope === "background" && !target.data.expanded) void hydrateBackgroundNode(nodeId)
-  }, [edges, hydrateBackgroundNode, setEdges, setNodes])
-
-  const setAllExpanded = useCallback((expanded: boolean) => {
-    const currentEdges = edgesRef.current
-    const nodesById = new Map(nodesRef.current.map((node) => [node.id, node]))
-    setNodes((current) => {
-      const updated = current.map((node) => node.data.expanded === expanded
-        ? node
-        : { ...node, data: { ...node.data, expanded } })
-      return expanded ? populateExpandedConnections(updated, currentEdges) : updated
-    })
-    setEdges((current) => current.map((edge) => ({
-      ...edge,
-      targetHandle: expanded && nodesById.get(edge.target)?.data.scope !== "background"
-        ? inputHandleIdFor(edge.id)
-        : undefined,
-    })))
-    if (expanded) {
-      nodesRef.current
-        .filter((node) => node.data.scope === "background")
-        .forEach((node) => void hydrateBackgroundNode(node.id))
-    }
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      setNodes((current) => layoutNodes(current, edgesRef.current, { orientation: graphOrientation }))
-    }))
-  }, [graphOrientation, hydrateBackgroundNode, setEdges, setNodes])
-
-  const fit = () => fitView({ padding: 0.35, maxZoom: 0.75, duration: 350 })
-  const relayout = () => {
-    setNodes((current) => layoutNodes(current, edges, { orientation: graphOrientation }))
-    requestAnimationFrame(fit)
-  }
-  const applyGraphSettings = ({
-    maximum = graphMaxProcesses,
-    orientation = graphOrientation,
-    connectionStyle = graphConnectionStyle,
-  }: {
-    maximum?: number
-    orientation?: "vertical" | "horizontal"
-    connectionStyle?: "curved" | "straight" | "step"
-  }) => {
-    try {
-      const currentResult = calculatedRevision === appliedRevision ? lcaResult : null
-      const mode = graphMode === "scaled" && currentResult ? "scaled" : "structure"
-      const parsed = buildGraphFromYaml(appliedYaml, mode, currentResult?.scaling_vector, graphDecimalPlaces)
-      const foreground = parsed.nodes.filter((node) => node.data.scope !== "background")
-      const cappedMaximum = Math.min(foreground.length, Math.max(1, maximum))
-      const visibleForeground = new Set(foreground.slice(Math.max(0, foreground.length - cappedMaximum)).map((node) => node.id))
-      const backgroundIds = new Set(parsed.nodes.filter((node) => node.data.scope === "background").map((node) => node.id))
-      const visibleBackground = new Set(parsed.edges.filter((edge) => visibleForeground.has(edge.target) && backgroundIds.has(edge.source)).map((edge) => edge.source))
-      const nextNodes = parsed.nodes.filter((node) => visibleForeground.has(node.id) || visibleBackground.has(node.id))
-      const visibleIds = new Set(nextNodes.map((node) => node.id))
-      const nextEdges = parsed.edges.filter((edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target)).map((edge) => ({
-        ...edge,
-        type: connectionStyle === "curved" ? "default" : connectionStyle === "straight" ? "straight" : "smoothstep",
-      }))
-      setNodes(layoutNodes(nextNodes, nextEdges, { orientation }))
-      setEdges(nextEdges)
-      requestAnimationFrame(fit)
-    } catch (error) {
-      setYamlError(error instanceof Error ? error.message : "Could not apply graph settings.")
-    }
-  }
-
-  const showGraphMode = (mode: "scaled" | "structure") => {
-    try {
-      const currentResult = calculatedRevision === appliedRevision ? lcaResult : null
-      if (mode === "scaled" && !currentResult) {
-        setGraphMode("scaled")
-        setYamlError("")
-        return
-      }
-      const parsed = buildGraphFromYaml(appliedYaml, mode, currentResult?.scaling_vector, graphDecimalPlaces)
-      const previousById = new Map(nodesRef.current.map((node) => [node.id, node]))
-      const laidOutNodes = layoutNodes(parsed.nodes, parsed.edges, { orientation: graphOrientation })
-      let nextNodes: Node<ProcessNodeData>[] = laidOutNodes.map((node) => {
-        const previous = previousById.get(node.id)
-        return {
-          ...node,
-          position: previous?.position ?? node.position,
-          hidden: previous?.hidden ?? false,
-          selected: previous?.selected ?? false,
-          data: {
-            ...node.data,
-            expanded: previous?.data.expanded ?? false,
-            canRestore: previous?.data.canRestore ?? false,
-            canFold: parsed.edges.some((edge) => edge.target === node.id),
-          },
-        }
-      })
-      const hiddenIds = new Set(nextNodes.filter((node) => node.hidden).map((node) => node.id))
-      let nextEdges: Edge[] = parsed.edges.map((edge) => ({
-        ...edge,
-        hidden: hiddenIds.has(edge.source) || hiddenIds.has(edge.target),
-      }))
-      nextEdges = targetExpandedInputRows(nextNodes, nextEdges)
-      nextNodes = populateExpandedConnections(nextNodes, nextEdges)
-      foldDirectionRef.current = "upstream"
-      setEdges(nextEdges)
-      setNodes(nextNodes)
-      setGraphMode(mode)
-      setYamlError("")
-      requestAnimationFrame(() => nextNodes.filter((node) => node.data.scope === "background" && node.data.expanded).forEach((node) => void hydrateBackgroundNode(node.id)))
-    } catch (error) {
-      setYamlError(error instanceof Error ? error.message : "Could not parse this YAML file.")
-      setView("yaml")
-    }
-  }
-
-  useEffect(() => {
-    if (graphMode !== "scaled" || !lcaResult || calculatedRevision !== appliedRevision) return
-    showGraphMode("scaled")
-    // Apply an early Scaled Graph selection as soon as its scaling vector arrives.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appliedRevision, calculatedRevision, graphMode, lcaResult])
-
-  const applyYaml = (source: string) => {
-    try {
-      const parsed = buildGraphFromYaml(source, "structure", undefined, graphDecimalPlaces)
-      resetCalculationState()
-      const nextRevision = applySource(source)
-      markRevision(nextRevision)
-      foldDirectionRef.current = "upstream"
-      setEdges(parsed.edges)
-      setNodes(layoutNodes(parsed.nodes.map((node) => ({
-        ...node,
-        data: { ...node.data, canFold: parsed.edges.some((edge) => edge.target === node.id) },
-      })), parsed.edges, { orientation: graphOrientation }))
-      setYamlError("")
-      setResultsMarkdown("")
-      requestAnimationFrame(() => requestAnimationFrame(() => fitView({ padding: 0.35, maxZoom: 0.75, duration: 350 })))
-      return nextRevision
-    } catch (error) {
-      setYamlError(error instanceof Error ? error.message : "Could not parse this YAML file.")
-      return null
-    }
-  }
-
   const commitScenario = () => {
     if (!lcaResult) return
     const source = applyScenarioToYaml(appliedYaml, backgroundLinks(lcaResult), scenarioOverrides)
@@ -506,15 +180,9 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     void calculateSource(source, revision)
   }
 
-  const applyAndCalculateYaml = (source: string, openGraphWhenReady = true) => {
-    const revision = applyYaml(source)
-    if (revision === null) return
-    void calculateSource(source, revision, openGraphWhenReady)
-  }
-
   const {
     primaryView, analysisView,
-    templates, templateState, yamlError, setYamlError,
+    templates, templateState,
     pendingConfirmationOpen,
     saveAsOpen, setSaveAsOpen, saveAsName, setSaveAsName, saveAsError, setSaveAsError,
     saveAsReturnFocusRef, navbarUploadRef,
@@ -527,6 +195,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     cancelPendingAction, discardAndContinue, saveAndContinue, saveAsAndContinue,
     setPendingAction,
   } = useModelWorkspace({
+    setYamlError,
     applyYaml,
     applyAndCalculateYaml,
     calculateSource,

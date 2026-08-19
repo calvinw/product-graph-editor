@@ -31,6 +31,7 @@ export type PendingAction =
  * through a parameter list that is already wide enough.
  */
 export function useModelWorkspace({
+  setYamlError,
   applyYaml,
   applyAndCalculateYaml,
   calculateSource,
@@ -38,6 +39,7 @@ export function useModelWorkspace({
   setContributionError,
   cumulativeCategories,
 }: {
+  setYamlError: (message: string) => void
   applyYaml: (source: string) => number | null
   applyAndCalculateYaml: (source: string, openGraphWhenReady?: boolean) => void
   calculateSource: (source: string, revision: number, openGraphWhenReady?: boolean) => void | Promise<void>
@@ -62,7 +64,6 @@ export function useModelWorkspace({
   const [saveAsError, setSaveAsError] = useState("")
   const [templates, setTemplates] = useState<ProductGraphTemplate[]>([])
   const [templateState, setTemplateState] = useState<"loading" | "ready" | "unavailable">("loading")
-  const [yamlError, setYamlError] = useState("")
   const initialCalculationStartedRef = useRef(false)
   const navbarUploadRef = useRef<HTMLInputElement>(null)
   const saveAsReturnFocusRef = useRef<HTMLElement | null>(null)
@@ -348,7 +349,7 @@ export function useModelWorkspace({
 
   return {
     view, primaryView, analysisView, isAnalysisView,
-    templates, templateState, yamlError, setYamlError,
+    templates, templateState,
     pendingAction, pendingConfirmationOpen, setPendingConfirmationOpen,
     saveAsOpen, setSaveAsOpen, saveAsName, setSaveAsName, saveAsError, setSaveAsError,
     saveAsReturnFocusRef, navbarUploadRef,
