@@ -411,7 +411,8 @@ export function useGraphModel({
   // into existing node data rather than rebuilding nodes, so positions and
   // expansion state survive.
   useEffect(() => {
-    const active = graphMode === "scaled" ? visibleImpactCategories : []
+    const editing = graphMode === "scaled" && scenarioEditCount > 0
+    const active = editing ? visibleImpactCategories : []
     setNodes((current) => {
       let changed = false
       const next = current.map((node) => {
@@ -433,7 +434,7 @@ export function useGraphModel({
       })
       return changed ? next : current
     })
-  }, [backgroundImpacts, categoryOrder, foregroundImpacts, graphDecimalPlaces, graphMode, nodes, setNodes, visibleImpactCategories])
+  }, [backgroundImpacts, categoryOrder, foregroundImpacts, graphDecimalPlaces, graphMode, nodes, scenarioEditCount, setNodes, visibleImpactCategories])
 
   const scenario = useMemo(() => {
     const rows = lcaResult?.background_link_intensities ?? []
