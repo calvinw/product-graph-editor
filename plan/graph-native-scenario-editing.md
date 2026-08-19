@@ -88,6 +88,39 @@ They are not fully green, and the team decided to proceed anyway:
   `page.mouse.click(700, 700)`, which is position-sensitive. Expect the
   occasional false alarm.
 
+### Test repairs, August 19 2026
+
+The suite went from 27 passed / 5 failed to **31 / 1**. Four of the five were
+worth fixing and three were real defects, not stale expectations:
+
+- Two whole-page snapshots predated the AI chat work, showing the old
+  Model / Graph / Editor navbar with no Assistant button. Refreshed after
+  inspecting the rendered output.
+- Mouse column resize did nothing on sticky-header tables; the handle
+  protruded into the next header cell, which paints over it. Keyboard resize
+  always worked, hiding the fault.
+- The closed property editor stayed in the hit-testing and accessibility tree,
+  hidden by opacity alone.
+- A column could not grow once its neighbour hit its 80px minimum. This one was
+  masked: the horizontal-scroll test passed only because the last handle
+  protruded 5px past the table edge.
+
+### Open: does the property editor move the graph?
+
+`900 opening the inspector keeps the selected jacket node visible` still fails.
+Clicking a right-edge node leaves it about 118px underneath the panel.
+
+This is a product decision, not a defect with an obvious fix, because two tests
+encode opposite intentions:
+
+- `900` wants the selected node to stay clear when the panel opens.
+- `938` asserts the graph viewport transform is **unchanged** when it opens.
+
+`.graph-viewport.has-inspector { right: 322px }` narrows the container but
+nothing re-fits, so a right-edge node ends up behind the panel. Satisfying 900
+means panning the graph, which contradicts 938 as written. Deliberately left
+open; decide the intended behaviour before changing either test.
+
 **Working gate for Phases 1-2:** the 27 currently passing visual tests must stay
 passing. Watch for *new* failures rather than a green run. Re-check `542` in
 isolation before believing it.
@@ -126,11 +159,10 @@ state, returning a narrow interface.
 
 | Hook | Absorbs |
 |---|---|
-| `useGraphModel` | `nodes`/`edges` state, `layoutNodes`, `removeNode`, `restoreNode`, `toggleExpanded`, `setAllExpanded`, `relayout`, `fit`, `applyGraphSettings`, `showGraphMode` |
-| `useBackgroundHydration` | `hydrateBackgroundNode`, `toggleBackgroundBranch`, and their refs |
+| `useGraphModel` | `nodes`/`edges` state, `layoutNodes`, `removeNode`, `restoreNode`, `toggleExpanded`, `setAllExpanded`, `relayout`, `fit`, `applyGraphSettings`, `showGraphMode`, `applyYaml` |
 | `useCalculation` | `calculateSource`, `loadContributionGraphs`, `activeCalculationRef`, `contributionRequestsRef`, `loadingContributionKeys` |
-| `useWorkspaceDocuments` | templates, `loadTemplate`, `loadSessionModel`, `loadYamlFile`, save / save-as / discard / download |
-| `useViewRouting` | `pendingAction`, `requestAction`, `requestView`, `continueToView`, `openAnalysisView`, the unsaved-changes dialog |
+| `useGraphModel` (merged) | graph state and operations **plus** background hydration |
+| `useModelWorkspace` | templates, `loadTemplate`, `loadSessionModel`, `loadYamlFile`, save / save-as / discard / download, **and** `pendingAction`, `requestAction`, `requestView`, `continueToView`, `openAnalysisView`, the unsaved-changes dialog |
 | `useInspectorSelection` | `selected`, `lastSelectedRef`, `selectedNode`, `inputNodes`, `outputNodes` |
 
 Then extract the remaining JSX:
@@ -147,6 +179,39 @@ src/components/graph/
 Do these one hook per commit, running the visual suite each time. A single
 "extract everything" commit is not reviewable and not bisectable.
 
+### Revision: the six-hook split was drawn from layout, not dependencies
+
+Two of the six proposed hooks turned out to be single concerns. Both were
+identified by attempting the extraction, not by reading the file.
+
+**1. Background hydration belongs to the graph model.**
+`toggleExpanded`, `setAllExpanded`, and `showGraphMode` all call
+`hydrateBackgroundNode`, while `useBackgroundHydration` needs the model's
+`setNodes`/`setEdges` and refs. Neither ordering works, and no callback
+rearrangement helps: expanding a background node *is* a graph-model mutation.
+Merge `useBackgroundHydration` into `useGraphModel`.
+
+A third case was resolvable rather than fundamental. `applyYaml` calls
+`resetCalculationState` while `useCalculation` needed `appliedRevisionRef` —
+also circular, but only because the ref was misfiled. It records which revision
+a response must still match, which is a calculation concern; it moved into
+`useCalculation`, which now exposes `markRevision`. Sitting next to `nodesRef`
+and `edgesRef` in a 3000-line component had made it look like graph state.
+
+**2. Workspace and view routing are one hook, not two.**
+
+The original plan split these. They cannot be split cleanly.
+`saveAsSessionModelWithName` reads `pendingAction` and calls `performAction`,
+because "save before switching view" is simultaneously a document operation and
+a navigation operation. Separating them forces `pendingAction`,
+`setPendingAction`, and `performAction` through the workspace hook's parameter
+list on top of `applyYaml`, `applyAndCalculateYaml`, `calculateSource`, and
+`setView` — a seven-callback interface that is worse than the monolith it
+replaces.
+
+Extract them together as `useModelWorkspace`. A hook whose parameter list is
+that wide is telling you the seam is in the wrong place.
+
 Gate: zero snapshot diff after each commit.
 
 ### Also fix while here
@@ -157,6 +222,25 @@ is wrong for a product consumed by more than one process. It does not affect
 this feature, which uses the server's `scaling_vector`, but it is a live defect
 sitting in the file Phase 3 restructures. Fix it with a test graph that has a
 shared foreground provider.
+
+### Progress, August 18 2026
+
+| Step | `App.tsx` |
+|---|---|
+| Session start | 3095 |
+| Phase 1 complete | 1563 |
+| `useBackgroundHydration` | 1352 |
+| `useCalculation` | 1278 |
+| `useModelWorkspace` | 1002 |
+| applied-revision move | 1002 |
+
+Remaining: `useModelWorkspace`, `useInspectorSelection`, `useGraphModel`, then
+the `GraphCanvas` / `GraphToolbar` / `Inspector` split.
+
+`useGraphModel` should be done **last**. It owns `nodes`/`edges` and is
+interleaved with several effects, and both extracted hooks currently take graph
+state as parameters — `useBackgroundHydration` takes seven. Those signatures
+should shrink once `useGraphModel` exists. If they do not, the seams are wrong.
 
 ## Phase 3 — split structure from amounts
 
@@ -199,10 +283,32 @@ Behaviour:
 The drag writes `scenarioOverrides` in the store. Nothing else changes during
 the drag.
 
-Accessibility and precision: a canvas drag on a small label is fiddly, and the
-freight edge on the broom is 1.4% of the total. Pair the drag with the existing
-`NumberStepper` in the inspector so there is a keyboard-reachable, precise path
-to the same value. The drag is the demo; the stepper is the tool.
+### The label is the drag handle
+
+Scaled edge labels now show the amount and unit alone, without the flow name,
+so the target is a compact chip rather than a sentence. The flow name is
+already on the node the edge leaves.
+
+`pointerdown` must call `stopPropagation`, or React Flow pans the canvas
+instead of changing the value. Only edges carrying a `link_id` use this edge
+type; foreground edges keep the default renderer, and dragging is scaled mode
+only, since structure mode has no scaling vector behind it.
+
+### Bounds, and why the NumberStepper is required
+
+The drag runs from `0` to `2x` the baseline amount carried by the current
+result's `background_link_intensities`. Zero is a legitimate scenario -- not
+using that material at all -- and the score there is a real floor worth seeing.
+
+Bounds are anchored per result, so the range is stable while dragging. They do
+ratchet across commits: commit at 2x and the next range runs to 4x. That is
+accepted rather than solved, because the escape hatch is the `NumberStepper` in
+the inspector, which takes a precise unbounded value and is keyboard reachable.
+
+This makes the stepper **required, not optional**. Bounded dragging is only
+reasonable because an unbounded precise path sits beside it. The drag is for
+exploration; the stepper is for intent. Shipping the drag alone would leave
+values beyond 2x unreachable and the interaction unusable without a pointer.
 
 ## Phase 5 — a store action that survives recalculation
 
