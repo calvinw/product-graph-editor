@@ -97,7 +97,12 @@ export function ScenarioPanel({
               <span className="scenario-score-values">
                 <em>{formatNumber(total.baseline)}</em>
                 <ArrowRight size={12} />
-                <strong className={`is-${direction}`}>{formatNumber(total.preview)}</strong>
+                {/* Coloured by category, as on the graph. Direction is carried
+                    by the arrow and the signed percentage, so colour never
+                    means two different things. */}
+                <strong style={{ color: impactColor(categoryOrder.indexOf(total.label)) }}>
+                  {formatNumber(total.preview)}
+                </strong>
                 <small>{total.unit}</small>
               </span>
               {total.relativeDelta === null ? null : (
