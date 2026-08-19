@@ -217,8 +217,9 @@ payload, local arithmetic, and rendering — independently of the fixture above.
   dependency change inside this plan.
 - Realtime is unusable against the deployed engine until Tier 2 ships, which is
   itself blocked on Tier 1 merging to `main`.
-- Slider bounds are a flat 0 to 2x baseline. Graphs with very small or very
-  large amounts may want per-unit ranges.
+- Slider bounds settled: 0 to 2x the current result's baseline, ratcheting
+  across commits, with the NumberStepper as the unbounded precise path. See
+  `graph-native-scenario-editing.md`.
 
 ## Out of scope
 
