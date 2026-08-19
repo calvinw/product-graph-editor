@@ -70,10 +70,27 @@ correct result of Phases 1 and 2 is **zero snapshot diff**.
 2. If snapshots are stale, refresh and commit them as a separate baseline commit
    *before* any refactor, so the baseline is never entangled with the change.
 
-Gate: both suites green, baseline committed separately.
+### Outcome, August 18 2026
 
-Do not begin Phase 1 without this. A large extraction with no regression signal
-is how a "pure refactor" silently changes behaviour.
+The suites exist and are a usable guard: they mock the LCA API via `mockLcaApi`
+and manage their own dev server on port 5178, so they need neither the engine
+nor the network.
+
+They are not fully green, and the team decided to proceed anyway:
+
+- **Visual: 5 failed, 27 passed.** Verified pre-existing by running the suite on
+  `7b0bc7d`, the commit before the Realtime work — the same five fail there.
+  Accepted as known-bad.
+- **Responsive: not run.** Responsive behaviour is being reworked on another
+  branch, so failures there are expected and carry no signal for this work.
+- **One flaky test**, `542 settings popovers dismiss predictably`: failed one of
+  three full runs, passes in isolation. It dismisses popovers with
+  `page.mouse.click(700, 700)`, which is position-sensitive. Expect the
+  occasional false alarm.
+
+**Working gate for Phases 1-2:** the 27 currently passing visual tests must stay
+passing. Watch for *new* failures rather than a green run. Re-check `542` in
+isolation before believing it.
 
 ## Phase 1 — extract leaves
 
