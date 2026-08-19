@@ -40,8 +40,8 @@ import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
 import { buildGraphFromYaml } from "./lib/yamlGraph"
 import {
-  calculateContributionGraphs, calculateLca, getProductGraphTemplates, lcaResultToMarkdown,
-  type ContributionGraph, type ProductGraphTemplate,
+  getProductGraphTemplates, lcaResultToMarkdown,
+  type ProductGraphTemplate,
 } from "./lib/lcaApi"
 import { applyScenarioToYaml, backgroundLinks } from "./lib/realtimeScore"
 import { ImpactAnalysisView } from "@/components/views/ImpactAnalysisView"
@@ -52,6 +52,7 @@ import { ProcessResultsView } from "@/components/views/ProcessResultsView"
 import { SankeyView } from "@/components/views/SankeyView"
 import { FileMenu } from "@/components/workspace/FileMenu"
 import { useBackgroundHydration } from "@/hooks/useBackgroundHydration"
+import { useCalculation } from "@/hooks/useCalculation"
 import { WelcomePage } from "@/components/welcome/WelcomePage"
 import { productGraphLabel } from "./lib/resultFormatting"
 import { DisplaySettingsProvider, useDisplaySettings } from "./lib/displaySettings"
@@ -136,10 +137,6 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
   const [yamlError, setYamlError] = useState("")
   const [resultsMarkdown, setResultsMarkdown] = useState("")
   const resultsError = useProductGraphStore((state) => state.calculationError)
-  const [contributionError, setContributionError] = useState("")
-  const calculationStatus = useProductGraphStore((state) => state.calculationStatus)
-  const isCalculating = calculationStatus === "calculating"
-  const [loadingContributionKeys, setLoadingContributionKeys] = useState<Set<string>>(() => new Set())
   const lcaResult = useProductGraphStore((state) => state.lcaResult)
   const calculatedRevision = useProductGraphStore((state) => state.calculatedRevision)
   const scenarioOverrides = useProductGraphStore((state) => state.scenarioOverrides)
@@ -161,11 +158,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     setGraphConnectionStyle,
     dispatchWorkspace: dispatchModelWorkspace,
     applySource,
-    startCalculation,
-    completeCalculation,
     failCalculation,
-    finishCalculation,
-    mergeContributionGraphs,
     setScenarioOverride,
     resetScenario,
   } = storeActions
@@ -174,9 +167,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
   const nodesRef = useRef(nodes)
   const edgesRef = useRef(edges)
   const appliedRevisionRef = useRef(appliedRevision)
-  const activeCalculationRef = useRef<AbortController | null>(null)
   const initialCalculationStartedRef = useRef(false)
-  const contributionRequestsRef = useRef<Map<string, Promise<ContributionGraph[]>>>(new Map())
   const lastSelectedRef = useRef<(NodeMeta & { id: string }) | null>(null)
   const navbarUploadRef = useRef<HTMLInputElement>(null)
   const saveAsReturnFocusRef = useRef<HTMLElement | null>(null)
@@ -240,6 +231,16 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
       // Keep the currently displayed graph intact if the applied source cannot be rebuilt.
     }
   }, [appliedRevision, appliedYaml, calculatedRevision, graphDecimalPlaces, graphMode, lcaResult, setEdges])
+
+  const {
+    calculateSource, loadContributionGraphs, resetCalculationState,
+    setContributionError, contributionError, loadingContributionKeys,
+    isCalculating, calculationInProgress, calculationStatus,
+  } = useCalculation({
+    appliedRevisionRef,
+    onResultsMarkdown: setResultsMarkdown,
+    onOpenGraph: () => setView("graph"),
+  })
 
   const { hydrateBackgroundNode, toggleBackgroundBranch } = useBackgroundHydration({
     nodesRef, edgesRef, setNodes, setEdges,
@@ -490,8 +491,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
   const applyYaml = (source: string) => {
     try {
       const parsed = buildGraphFromYaml(source, "structure", undefined, graphDecimalPlaces)
-      activeCalculationRef.current?.abort()
-      activeCalculationRef.current = null
+      resetCalculationState()
       const nextRevision = applySource(source)
       appliedRevisionRef.current = nextRevision
       foldDirectionRef.current = "upstream"
@@ -502,9 +502,6 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
       })), parsed.edges, { orientation: graphOrientation }))
       setYamlError("")
       setResultsMarkdown("")
-      setContributionError("")
-      contributionRequestsRef.current.clear()
-      setLoadingContributionKeys(new Set())
       requestAnimationFrame(() => requestAnimationFrame(() => fitView({ padding: 0.35, maxZoom: 0.75, duration: 350 })))
       return nextRevision
     } catch (error) {
@@ -521,31 +518,6 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     const revision = applyYaml(source)
     if (revision === null) return
     void calculateSource(source, revision)
-  }
-
-  const calculateSource = async (source: string, revision: number, openGraphWhenReady = false) => {
-    activeCalculationRef.current?.abort()
-    const controller = new AbortController()
-    activeCalculationRef.current = controller
-    startCalculation()
-    setContributionError("")
-    contributionRequestsRef.current.clear()
-    setLoadingContributionKeys(new Set())
-    try {
-      const result = await calculateLca(source, controller.signal)
-      if (controller.signal.aborted || appliedRevisionRef.current !== revision) return
-      completeCalculation(result, revision)
-      setResultsMarkdown(lcaResultToMarkdown(result, decimalPlaces, showAllDecimalPlaces))
-      if (openGraphWhenReady) setView("graph")
-    } catch (error) {
-      if (controller.signal.aborted || appliedRevisionRef.current !== revision) return
-      failCalculation(error instanceof Error ? error.message : "Could not calculate the current product graph.")
-    } finally {
-      if (activeCalculationRef.current === controller) {
-        activeCalculationRef.current = null
-        finishCalculation()
-      }
-    }
   }
 
   useEffect(() => {
@@ -768,51 +740,6 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     .map((edge) => nodes.find((node) => node.id === edge.target))
     .filter((node): node is Node<ProcessNodeData> => Boolean(node)) : []
 
-  const loadContributionGraphs = async (requestedCategories: string[]): Promise<ContributionGraph[]> => {
-    const current = lcaResult
-    if (!current || calculatedRevision !== appliedRevision) {
-      throw new Error("Calculate the current product graph before loading cumulative contributions.")
-    }
-    const availableLabels = Object.keys(current.lcia)
-    const resolveLabel = (query: string) => {
-      const normalized = query.trim().toLowerCase()
-      const exact = availableLabels.filter((label) => label.toLowerCase() === normalized)
-      const component = availableLabels.filter((label) => label.split("|")[0].trim().toLowerCase() === normalized)
-      const substring = availableLabels.filter((label) => label.toLowerCase().includes(normalized))
-      const matches = exact.length ? exact : component.length ? component : substring
-      return matches.length === 1 ? matches[0] : query
-    }
-    const labels = [...new Set(requestedCategories.filter(Boolean).map(resolveLabel))]
-    const existing = new Map(current.contribution_graphs.map((graph) => [graph.label, graph]))
-    const missing = labels.filter((label) => !existing.has(label))
-    if (!missing.length) return labels.flatMap((label) => existing.get(label) ?? [])
-
-    const requestKey = `${current.result_id}:${[...missing].sort().join("\u001f")}`
-    let request = contributionRequestsRef.current.get(requestKey)
-    if (!request) {
-      setLoadingContributionKeys((keys) => new Set(keys).add(requestKey))
-      request = calculateContributionGraphs(appliedYaml, missing, current.result_id)
-        .then((batch) => {
-          mergeContributionGraphs(batch.result_id, batch.contribution_graphs)
-          setContributionError("")
-          return batch.contribution_graphs
-        })
-        .finally(() => {
-          if (contributionRequestsRef.current.get(requestKey) !== request) return
-          contributionRequestsRef.current.delete(requestKey)
-          setLoadingContributionKeys((keys) => {
-            const next = new Set(keys)
-            next.delete(requestKey)
-            return next
-          })
-        })
-      contributionRequestsRef.current.set(requestKey, request)
-    }
-    const loaded = await request
-    const combined = new Map([...existing, ...loaded.map((graph) => [graph.label, graph] as const)])
-    return labels.flatMap((label) => combined.get(label) ?? [])
-  }
-
   const cumulativeCategories = (() => {
     try {
       const source = parse(appliedYaml) as {
@@ -829,7 +756,6 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
       ? Object.entries(lcaResult.lcia).filter(([, value]) => value.score !== 0).map(([label]) => label)
       : []
   })()
-  const calculationInProgress = isCalculating || loadingContributionKeys.size > 0
   const backgroundProcessing = nodes.some((node) => node.data.backgroundExploring || node.data.backgroundLoading)
 
   const openAnalysisView = (next: AnalysisView) => {
