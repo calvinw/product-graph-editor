@@ -15,9 +15,6 @@ import { useProductGraphStore } from "@/state/productGraphStore"
 const initialEdges: Edge[] = []
 const initialNodes: Node<ProcessNodeData>[] = []
 
-/** Idle window after the last drag release before the exact calculation runs. */
-const COMMIT_IDLE_MS = 1500
-
 /**
  * The product graph's data model: nodes and edges, the operations that mutate
  * them, and applyYaml, which rebuilds the whole model from source.
@@ -327,8 +324,7 @@ export function useGraphModel({
 
   const commitScenario = useCallback(() => {
     if (commitTimerRef.current) window.clearTimeout(commitTimerRef.current)
-    commitTimerRef.current = window.setTimeout(() => {
-      commitTimerRef.current = null
+    {
       const current = commitInputsRef.current
       if (!current.lcaResult) return
       const source = applyScenarioToYaml(
@@ -345,11 +341,19 @@ export function useGraphModel({
       void Promise.resolve(current.calculateSource(source, revision)).then(() => {
         if (loadedCategories.length) void current.loadContributionGraphs(loadedCategories).catch(() => {})
       })
-    }, COMMIT_IDLE_MS)
+    }
   }, [])
 
   // Only links the engine published intensities for can be scored locally, so
   // only those become draggable.
+  const scenarioEditCount = useMemo(() => {
+    const rows = lcaResult?.background_link_intensities ?? []
+    return rows.filter((row) => {
+      const override = scenarioOverrides[scenarioKey(row)]
+      return Number.isFinite(override) && override !== row.amount
+    }).length
+  }, [lcaResult, scenarioOverrides])
+
   const scenario = useMemo(() => {
     const rows = lcaResult?.background_link_intensities ?? []
     return {
@@ -357,9 +361,8 @@ export function useGraphModel({
       draggableKeys: new Set(rows.map(scenarioKey)),
       baselineAmounts: Object.fromEntries(rows.map((row) => [scenarioKey(row), row.amount])),
       onChange: setScenarioOverride,
-      onCommit: commitScenario,
     }
-  }, [commitScenario, lcaResult, scenarioOverrides, setScenarioOverride])
+  }, [lcaResult, scenarioOverrides, setScenarioOverride])
 
   useEffect(() => {
     if (!structure) return
@@ -677,6 +680,7 @@ export function useGraphModel({
     fitView, zoomIn, zoomOut, fit, relayout,
     removeNode, restoreNode, toggleExpanded, setAllExpanded,
     applyGraphSettings, showGraphMode, applyYaml, applyAndCalculateYaml,
+    commitScenario, scenarioEditCount,
     hydrateBackgroundNode, toggleBackgroundBranch,
   }
 }
