@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Position, useEdgesState, useNodesState, useReactFlow, type Edge, type Node } from "@xyflow/react"
 import type { ProcessNodeData } from "@/components/ProcessNode"
 import { useDisplaySettings } from "@/lib/displaySettings"
 import { chemicalFlowLabel } from "@/lib/flowLabels"
 import { getBackgroundActivityDetails } from "@/lib/lcaApi"
 import { layoutNodes } from "@/lib/layout"
-import { buildGraphFromYaml, nodeScopeColors } from "@/lib/yamlGraph"
+import { buildGraphFromYaml, buildGraphStructure, decorateAmounts, nodeScopeColors } from "@/lib/yamlGraph"
+import { scenarioKey } from "@/lib/realtimeScore"
 import {
   incomingEdgesFor, inputHandleIdFor, populateExpandedConnections, targetExpandedInputRows,
 } from "@/lib/graphNodes"
@@ -52,9 +53,10 @@ export function useGraphModel({
   const graphOrientation = useProductGraphStore((state) => state.graphOrientation)
   const graphConnectionStyle = useProductGraphStore((state) => state.graphConnectionStyle)
   const selected = useProductGraphStore((state) => state.selectedNode)
+  const scenarioOverrides = useProductGraphStore((state) => state.scenarioOverrides)
   const {
     applySource, setGraphMode, setGraphMaxProcesses, setReferenceAmountsVisible,
-    requestViewChange: setView,
+    requestViewChange: setView, setScenarioOverride,
   } = useProductGraphStore((state) => state.actions)
 
   const foldDirectionRef = useRef<"upstream" | "downstream">("upstream")
@@ -289,17 +291,45 @@ export function useGraphModel({
 
   useEffect(() => setGraphMaxProcesses(availableGraphProcessCount), [availableGraphProcessCount, setGraphMaxProcesses])
   useEffect(() => setReferenceAmountsVisible(false), [graphMode, selected?.id, setReferenceAmountsVisible])
+  // Parsing the YAML is the expensive half, and a drag never changes it.
+  const structure = useMemo(() => {
+    try { return buildGraphStructure(appliedYaml) } catch { return null }
+  }, [appliedYaml])
+
+  // Only links the engine published intensities for can be scored locally, so
+  // only those become draggable.
+  const scenario = useMemo(() => {
+    const rows = lcaResult?.background_link_intensities ?? []
+    return {
+      overrides: scenarioOverrides,
+      draggableKeys: new Set(rows.map(scenarioKey)),
+      baselineAmounts: Object.fromEntries(rows.map((row) => [scenarioKey(row), row.amount])),
+      onChange: setScenarioOverride,
+    }
+  }, [lcaResult, scenarioOverrides, setScenarioOverride])
+
   useEffect(() => {
+    if (!structure) return
     try {
       const currentResult = calculatedRevision === appliedRevision ? lcaResult : null
       const mode = graphMode === "scaled" && currentResult ? "scaled" : "structure"
-      const refreshedEdges = buildGraphFromYaml(appliedYaml, mode, currentResult?.scaling_vector, graphDecimalPlaces).edges
-      const labelsById = new Map(refreshedEdges.map((edge) => [edge.id, edge.label]))
-      setEdges((current) => current.map((edge) => labelsById.has(edge.id) ? { ...edge, label: labelsById.get(edge.id) } : edge))
+      const refreshed = decorateAmounts(structure, {
+        mode,
+        scalingVector: currentResult?.scaling_vector,
+        decimalPlaces: graphDecimalPlaces,
+        scenario,
+      })
+      // Carry decoration onto the positioned edges; never replace them, so
+      // React Flow keeps its layout and the graph does not jump mid-drag.
+      const byId = new Map(refreshed.edges.map((edge) => [edge.id, edge]))
+      setEdges((current) => current.map((edge) => {
+        const next = byId.get(edge.id)
+        return next ? { ...edge, label: next.label, type: next.type, data: next.data } : edge
+      }))
     } catch {
       // Keep the currently displayed graph intact if the applied source cannot be rebuilt.
     }
-  }, [appliedRevision, appliedYaml, calculatedRevision, graphDecimalPlaces, graphMode, lcaResult, setEdges])
+  }, [appliedRevision, calculatedRevision, graphDecimalPlaces, graphMode, lcaResult, scenario, setEdges, structure])
 
 
 
@@ -501,7 +531,16 @@ export function useGraphModel({
         setYamlError("")
         return
       }
-      const parsed = buildGraphFromYaml(appliedYaml, mode, currentResult?.scaling_vector, graphDecimalPlaces)
+      // Decorate with the scenario here rather than patching edges afterwards,
+      // so the edges React Flow first sees already carry their type.
+      const parsed = structure
+        ? decorateAmounts(structure, {
+            mode,
+            scalingVector: currentResult?.scaling_vector,
+            decimalPlaces: graphDecimalPlaces,
+            scenario,
+          })
+        : buildGraphFromYaml(appliedYaml, mode, currentResult?.scaling_vector, graphDecimalPlaces)
       const previousById = new Map(nodesRef.current.map((node) => [node.id, node]))
       const laidOutNodes = layoutNodes(parsed.nodes, parsed.edges, { orientation: graphOrientation })
       let nextNodes: Node<ProcessNodeData>[] = laidOutNodes.map((node) => {
