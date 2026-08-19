@@ -11,7 +11,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import prismLogoRound from "./assets/prism-logo-round.png"
 import {
-  ArrowRight, BarChart3, Bot, Box, Check, Component, CopyPlus, Scan, LayoutGrid, ChevronDown, Download, Factory, FilePlus2, Globe2, Leaf,
+  ArrowRight, BarChart3, Bot, Box, Check, Component, CopyPlus, Scan, LayoutGrid, ChevronDown, Download, Factory, FilePlus2, Globe2,
   ChevronsDownUp, ChevronsUpDown, FileUp, Minus, Moon, MousePointer2, Plus, Save as SaveIcon, Search, Settings2, Sun, X,
 } from "lucide-react"
 import { parse } from "yaml"
@@ -32,7 +32,6 @@ import {
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { NumberStepper } from "@/components/NumberStepper"
@@ -42,21 +41,19 @@ import type { AppToolRuntime, SwitchViewOutcome } from "@/ai/viewTools"
 import { ProcessNode, type ProcessNodeData } from "./components/ProcessNode"
 import { layoutNodes } from "./lib/layout"
 import { chemicalFlowLabel } from "./lib/flowLabels"
-import { buildGraphFromYaml, buildInventoryRequirements, nodeScopeColors } from "./lib/yamlGraph"
+import { buildGraphFromYaml, nodeScopeColors } from "./lib/yamlGraph"
 import {
-  calculateContributionGraphs, calculateLca, getBackgroundActivityDetails, getProductGraphTemplates, impactCategoryAbbreviation, impactCategoryDisplayName, lcaResultToMarkdown,
-  type ContributionGraph, type ContributionGraphNode, type LcaResult, type ProductGraphTemplate,
+  calculateContributionGraphs, calculateLca, getBackgroundActivityDetails, getProductGraphTemplates, impactCategoryDisplayName, lcaResultToMarkdown,
+  type ContributionGraph, type LcaResult, type ProductGraphTemplate,
 } from "./lib/lcaApi"
 import { applyScenarioToYaml, backgroundLinks } from "./lib/realtimeScore"
 import { ImpactAnalysisView } from "@/components/views/ImpactAnalysisView"
+import { AppSelect, CurrentModelTitle, ToolButton } from "@/components/common/AppControls"
+import { ContributionView } from "@/components/views/ContributionView"
 import { InventoryView } from "@/components/views/InventoryView"
-import { ResizableTableHeader } from "@/components/common/ResizableTable"
-import {
-  cleanImpactProcessName, inventoryFlowName, isInventoryInput, normalizedFlow,
-  productGraphLabel, type ImpactYaml,
-} from "./lib/resultFormatting"
+import { ProcessResultsView } from "@/components/views/ProcessResultsView"
+import { inventoryFlowName, productGraphLabel } from "./lib/resultFormatting"
 import { unitsAreCompatible } from "./lib/units"
-import { cn } from "./lib/utils"
 import { DisplaySettingsProvider, useDisplaySettings } from "./lib/displaySettings"
 import {
   templateToDocument, safeYamlFilename,
@@ -138,383 +135,6 @@ const targetExpandedInputRows = (nodes: Node<ProcessNodeData>[], edges: Edge[]) 
   })
 }
 
-
-function ProcessResultsView({ result, yaml }: { result: LcaResult; yaml: string }) {
-  const { formatNumber, formatPercent } = useDisplaySettings()
-  const processNodes = result.sankey.nodes.filter((node) => node.kind === "process")
-  const [flowProcessId, setFlowProcessId] = useState("")
-  const [impactProcessId, setImpactProcessId] = useState("")
-  const [threshold, setThreshold] = useState(0.01)
-  const [flowColumnWidths, setFlowColumnWidths] = useState([140, 220, 230, 180, 140, 90])
-  const [impactColumnWidths, setImpactColumnWidths] = useState([170, 300, 190, 150, 120])
-  const referenceProcessId = result.sankey.links.find((link) => link.kind === "final_product")?.source
-  const defaultProcessId = processNodes.some((node) => node.id === referenceProcessId) ? referenceProcessId! : (processNodes.at(-1)?.id ?? "")
-  const selectedFlowProcessId = processNodes.some((node) => node.id === flowProcessId) ? flowProcessId : defaultProcessId
-  const selectedImpactProcessId = processNodes.some((node) => node.id === impactProcessId) ? impactProcessId : defaultProcessId
-  const selectedImpactNode = processNodes.find((node) => node.id === selectedImpactProcessId)
-  const processIds = new Set(processNodes.map((node) => node.id))
-  const incoming = new Map<string, string[]>()
-  result.sankey.links.forEach((link) => {
-    if (processIds.has(link.source) && processIds.has(link.target)) incoming.set(link.target, [...(incoming.get(link.target) ?? []), link.source])
-  })
-  const upstreamIds = (id: string, found = new Set<string>()): Set<string> => {
-    if (found.has(id)) return found
-    found.add(id)
-    ;(incoming.get(id) ?? []).forEach((source) => upstreamIds(source, found))
-    return found
-  }
-  const flowIncludedIds = upstreamIds(selectedFlowProcessId)
-  const impactIncludedIds = upstreamIds(selectedImpactProcessId)
-  let source: ImpactYaml = {}
-  try { source = parse(yaml) as ImpactYaml } catch { source = {} }
-  const yamlProcesses = source.processes ?? []
-  const yamlByName = new Map(yamlProcesses.flatMap((process) => [
-    [process.name.toLowerCase(), process],
-    [cleanImpactProcessName(process.name).toLowerCase(), process],
-  ]))
-  const nodeProcess = (node: (typeof processNodes)[number]) => yamlByName.get((node.process_name ?? node.label).toLowerCase())
-    ?? yamlByName.get(cleanImpactProcessName(node.process_name ?? node.label).toLowerCase())
-  const exactLciFlowKeys = new Set<string>()
-  const lciFlowAliases = new Map<string, Set<string>>()
-  Object.entries(result.lci).forEach(([name, value]) => {
-    const input = isInventoryInput(value.type)
-    const exactKey = `${input}:${normalizedFlow(name)}`
-    const aliasKey = `${input}:${normalizedFlow(name.split(/[|,]/)[0])}`
-    exactLciFlowKeys.add(exactKey)
-    lciFlowAliases.set(aliasKey, new Set(lciFlowAliases.get(aliasKey) ?? []).add(exactKey))
-  })
-  const canonicalFlowKey = (input: boolean, name: string) => {
-    const key = `${input}:${normalizedFlow(name)}`
-    if (exactLciFlowKeys.has(key)) return key
-    const aliases = lciFlowAliases.get(key)
-    return aliases?.size === 1 ? [...aliases][0] : key
-  }
-  const flowRows = new Map<string, { name: string; category: string; unit: string; upstream: number; direct: number; input: boolean }>()
-  processNodes.filter((node) => flowIncludedIds.has(node.id)).forEach((node) => {
-    const process = nodeProcess(node)
-    const scale = result.scaling_vector[node.id] ?? result.scaling_vector[node.process_name ?? ""] ?? result.scaling_vector[process?.name ?? ""] ?? 1
-    const exchanges = [
-      ...(process?.emissions ?? []).map((flow) => ({ ...flow, input: false })),
-      ...(process?.extractions ?? process?.resources ?? process?.resource_inputs ?? []).map((flow) => ({ ...flow, input: true })),
-    ]
-    exchanges.forEach((flow) => {
-      const key = canonicalFlowKey(flow.input, flow.flow)
-      const existing = flowRows.get(key) ?? { name: flow.flow, category: flow.input ? "elementary flows/resource" : "elementary flows/air", unit: flow.unit ?? "kg", upstream: 0, direct: 0, input: flow.input }
-      const amount = flow.amount * scale
-      existing.upstream += amount
-      if (node.id === selectedFlowProcessId) existing.direct += amount
-      flowRows.set(key, existing)
-    })
-  })
-
-  // Linked background processes are absent from the foreground YAML. Their
-  // per-process inventory is carried by the contribution graph occurrences.
-  // The same physical exchange can appear in several impact-category graphs,
-  // so retain the largest matching amount instead of counting it repeatedly.
-  type CalculatedFlow = { name: string; category: string; unit: string; upstream: number; direct: number; input: boolean }
-  const calculatedFlows = new Map<string, CalculatedFlow>()
-  result.contribution_graphs.forEach((graph) => {
-    const selectedOccurrences = new Set(graph.nodes
-      .filter((node) => node.kind === "process" && node.activity_id === selectedFlowProcessId)
-      .map((node) => node.id))
-    if (!selectedOccurrences.size) return
-
-    const children = new Map<string, string[]>()
-    graph.edges.forEach((edge) => children.set(edge.consumer_id, [...(children.get(edge.consumer_id) ?? []), edge.producer_id]))
-    const upstreamOccurrences = new Set<string>()
-    const includeUpstream = (id: string) => {
-      if (upstreamOccurrences.has(id)) return
-      upstreamOccurrences.add(id)
-      ;(children.get(id) ?? []).forEach(includeUpstream)
-    }
-    selectedOccurrences.forEach(includeUpstream)
-
-    const graphFlows = new Map<string, CalculatedFlow>()
-    graph.flows.forEach((flow) => {
-      if (!upstreamOccurrences.has(flow.process_occurrence_id)) return
-      const input = flow.kind === "extraction"
-      const category = `elementary flows/${flow.categories.join("/") || (input ? "resource" : "air")}`
-      const key = canonicalFlowKey(input, flow.flow_name)
-      const existing = graphFlows.get(key) ?? {
-        name: flow.flow_name,
-        category,
-        unit: flow.unit,
-        upstream: 0,
-        direct: 0,
-        input,
-      }
-      existing.upstream += flow.amount
-      if (selectedOccurrences.has(flow.process_occurrence_id)) existing.direct += flow.amount
-      graphFlows.set(key, existing)
-    })
-    graphFlows.forEach((flow, key) => {
-      const existing = calculatedFlows.get(key)
-      if (!existing) {
-        calculatedFlows.set(key, flow)
-        return
-      }
-      if (Math.abs(flow.upstream) > Math.abs(existing.upstream)) existing.upstream = flow.upstream
-      if (Math.abs(flow.direct) > Math.abs(existing.direct)) existing.direct = flow.direct
-    })
-  })
-  calculatedFlows.forEach((flow) => {
-    const yamlKey = canonicalFlowKey(flow.input, flow.name)
-    const existing = flowRows.get(yamlKey)
-    if (existing) {
-      existing.name = flow.name
-      existing.category = flow.category
-      existing.unit = flow.unit
-      existing.upstream = flow.upstream
-      existing.direct = flow.direct
-    } else {
-      flowRows.set(yamlKey, flow)
-    }
-  })
-
-  // For the reference process, the complete calculated LCI is authoritative;
-  // contribution graphs intentionally omit flows below their cutoffs.
-  if (flowIncludedIds.size === processIds.size) {
-    Object.entries(result.lci).forEach(([name, value]) => {
-      const input = isInventoryInput(value.type)
-      const key = canonicalFlowKey(input, name)
-      const existing = flowRows.get(key)
-      flowRows.set(key, {
-        name,
-        category: existing?.category ?? (input ? "elementary flows/resource" : "elementary flows/air"),
-        unit: value.unit,
-        upstream: value.amount,
-        direct: existing?.direct ?? 0,
-        input,
-      })
-    })
-  }
-  const flowTotals = [...flowRows.values()].reduce((totals, flow) => {
-    totals.set(flow.input, (totals.get(flow.input) ?? 0) + Math.abs(flow.upstream))
-    return totals
-  }, new Map<boolean, number>())
-  const flowContribution = (flow: { input: boolean; upstream: number }) => {
-    const total = flowTotals.get(flow.input) ?? 0
-    return total ? Math.abs(flow.upstream) / total * 100 : 0
-  }
-  const visibleFlows = [...flowRows.values()].filter((flow) => flowContribution(flow) >= threshold)
-  const renderFlowResultsTable = (input: boolean) => {
-    const rows = visibleFlows.filter((flow) => flow.input === input)
-    return <table className="process-flow-table" style={{ width: Math.max(1000, flowColumnWidths.reduce((sum, width) => sum + width, 0)) }}><ResizableTableHeader labels={["Contribution", "Flow", "Category", "Upstream incl. direct", "Direct", "Unit"]} widths={flowColumnWidths} onWidthsChange={setFlowColumnWidths} />
-      <tbody>{rows.length ? rows.map((flow) => <tr key={`${input}:${flow.name}`}>
-        <td><span className="process-result-bar"><i style={{ width: `${Math.min(100, flowContribution(flow))}%` }} /></span></td>
-        <td>{inventoryFlowName(flow.name)}</td><td>{flow.category}</td><td>{formatNumber(flow.upstream)}</td><td>{formatNumber(flow.direct)}</td><td>{flow.unit}</td>
-      </tr>) : <tr className="empty-row"><td colSpan={6}>No {input ? "input" : "output"} flows for this process.</td></tr>}</tbody>
-    </table>
-  }
-  const impactRows = result.process_contributions.categories.map((category) => {
-    const byId = new Map(category.processes.flatMap((process) => [
-      [process.process_id, process] as const,
-      [cleanImpactProcessName(process.process_name).toLowerCase(), process] as const,
-    ]))
-    const scoreFor = (node: (typeof processNodes)[number]) => byId.get(node.id) ?? byId.get(cleanImpactProcessName(node.process_name ?? node.label).toLowerCase())
-    const graph = result.contribution_graphs.find((candidate) => candidate.label === category.label)
-    const exactOccurrences = graph?.nodes.filter((node) => (
-      node.kind === "process" && node.activity_id === selectedImpactProcessId
-    )) ?? []
-    const upstream = exactOccurrences.length
-      ? exactOccurrences.reduce((sum, node) => sum + node.cumulative_score, 0)
-      : processNodes.filter((node) => impactIncludedIds.has(node.id)).reduce((sum, node) => sum + (scoreFor(node)?.direct_score ?? 0), 0)
-    const direct = selectedImpactNode ? scoreFor(selectedImpactNode)?.direct_score ?? 0 : 0
-    return { category, upstream, direct, contribution: category.total_score ? upstream / category.total_score * 100 : 0 }
-  }).filter((row) => Math.abs(row.contribution) >= threshold && row.upstream !== 0)
-
-  return <div className="process-results-view">
-    <div className="process-results-title"><div><strong>Process results</strong><span>{result.name} · {result.functional_unit}</span></div></div>
-    <details open><summary>Flow contributions to process results</summary>
-      <div className="process-results-controls"><label>Process <AppSelect value={selectedFlowProcessId} onValueChange={setFlowProcessId} label="Flow contribution process" options={processNodes.map((node) => ({ value: node.id, label: cleanImpactProcessName(node.process_name ?? node.label) }))} /></label><label>Don’t show &lt; <Input type="number" min="0" max="100" step="0.01" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label></div>
-      <div className="process-flow-grids"><section><h3>Inputs</h3>{renderFlowResultsTable(true)}</section><section><h3>Outputs</h3>{renderFlowResultsTable(false)}</section></div>
-    </details>
-    <details open><summary>Impact assessment results</summary>
-      <div className="process-results-controls"><label>Process <AppSelect value={selectedImpactProcessId} onValueChange={setImpactProcessId} label="Impact assessment process" options={processNodes.map((node) => ({ value: node.id, label: cleanImpactProcessName(node.process_name ?? node.label) }))} /></label><label>Don’t show &lt; <Input type="number" min="0" max="100" step="0.01" value={threshold} onChange={(event) => setThreshold(Math.max(0, Number(event.target.value)))} /> %</label></div>
-      <div className="process-impact-table-wrap"><table className="process-impact-table" style={{ width: Math.max(930, impactColumnWidths.reduce((sum, width) => sum + width, 0)) }}><ResizableTableHeader labels={["Contribution", "Impact category", "Upstream incl. direct", "Direct", "Unit"]} widths={impactColumnWidths} onWidthsChange={setImpactColumnWidths} /><tbody>{impactRows.map((row) => <tr key={row.category.id || row.category.label}><td><span className="process-result-bar"><i style={{ width: `${Math.min(100, Math.abs(row.contribution))}%` }} /></span>{formatPercent(row.contribution)}</td><td>{impactCategoryDisplayName(row.category.label)}</td><td>{formatNumber(row.upstream)}</td><td>{formatNumber(row.direct)}</td><td>{row.category.unit}</td></tr>)}</tbody></table></div>
-    </details>
-  </div>
-}
-
-function ContributionView({ result, yaml, isCurrent, error, loadContributionGraphs }: {
-  result: LcaResult | null
-  yaml: string
-  isCurrent: boolean
-  error: string
-  loadContributionGraphs: (categories: string[]) => Promise<ContributionGraph[]>
-}) {
-  const { formatNumber, formatPercent } = useDisplaySettings()
-  const [contributionMode, setContributionMode] = useState<"flow" | "impact">("impact")
-  const [impact, setImpact] = useState("")
-  const [flow, setFlow] = useState("")
-  const [expandedProcesses, setExpandedProcesses] = useState<Set<string>>(() => new Set())
-  const [columnWidths, setColumnWidths] = useState([190, 170, 320, 190, 250, 140])
-
-  const impactNames = result ? Object.keys(result.lcia) : []
-  const defaultImpact = impactNames.find((name) => impactCategoryAbbreviation(name).replaceAll(/\s+/g, "").toUpperCase() === "GWP100")
-    ?? impactNames.find((name) => /global warming|climate change/i.test(name))
-    ?? impactNames[0]
-    ?? ""
-  const selectedImpact = impactNames.includes(impact) ? impact : defaultImpact
-  if (!result || !isCurrent) return <div className="results-panel contribution-panel">
-    <div className="results-panel-head"><div><strong>Contribution analysis</strong><span>Compare direct and accumulated process impacts.</span></div></div>
-    <div className="results-placeholder"><div className="results-empty-icon"><BarChart3 size={22} /></div><strong>No current contribution results</strong><p>Calculate the LCA to populate this view.</p>{error ? <div className="results-error"><strong>Calculation failed</strong><p>{error}</p></div> : null}</div>
-  </div>
-
-  const category = result.process_contributions.categories.find((item) => item.label === selectedImpact || item.id === selectedImpact)
-  const selectedContributionGraph = result.contribution_graphs.find((item) => item.label === selectedImpact)
-  const availableFlows = [...new Map(result.contribution_graphs.flatMap((graph) => graph.flows).map((item) => [
-    `${item.flow_name}\u0000${item.unit}`,
-    { value: `${item.flow_name}\u0000${item.unit}`, label: `${chemicalFlowLabel(item.flow_name)} (${item.unit})` },
-  ])).values()].sort((left, right) => left.label.localeCompare(right.label))
-  const selectedFlow = availableFlows.some((item) => item.value === flow) ? flow : (availableFlows[0]?.value ?? "")
-  const [selectedFlowName, selectedFlowUnit = ""] = selectedFlow.split("\u0000")
-  let requirements: ReturnType<typeof buildInventoryRequirements> = []
-  try { requirements = buildInventoryRequirements(yaml, result.scaling_vector) } catch { requirements = [] }
-  const impactTotal = result.lcia[selectedImpact]
-  const cleanProcessName = (name: string) => name
-    .replace(/^(?:p?\d+)\s*[:.\-–—]\s*/i, "")
-    .trim()
-  const processName = (name: string, index: number) => {
-    const visible = cleanProcessName(name)
-    if (visible && !/^(?:p?\d+)$/i.test(visible)) return visible
-    return cleanProcessName(requirements[index]?.process ?? "")
-  }
-  const requiredAmount = (id: string, name: string, index: number) => {
-    const displayName = processName(name, index).toLowerCase()
-    const matchingRequirement = requirements.find((item) => cleanProcessName(item.process).toLowerCase() === displayName)
-    return result.scaling_vector[id]
-      ?? result.scaling_vector[name]
-      ?? matchingRequirement?.amount
-      ?? requirements[index]?.amount
-  }
-  const rows = (category?.processes ?? []).map((item, index) => ({ name: processName(item.process_name, index), required: requiredAmount(item.process_id, item.process_name, index), total: item.direct_score, percentage: item.percentage }))
-    .filter((row) => row.name && !/^(?:p?\d+)$/i.test(row.name))
-    .sort((left, right) => Math.abs(right.total) - Math.abs(left.total))
-  const total = category?.total_score ?? impactTotal?.score ?? 0
-  const unit = category?.unit ?? impactTotal?.unit ?? ""
-  const maxMagnitude = Math.max(Math.abs(total), ...rows.map((row) => Math.abs(row.total)), 1e-30)
-  const number = (value: number | undefined) => value === undefined ? "—" : formatNumber(value)
-  let legacyGraph: ReturnType<typeof buildGraphFromYaml> | null = null
-  try { legacyGraph = buildGraphFromYaml(yaml, "structure") } catch { legacyGraph = null }
-  const graphNameById = new Map(legacyGraph?.nodes.map((node) => [node.id, cleanProcessName(node.data.label)]) ?? [])
-  const upstreamByName = new Map<string, string[]>()
-  legacyGraph?.edges.forEach((edge) => {
-    const consumer = graphNameById.get(edge.target)
-    const supplier = graphNameById.get(edge.source)
-    if (!consumer || !supplier) return
-    upstreamByName.set(consumer, [...(upstreamByName.get(consumer) ?? []), supplier])
-  })
-  const rowByName = new Map(rows.map((row) => [row.name.toLowerCase(), row]))
-  const suppliedNames = new Set([...upstreamByName.values()].flat().map((name) => name.toLowerCase()))
-  const rootRows = rows.filter((row) => !suppliedNames.has(row.name.toLowerCase()))
-  const toggleProcess = (key: string) => setExpandedProcesses((current) => {
-    const next = new Set(current)
-    if (next.has(key)) next.delete(key); else next.add(key)
-    return next
-  })
-  const ownValue = (row: (typeof rows)[number]) => row.total
-  const rolledUpValue = (row: (typeof rows)[number], visited = new Set<string>()): number => {
-    const key = row.name.toLowerCase()
-    if (visited.has(key)) return 0
-    const nextVisited = new Set(visited).add(key)
-    const upstream = (upstreamByName.get(row.name) ?? [])
-      .map((name) => rowByName.get(name.toLowerCase()))
-      .filter((item): item is (typeof rows)[number] => Boolean(item))
-    return ownValue(row) + upstream.reduce((sum, child) => sum + rolledUpValue(child, nextVisited), 0)
-  }
-  const renderContributionRows = (items: typeof rows, depth = 0): React.ReactNode[] => items.flatMap((row, index) => {
-    const upstream = (upstreamByName.get(row.name) ?? [])
-      .map((name) => rowByName.get(name.toLowerCase()))
-      .filter((item): item is (typeof rows)[number] => Boolean(item))
-      .sort((left, right) => Math.abs(rolledUpValue(right)) - Math.abs(rolledUpValue(left)))
-    const canExpand = upstream.length > 0
-    const isOpen = expandedProcesses.has(row.name)
-    const displayedValue = rolledUpValue(row)
-    const contributionRate = total ? displayedValue / total * 100 : 0
-    const directPercent = total ? row.total / total * 100 : 0
-    const processRow = <tr key={`${row.name}-${depth}-${index}`} className={canExpand ? "clickable-process" : ""} onClick={canExpand ? () => toggleProcess(row.name) : undefined}>
-      <td><span className="result-bar contribution-rate-bar"><i className={contributionRate < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(contributionRate))}%` }} /></span><span className="rate-value">{formatPercent(contributionRate)}</span></td>
-      <td><span className="rate-value">{formatPercent(directPercent)}</span></td>
-      <td style={{ paddingLeft: `${7 + depth * 20}px` }}>{canExpand ? <button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-expanded={isOpen} aria-label={`${isOpen ? "Hide" : "Show"} inputs for ${row.name}`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className="process-mark">⌘</span>{row.name}</td>
-      <td>{number(row.total)}</td><td><span className="result-bar"><i className={displayedValue < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(displayedValue) / maxMagnitude * 100)}%` }} /></span>{number(displayedValue)}</td><td>{unit}</td>
-    </tr>
-    return isOpen ? [processRow, ...renderContributionRows(upstream, depth + 1)] : [processRow]
-  })
-
-  const graphNodesById = new Map(selectedContributionGraph?.nodes.map((node) => [node.id, node]) ?? [])
-  const graphChildren = new Map<string, ContributionGraphNode[]>()
-  selectedContributionGraph?.edges.forEach((edge) => {
-    const producer = graphNodesById.get(edge.producer_id)
-    if (producer?.kind !== "process") return
-    graphChildren.set(edge.consumer_id, [...(graphChildren.get(edge.consumer_id) ?? []), producer])
-  })
-  graphChildren.forEach((children) => children.sort((left, right) => Math.abs(right.cumulative_score) - Math.abs(left.cumulative_score)))
-  const flowDirectScore = (nodeId: string) => selectedContributionGraph?.flows
-    .filter((item) => item.process_occurrence_id === nodeId && item.flow_name === selectedFlowName && item.unit === selectedFlowUnit)
-    .reduce((sum, item) => sum + item.amount, 0) ?? 0
-  const flowCumulativeScore = (nodeId: string, visited = new Set<string>()): number => {
-    if (visited.has(nodeId)) return 0
-    const nextVisited = new Set(visited).add(nodeId)
-    return flowDirectScore(nodeId) + (graphChildren.get(nodeId) ?? []).reduce((sum, child) => sum + flowCumulativeScore(child.id, nextVisited), 0)
-  }
-  const graphRootId = selectedContributionGraph?.nodes.find((node) => node.kind === "functional_unit")?.id ?? ""
-  const graphRootProcesses = graphChildren.get(graphRootId) ?? []
-  const flowTotal = graphRootProcesses.reduce((sum, node) => sum + flowCumulativeScore(node.id), 0)
-  const displayedTotal = contributionMode === "flow" ? flowTotal : (selectedContributionGraph?.total_score ?? total)
-  const displayedUnit = contributionMode === "flow" ? selectedFlowUnit : (selectedContributionGraph?.unit ?? unit)
-  const graphNodeCumulativeScore = (node: ContributionGraphNode) => contributionMode === "flow" ? flowCumulativeScore(node.id) : node.cumulative_score
-  const renderGraphProcesses = (items: ContributionGraphNode[], depth = 0): React.ReactNode[] => items.flatMap((node) => {
-    const children = graphChildren.get(node.id) ?? []
-    const isOpen = expandedProcesses.has(node.id)
-    const directScore = contributionMode === "flow" ? flowDirectScore(node.id) : node.direct_score
-    const cumulativeScore = graphNodeCumulativeScore(node)
-    const contributionRate = displayedTotal ? cumulativeScore / displayedTotal * 100 : null
-    const percent = displayedTotal ? cumulativeScore / displayedTotal * 100 : null
-    const directPercent = displayedTotal ? directScore / displayedTotal * 100 : null
-    const row = <tr key={node.id} className={children.length ? "clickable-process contribution-process-row" : "contribution-process-row"} onClick={children.length ? () => toggleProcess(node.id) : undefined}>
-      <td>{contributionRate === null ? "—" : <><span className="result-bar contribution-rate-bar"><i className={contributionRate < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(contributionRate))}%` }} /></span><span className="rate-value">{formatPercent(contributionRate)}</span></>}</td>
-      <td><span className="rate-value">{directPercent === null ? "—" : formatPercent(directPercent)}</span></td>
-      <td style={{ paddingLeft: `${7 + depth * 20}px` }}>{children.length ? <button className={`tree-toggle ${isOpen ? "is-expanded" : ""}`} aria-expanded={isOpen} aria-label={`${isOpen ? "Hide" : "Show"} upstream processes for ${node.process_name}`}><ChevronDown size={14} /></button> : <span className="tree-toggle-spacer" />}<span className="process-mark">⌘</span>{cleanProcessName(node.process_name)}{node.location ? <small>{node.location}</small> : null}</td>
-      <td>{number(directScore)}</td>
-      <td><span className="result-bar"><i className={cumulativeScore < 0 ? "negative" : ""} style={{ width: `${Math.min(100, Math.abs(percent ?? 0))}%` }} /></span>{number(cumulativeScore)}</td>
-      <td>{displayedUnit}</td>
-    </tr>
-    return isOpen ? [row, ...renderGraphProcesses(children, depth + 1)] : [row]
-  })
-
-  return <div className="contribution-view">
-    <div className="contribution-title"><div><strong>Contribution analysis</strong><span>{result.name} · {result.method} · {result.functional_unit}</span></div>
-      {selectedContributionGraph ? <aside className={`contribution-graph-summary is-${selectedContributionGraph.status}`}>
-        <strong>{selectedContributionGraph.status.replace("_", " ")}</strong>
-        <span>Total {formatNumber(selectedContributionGraph.total_score)} {selectedContributionGraph.unit} · Coverage {selectedContributionGraph.coverage === null ? "—" : formatPercent(selectedContributionGraph.coverage * 100)} · Unexpanded {formatNumber(selectedContributionGraph.unexpanded_score)} {selectedContributionGraph.unit}</span>
-      </aside> : null}
-    </div>
-    <div className="contribution-controls">
-      <div className="contribution-mode-group"><label className={contributionMode === "flow" ? "active" : ""}><input className="app-radio" type="radio" name="contribution-mode" checked={contributionMode === "flow"} onChange={() => setContributionMode("flow")} />Flows</label><label className={contributionMode === "impact" ? "active" : ""}><input className="app-radio" type="radio" name="contribution-mode" checked={contributionMode === "impact"} onChange={() => setContributionMode("impact")} />Impact category</label></div>
-      <div className="contribution-control-slot">{contributionMode === "flow"
-        ? <div className="contribution-select is-flow"><Leaf size={16} /><AppSelect value={selectedFlow} onValueChange={setFlow} label="Flow" options={availableFlows} /></div>
-        : <div className="contribution-select is-impact"><BarChart3 size={16} /><AppSelect value={selectedImpact} onValueChange={(value) => { setImpact(value); void loadContributionGraphs([value]) }} label="Impact category" options={impactNames.map((value) => ({ value, label: impactCategoryDisplayName(value) }))} /></div>}</div>
-      {!selectedContributionGraph ? <p className="contribution-fallback-note">Recursive contributions were not requested for this category. Showing the available process-contribution results.</p> : null}
-    </div>
-    <div className="contribution-table-wrap"><table className="contribution-table" style={{ width: Math.max(1180, columnWidths.reduce((sum, width) => sum + width, 0)) }}><ResizableTableHeader labels={[
-      "Contribution",
-      "Direct Contribution %",
-      "Process",
-      "Direct contribution",
-      "Accumulated contribution",
-      "Unit",
-    ]} widths={columnWidths} onWidthsChange={setColumnWidths} /><tbody>
-      {selectedContributionGraph ? <>
-        {renderGraphProcesses(graphRootProcesses)}
-        {!selectedContributionGraph.nodes.some((node) => node.kind === "process") ? <tr className="empty-row"><td colSpan={6}>{selectedContributionGraph.status === "zero_total" ? "This selection has a zero total, so contribution percentages are unavailable." : "No process contributions were returned for this selection."}</td></tr> : null}
-      </> : <>
-        {renderContributionRows(rootRows.length ? rootRows : rows)}
-        {!rows.length ? <tr className="empty-row"><td colSpan={6}>No process contribution rows were returned for this category.</td></tr> : null}
-      </>}
-    </tbody></table></div>
-  </div>
-}
 
 function SankeyView({ result, loadContributionGraphs }: {
   result: LcaResult
@@ -938,42 +558,6 @@ function SankeyView({ result, loadContributionGraphs }: {
       </dl>
     </div>
   </div>
-}
-
-function ToolButton({ label, children, onClick }: { label: string; children: React.ReactNode; onClick?: () => void }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button aria-label={label} onClick={onClick} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-          {children}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent side="right" sideOffset={8} className="tooltip">{label}</TooltipContent>
-    </Tooltip>
-  )
-}
-
-function AppSelect({
-  value,
-  onValueChange,
-  options,
-  label,
-}: {
-  value: string
-  onValueChange: (value: string) => void
-  options: Array<{ value: string; label: string; disabled?: boolean }>
-  label: string
-}) {
-  return <Select value={value} onValueChange={onValueChange}>
-    <SelectTrigger aria-label={label}><SelectValue /></SelectTrigger>
-    <SelectContent position="popper">
-      {options.map((option) => <SelectItem key={option.value} value={option.value} disabled={option.disabled}>{option.label}</SelectItem>)}
-    </SelectContent>
-  </Select>
-}
-
-function CurrentModelTitle({ title, className = "" }: { title: string; className?: string }) {
-  return <span className={cn("current-model-title", className)} aria-label={`Current model: ${title}`} title={title}>{title}</span>
 }
 
 function FileMenu({
