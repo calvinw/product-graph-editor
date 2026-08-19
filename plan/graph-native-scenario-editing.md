@@ -127,8 +127,8 @@ state, returning a narrow interface.
 | Hook | Absorbs |
 |---|---|
 | `useGraphModel` | `nodes`/`edges` state, `layoutNodes`, `removeNode`, `restoreNode`, `toggleExpanded`, `setAllExpanded`, `relayout`, `fit`, `applyGraphSettings`, `showGraphMode`, `applyYaml` |
-| `useBackgroundHydration` | `hydrateBackgroundNode`, `toggleBackgroundBranch`, and their refs |
 | `useCalculation` | `calculateSource`, `loadContributionGraphs`, `activeCalculationRef`, `contributionRequestsRef`, `loadingContributionKeys` |
+| `useGraphModel` (merged) | graph state and operations **plus** background hydration |
 | `useModelWorkspace` | templates, `loadTemplate`, `loadSessionModel`, `loadYamlFile`, save / save-as / discard / download, **and** `pendingAction`, `requestAction`, `requestView`, `continueToView`, `openAnalysisView`, the unsaved-changes dialog |
 | `useInspectorSelection` | `selected`, `lastSelectedRef`, `selectedNode`, `inputNodes`, `outputNodes` |
 
@@ -146,7 +146,26 @@ src/components/graph/
 Do these one hook per commit, running the visual suite each time. A single
 "extract everything" commit is not reviewable and not bisectable.
 
-### Revision: workspace and view routing are one hook, not two
+### Revision: the six-hook split was drawn from layout, not dependencies
+
+Two of the six proposed hooks turned out to be single concerns. Both were
+identified by attempting the extraction, not by reading the file.
+
+**1. Background hydration belongs to the graph model.**
+`toggleExpanded`, `setAllExpanded`, and `showGraphMode` all call
+`hydrateBackgroundNode`, while `useBackgroundHydration` needs the model's
+`setNodes`/`setEdges` and refs. Neither ordering works, and no callback
+rearrangement helps: expanding a background node *is* a graph-model mutation.
+Merge `useBackgroundHydration` into `useGraphModel`.
+
+A third case was resolvable rather than fundamental. `applyYaml` calls
+`resetCalculationState` while `useCalculation` needed `appliedRevisionRef` —
+also circular, but only because the ref was misfiled. It records which revision
+a response must still match, which is a calculation concern; it moved into
+`useCalculation`, which now exposes `markRevision`. Sitting next to `nodesRef`
+and `edgesRef` in a 3000-line component had made it look like graph state.
+
+**2. Workspace and view routing are one hook, not two.**
 
 The original plan split these. They cannot be split cleanly.
 `saveAsSessionModelWithName` reads `pendingAction` and calls `performAction`,
@@ -179,6 +198,8 @@ shared foreground provider.
 | Phase 1 complete | 1563 |
 | `useBackgroundHydration` | 1352 |
 | `useCalculation` | 1278 |
+| `useModelWorkspace` | 1002 |
+| applied-revision move | 1002 |
 
 Remaining: `useModelWorkspace`, `useInspectorSelection`, `useGraphModel`, then
 the `GraphCanvas` / `GraphToolbar` / `Inspector` split.
