@@ -113,7 +113,10 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     toggleExpanded, setAllExpanded,
     applyGraphSettings, showGraphMode, applyYaml, applyAndCalculateYaml,
     hydrateBackgroundNode,
-  } = useGraphModel({ resetCalculationState, markRevision, calculateSource, onResultsMarkdown: setResultsMarkdown })
+  } = useGraphModel({
+    resetCalculationState, markRevision, calculateSource,
+    onResultsMarkdown: setResultsMarkdown, loadContributionGraphs,
+  })
 
   // Re-render the markdown report when display precision changes.
   useEffect(() => {

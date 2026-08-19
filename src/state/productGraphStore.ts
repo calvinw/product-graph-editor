@@ -33,6 +33,7 @@ type ProductGraphActions = {
   setGraphMaxProcesses: (maximum: number) => void
   dispatchWorkspace: (action: ModelWorkspaceAction) => void
   applySource: (yaml: string) => number
+  applyScenarioSource: (yaml: string) => number
   startCalculation: () => void
   clearCalculationError: () => void
   completeCalculation: (result: LcaResult, revision: number) => void
@@ -106,6 +107,19 @@ export const useProductGraphStore = create<ProductGraphState>()((set, get) => ({
         calculatedRevision: null,
         scenarioOverrides: {},
       })
+      return appliedRevision
+    },
+    /**
+     * Apply YAML derived from a scenario drag.
+     *
+     * Unlike applySource this keeps the graph mode, the selection, and the
+     * previous result, so committing a drag does not eject the user from
+     * scaled mode or blank the scores while the exact calculation runs. The
+     * revision still advances, so a stale response is discarded.
+     */
+    applyScenarioSource: (appliedYaml) => {
+      const appliedRevision = get().appliedRevision + 1
+      set({ appliedYaml, appliedRevision, calculationError: "" })
       return appliedRevision
     },
     startCalculation: () => set({ calculationStatus: "calculating", calculationError: "" }),
