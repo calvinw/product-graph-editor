@@ -270,6 +270,133 @@ holds, but with more landing on the live side than first assumed.
    `RELATIVE_DRIFT_TOLERANCE`, surface it rather than silently swapping the
    number.
 
+## Phase 7b — refresh orchestration
+
+The drag is a third tier beneath the two calls the app already makes. It does
+not replace them and needs no new endpoint.
+
+```text
+Tier 0  drag           local, 0ms, no call
+        category totals; foreground cumulative; boundary provider
+        branch totals; background subtrees scaled per branch
+        -> an overlay on the current baseline, never invalidating it
+
+Tier 1  POST /api/lca/base            ~800ms
+        lci, lcia, scaling_vector, process_contributions, sankey,
+        background_link_intensities
+        -> establishes a baseline keyed by result_id
+
+Tier 2  POST /api/lca/contribution    ~700ms per category, lazy
+        contribution_graphs, merged into that baseline,
+        guarded by result_id
+```
+
+`result_id` is a hash of the product graph, so it self-invalidates when amounts
+change, and `mergeContributionGraphs` already rejects batches whose `result_id`
+does not match. That is exactly the staleness guard a scenario flow needs, and
+it already exists.
+
+### When Tier 0 gets promoted
+
+A background-only drag produces **exact** scores, so the refresh is not needed
+for scores at all — only for inventory, background direct contributions,
+Sankey, and the contribution tree. That is the same data the analysis views
+consume, so make the refresh lazy in the same way Tier 2 already is:
+
+- on `pointerup`, mark the scenario pending; do **not** call;
+- promote when the user opens a server-backed view, expands a background
+  branch, or presses Calculate;
+- plus a speculative idle debounce of roughly 1.5s after the last release, so a
+  rapid series of drags fires one calculation rather than five, and the result
+  is usually ready before the user switches views.
+
+### Sequence
+
+1. `pointerdown` on a scenario edge begins the scenario.
+2. `pointermove` sets the override, re-runs `decorateAmounts` and
+   `solveForegroundCumulative`, re-renders. No call.
+3. `pointerup` marks the scenario pending and starts the idle timer.
+4. Timer fires, or a server-backed view is opened.
+5. `applyScenarioToYaml` then `applyScenarioSource`, preserving scaled mode and
+   selection.
+6. Tier 1 runs: new baseline, new `result_id`, overrides cleared.
+7. Re-request the contribution categories that were loaded before the commit.
+8. Reconcile: if the exact score differs from the preview by more than
+   `RELATIVE_DRIFT_TOLERANCE`, surface it.
+
+### Step 7 will not happen by itself
+
+`calculateSource` currently calls `contributionRequestsRef.current.clear()`, and
+the new `result_id` invalidates every previously merged graph. Today that is
+harmless because the user reopens a view and it refetches. In a scenario flow it
+reads as a regression: drag, commit, and the Contribution view goes blank.
+
+Capture the set of loaded category labels before the commit and re-request them
+after Tier 1 returns.
+
+### Preserve expansion state across a commit
+
+Contribution node ids are built as
+`_stable_id("contribution-occurrence", label, unique_id, activity_id)`, where
+`unique_id` is the traversal index. Pruning one node shifts every later index,
+so ids churn wholesale even when the tree is nearly unchanged. Measured on the
+BAFU broom with PLA halved:
+
+| Keyed by | Shared nodes |
+|---|---|
+| raw occurrence `id` | 11 of 85 |
+| `(activity_id, depth)` | 69 of 69 |
+
+Every node in the changed graph already existed in the baseline; sixteen dropped
+below the cutoff and none appeared. `activity_id` is `database` + `code` and is
+stable.
+
+So key expansion state on `(activity_id, depth)`, not on the occurrence id.
+Without this, every commit destroys the user's expanded background branches.
+
+### Cost
+
+| | Calls | Latency |
+|---|---|---|
+| Per drag frame | 0 | ~0ms |
+| Per committed scenario | 1 | ~800ms |
+| Plus each previously-open category | 1 batch | ~700ms |
+
+A committed scenario costs what pressing Calculate costs today. Everything
+between drags is free.
+
+## Relationship to the eager background graph plans
+
+[`eager-background-contribution-graphs.md`](eager-background-contribution-graphs.md)
+and its engine partner `PLAN_eager_background_graph_bundle.md`, both July 27,
+2026, proposed returning every bounded background contribution graph in a single
+`run_lca` response so exploration would be local.
+
+`lazy-calculate-lca-engine-plan.md`, dated one day later, states that it
+**supersedes the framing** of the engine-side eager plan, and the lazy two-call
+design is what shipped. The editor-side eager plan still reads
+`Status: Proposed` and should be marked superseded; leaving it dangling invites
+someone to build against a contract that lost.
+
+The eager plans and this one pursue the same goal by opposite means:
+
+| | Eager | Tier 2 + scenario editing |
+|---|---|---|
+| Method | ship all the data | ship the coefficients and recompute |
+| Payload | ~1,000 nodes x N categories | ~1 float per link per category |
+| Rescoring under a changed input | not possible without a new full call | exact and local |
+
+Scenario editing is an argument against reviving eager. Under frequent parameter
+change an eager response is the wrong shape: every drag-release would ship the
+full multi-category tree. Step 7 above exists only because contribution graphs
+are lazy; under eager it would fold into Tier 1, at a much larger cost per
+commit.
+
+What remains valuable in those documents is their cutoff and topology analysis,
+and their warning that rendering roughly 1,000 React Flow nodes is a frontend
+problem even when transferring them is not. That applies directly here, since
+scaling background subtrees live means holding a large tree in memory.
+
 ## Phase 8 — verify and document
 
 - Re-run visual and responsive suites; refresh snapshots deliberately, since the
