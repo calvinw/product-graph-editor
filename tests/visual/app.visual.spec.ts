@@ -1019,3 +1019,4 @@ for (const theme of ["dark", "light"] as const) {
     await screenshot(page, `${theme}-sankey-chart-settings.png`)
   })
 }
+
