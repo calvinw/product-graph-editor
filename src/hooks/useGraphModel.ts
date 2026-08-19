@@ -6,7 +6,10 @@ import { chemicalFlowLabel } from "@/lib/flowLabels"
 import { getBackgroundActivityDetails } from "@/lib/lcaApi"
 import { layoutNodes } from "@/lib/layout"
 import { buildGraphFromYaml, buildGraphStructure, decorateAmounts, nodeScopeColors } from "@/lib/yamlGraph"
-import { applyScenarioToYaml, backgroundLinks, scenarioKey } from "@/lib/realtimeScore"
+import {
+  applyScenarioToYaml, backgroundLinks, scenarioAmount, scenarioKey, scoreScenario,
+  solveForegroundCumulative, type ForegroundProcess,
+} from "@/lib/realtimeScore"
 import {
   incomingEdgesFor, inputHandleIdFor, populateExpandedConnections, targetExpandedInputRows,
 } from "@/lib/graphNodes"
@@ -354,6 +357,37 @@ export function useGraphModel({
     }).length
   }, [lcaResult, scenarioOverrides])
 
+  // Every foreground node's cumulative impact, re-solved locally. A background
+  // amount edit only moves the right hand side, so this stays exact mid-drag.
+  const foregroundImpacts = useMemo(() => {
+    if (!structure || !lcaResult) return {}
+    try {
+      return solveForegroundCumulative(
+        structure.graph.processes as unknown as ForegroundProcess[], lcaResult, scenarioOverrides,
+      )
+    } catch { return {} }
+  }, [lcaResult, scenarioOverrides, structure])
+
+  // A boundary provider's own contribution: amount x consumer scale x intensity.
+  const backgroundImpacts = useMemo(() => {
+    const out: Record<string, Array<{ label: string; unit: string; cumulative: number; percentage: number | null }>> = {}
+    if (!lcaResult) return out
+    for (const link of backgroundLinks(lcaResult)) {
+      const scale = lcaResult.scaling_vector[link.process_name] ?? 0
+      const amount = scenarioAmount(link, scenarioOverrides)
+      out[link.flow] = Object.entries(lcaResult.lcia).map(([label, impact]) => {
+        const cumulative = scale * amount * (link.intensities[label] ?? 0)
+        return { label, unit: impact.unit, cumulative, percentage: impact.score ? (cumulative / impact.score) * 100 : null }
+      })
+    }
+    return out
+  }, [lcaResult, scenarioOverrides])
+
+  const categoryTotals = useMemo(
+    () => (lcaResult ? scoreScenario(lcaResult, scenarioOverrides) : []),
+    [lcaResult, scenarioOverrides],
+  )
+
   const scenario = useMemo(() => {
     const rows = lcaResult?.background_link_intensities ?? []
     return {
@@ -681,6 +715,7 @@ export function useGraphModel({
     removeNode, restoreNode, toggleExpanded, setAllExpanded,
     applyGraphSettings, showGraphMode, applyYaml, applyAndCalculateYaml,
     commitScenario, scenarioEditCount,
+    foregroundImpacts, backgroundImpacts, categoryTotals,
     hydrateBackgroundNode, toggleBackgroundBranch,
   }
 }
