@@ -1,8 +1,11 @@
 import { Background, BackgroundVariant, ReactFlow, type Edge, type Node, type OnEdgesChange, type OnNodesChange } from "@xyflow/react"
 import { ProcessNode, type ProcessNodeData } from "@/components/ProcessNode"
+import { ScenarioEdge } from "@/components/graph/ScenarioEdge"
 import type { SelectedGraphNode } from "@/state/productGraphStore"
 
 const nodeTypes = { process: ProcessNode }
+// Only background-input edges carry a scenario type; the rest stay default.
+const edgeTypes = { scenario: ScenarioEdge }
 
 /**
  * The React Flow surface for the product graph.
@@ -33,6 +36,7 @@ export function GraphCanvas({
       nodes={nodes}
       edges={edges}
       nodeTypes={nodeTypes}
+      edgeTypes={edgeTypes}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onNodeClick={(_, node) => {
