@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Children, isValidElement, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { Bot, GripVertical, KeyRound, MessageSquarePlus, Send, Settings2, Square, X } from "lucide-react"
+import { ArrowUp, Download, GripVertical, KeyRound, MessageSquarePlus, Settings2, Square, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -23,22 +23,35 @@ import {
   appToolDefinitions, confirmationSummary, confirmedToolNames, executeAppTool, listViews, type AppToolRuntime, type ViewToolCall,
 } from "@/ai/viewTools"
 
+type MessageSegment =
+  | { kind: "text"; id: string; content: string }
+  | { kind: "tool"; id: string; name: string; output: unknown; error?: boolean }
+
 type ChatMessage = {
   id: string
   role: "user" | "assistant"
-  content: string
+  segments: MessageSegment[]
   streaming?: boolean
-  tools?: Array<{ name: string; output: unknown; error?: boolean }>
+}
+
+function messageText(message: ChatMessage) {
+  return message.segments.filter((segment): segment is Extract<MessageSegment, { kind: "text" }> => segment.kind === "text")
+    .map((segment) => segment.content).join("")
 }
 
 const MODELS = [
-  ["openai/gpt-4o-mini", "GPT-4o mini"],
   ["openai/gpt-5.6-luna", "GPT-5.6 Luna"],
+  ["google/gemini-3.7-flash", "Gemini 3.7 Flash"],
+  ["google/gemini-3-flash-preview", "Gemini 3 Flash (preview)"],
+  ["deepseek/deepseek-v4-flash-0731", "DeepSeek V4 Flash"],
+  ["qwen/qwen3.7-flash", "Qwen3.7 Flash"],
+  ["openai/gpt-4o-mini", "GPT-4o mini"],
 ] as const
 const ENDPOINT = import.meta.env.VITE_OPENROUTER_ENDPOINT ?? "https://openrouter.ai/api/v1/chat/completions"
 const MODEL_STORAGE = "product-graph-editor:chat-model"
 const WIDTH_STORAGE = "product-graph-editor:chat-width"
 const AUDIT_STORAGE = "product-graph-editor:chat-tool-audit"
+const API_KEY_STORAGE = "product-graph-editor:chat-api-key"
 
 function storedValue(key: string, fallback: string) {
   try { return localStorage.getItem(key) ?? fallback } catch { return fallback }
@@ -59,6 +72,60 @@ function recordToolAudit(name: string, status: "completed" | "rejected" | "error
   } catch { /* Audit persistence is best-effort in restricted browser contexts. */ }
 }
 
+function extractCellText(node: ReactNode): string {
+  if (node === null || node === undefined || typeof node === "boolean") return ""
+  if (typeof node === "string" || typeof node === "number") return String(node)
+  if (Array.isArray(node)) return node.map(extractCellText).join("")
+  if (isValidElement(node)) return extractCellText((node.props as { children?: ReactNode }).children)
+  return ""
+}
+
+function tableRows(children: ReactNode): string[][] {
+  const rows: string[][] = []
+  for (const section of Children.toArray(children)) {
+    if (!isValidElement(section)) continue
+    for (const row of Children.toArray((section.props as { children?: ReactNode }).children)) {
+      if (!isValidElement(row)) continue
+      rows.push(Children.toArray((row.props as { children?: ReactNode }).children)
+        .filter(isValidElement)
+        .map((cell) => extractCellText((cell.props as { children?: ReactNode }).children).trim()))
+    }
+  }
+  return rows
+}
+
+function delimitedTable(rows: string[][], delimiter: string) {
+  const escape = (value: string) => delimiter === ","
+    ? /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+    : value.replace(new RegExp(delimiter, "g"), " ")
+  return rows.map((row) => row.map(escape).join(delimiter)).join("\n")
+}
+
+function downloadText(filename: string, content: string, mime: string) {
+  const blob = new Blob([content], { type: mime })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+function MarkdownTable({ children }: { children?: ReactNode }) {
+  const rows = tableRows(children)
+  return (
+    <div className="ai-chat-table-wrap">
+      <table className="ai-chat-table">{children}</table>
+      <div className="ai-chat-table-actions">
+        <Button variant="ghost" size="sm" type="button" onClick={() => downloadText("table.csv", delimitedTable(rows, ","), "text/csv")}><Download aria-hidden="true" />CSV</Button>
+        <Button variant="ghost" size="sm" type="button" onClick={() => downloadText("table.tsv", delimitedTable(rows, "\t"), "text/tab-separated-values")}><Download aria-hidden="true" />TSV</Button>
+      </div>
+    </div>
+  )
+}
+
+const markdownComponents = { table: MarkdownTable }
+
 function systemPrompt(runtime: AppToolRuntime) {
   return `You are the assistant embedded in PRISM Product Graph Editor. Use only the registered tools. You can inspect bounded workspace, graph, YAML-structure, and LCA-result summaries; change graph presentation and selection; navigate views; and propose registered model, calculation, download, export, and deletion actions. Actions marked for confirmation must be approved by the user in the application before they run. Never claim access to complete YAML contents or unregistered application state, and never claim an action succeeded until its tool result confirms it. Be concise and explain unavailable actions clearly.\n\nCurrent registered application context:\n${JSON.stringify({ activeView: runtime.activeView, views: listViews(runtime.hasCurrentResults), workspace: { calculationStatus: runtime.workspace.calculationStatus, hasCurrentResults: runtime.hasCurrentResults }, graph: { nodeCount: runtime.graph.nodes.length, connectionCount: runtime.graph.connectionCount, mode: runtime.graph.mode, orientation: runtime.graph.orientation, selectedNodeId: runtime.graph.selectedNodeId } }, null, 2)}`
 }
@@ -76,7 +143,7 @@ export function AiChatPanel({
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState("")
-  const [apiKey, setApiKey] = useState("")
+  const [apiKey, setApiKey] = useState(() => storedValue(API_KEY_STORAGE, ""))
   const [model, setModel] = useState(() => storedValue(MODEL_STORAGE, MODELS[0][0]))
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [panelWidth, setPanelWidth] = useState(() => Number(storedValue(WIDTH_STORAGE, "410")) || 410)
@@ -114,8 +181,8 @@ export function AiChatPanel({
     const startWidth = panelWidth
     let nextWidth = startWidth
     const resize = (pointerEvent: PointerEvent) => {
-      const maximum = Math.min(640, window.innerWidth - 48)
-      nextWidth = Math.min(maximum, Math.max(320, startWidth + startX - pointerEvent.clientX))
+      const maximum = window.innerWidth - 80
+      nextWidth = Math.min(maximum, Math.max(240, startWidth + startX - pointerEvent.clientX))
       setPanelWidth(nextWidth)
     }
     const finish = () => {
@@ -132,25 +199,43 @@ export function AiChatPanel({
   const resizeByKeyboard = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
     event.preventDefault()
-    const maximum = Math.min(640, window.innerWidth - 360)
+    const maximum = window.innerWidth - 80
     const direction = event.key === "ArrowLeft" ? 1 : -1
     setPanelWidth((current) => {
-      const next = Math.min(maximum, Math.max(320, current + direction * 20))
+      const next = Math.min(maximum, Math.max(240, current + direction * 20))
       try { localStorage.setItem(WIDTH_STORAGE, String(Math.round(next))) } catch { /* Optional preference. */ }
       return next
     })
   }
 
-  const publishAssistant = useCallback((id: string, update: Partial<ChatMessage>) => {
-    setMessages((current) => current.map((message) => message.id === id ? { ...message, ...update } : message))
+  const setStreaming = useCallback((id: string, streaming: boolean) => {
+    setMessages((current) => current.map((message) => message.id === id ? { ...message, streaming } : message))
+  }, [])
+
+  const upsertTextSegment = useCallback((id: string, segmentId: string, content: string) => {
+    setMessages((current) => current.map((message) => {
+      if (message.id !== id) return message
+      const index = message.segments.findIndex((segment) => segment.kind === "text" && segment.id === segmentId)
+      const segment: MessageSegment = { kind: "text", id: segmentId, content }
+      if (index === -1) return { ...message, segments: [...message.segments, segment] }
+      const segments = [...message.segments]
+      segments[index] = segment
+      return { ...message, segments }
+    }))
+  }, [])
+
+  const appendToolSegments = useCallback((id: string, tools: Array<{ name: string; output: unknown; error: boolean }>) => {
+    setMessages((current) => current.map((message) => message.id === id
+      ? { ...message, segments: [...message.segments, ...tools.map((tool): MessageSegment => ({ kind: "tool", id: messageId(), ...tool }))] }
+      : message))
   }, [])
 
   const send = useCallback(async (text: string) => {
     const value = text.trim()
     if (!value || status !== "idle") return
-    const userMessage: ChatMessage = { id: messageId(), role: "user", content: value }
+    const userMessage: ChatMessage = { id: messageId(), role: "user", segments: [{ kind: "text", id: messageId(), content: value }] }
     const assistantId = messageId()
-    const assistantMessage: ChatMessage = { id: assistantId, role: "assistant", content: "", streaming: true }
+    const assistantMessage: ChatMessage = { id: assistantId, role: "assistant", segments: [], streaming: true }
     const priorMessages = messages
     setMessages([...priorMessages, userMessage, assistantMessage])
     setDraft("")
@@ -161,22 +246,23 @@ export function AiChatPanel({
 
     const apiMessages: ModelMessage[] = [
       { role: "system", content: systemPrompt(runtime) },
-      ...priorMessages.map((message) => ({ role: message.role, content: message.content } as ModelMessage)),
+      ...priorMessages.map((message) => ({ role: message.role, content: messageText(message) } as ModelMessage)),
       { role: "user", content: value },
     ]
     try {
       for (let round = 0; round < 8; round += 1) {
+        const segmentId = messageId()
         const result = await transport.stream({
           model,
           messages: apiMessages,
           tools: appToolDefinitions,
           signal: controller.signal,
-          onDelta: (content) => publishAssistant(assistantId, { content }),
+          onDelta: (content) => upsertTextSegment(assistantId, segmentId, content),
         })
-        publishAssistant(assistantId, { content: result.content })
+        upsertTextSegment(assistantId, segmentId, result.content)
         if (!result.calls.length) break
         apiMessages.push({ role: "assistant", content: result.content || null, tool_calls: result.calls })
-        const toolViews: ChatMessage["tools"] = []
+        const toolViews: Array<{ name: string; output: unknown; error: boolean }> = []
         for (const call of result.calls) {
           let output: unknown
           let failed = false
@@ -209,49 +295,62 @@ export function AiChatPanel({
           toolViews.push({ name: call.function.name, output, error: failed })
           apiMessages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(output) })
         }
-        publishAssistant(assistantId, { tools: toolViews, content: "" })
+        appendToolSegments(assistantId, toolViews)
         if (round === 7) throw new Error("The assistant exceeded the view-tool round limit.")
       }
     } catch (requestError) {
       if (!(requestError instanceof DOMException && requestError.name === "AbortError")) {
-        setError(requestError instanceof Error ? requestError.message : String(requestError))
+        const message = requestError instanceof Error ? requestError.message : String(requestError)
+        setError(message)
+        upsertTextSegment(assistantId, `${assistantId}-error`, message)
       }
     } finally {
-      publishAssistant(assistantId, { streaming: false })
+      setStreaming(assistantId, false)
       abortRef.current = null
       setStatus("idle")
     }
-  }, [messages, model, publishAssistant, requestToolConfirmation, runtime, status, transport])
+  }, [appendToolSegments, messages, model, requestToolConfirmation, runtime, setStreaming, status, transport, upsertTextSegment])
 
   const saveSettings = () => {
     try {
       localStorage.setItem(MODEL_STORAGE, model)
+      localStorage.setItem(API_KEY_STORAGE, apiKey)
     } catch { /* Storage can be unavailable in restricted browser contexts. */ }
     setSettingsOpen(false)
   }
 
+  const growPrompt = () => {
+    const node = promptRef.current
+    if (!node) return
+    node.style.height = "auto"
+    node.style.height = `${Math.min(node.scrollHeight, window.innerHeight * 0.4)}px`
+  }
+  useEffect(() => { growPrompt() }, [draft])
+
   const panel = open && portalTarget ? createPortal(
     <aside className="ai-chat-sidebar" aria-label="PRISM assistant">
-        <button className="ai-chat-resize-handle" type="button" aria-label="Resize AI assistant" aria-valuemin={320} aria-valuemax={Math.min(640, Math.max(320, window.innerWidth - 360))} aria-valuenow={Math.round(panelWidth)} onKeyDown={resizeByKeyboard} onPointerDown={startResize}><GripVertical aria-hidden="true" /></button>
-        <DialogHeader className="ai-chat-header">
-          <div className="ai-chat-title"><Bot aria-hidden="true" /><div><h2>PRISM assistant</h2><p>Workspace and graph tools</p></div></div>
+        <button className="ai-chat-resize-handle" type="button" aria-label="Resize AI assistant" aria-valuemin={240} aria-valuemax={Math.max(240, window.innerWidth - 80)} aria-valuenow={Math.round(panelWidth)} onKeyDown={resizeByKeyboard} onPointerDown={startResize}><GripVertical aria-hidden="true" /></button>
+        <div className="ai-chat-header">
           <div className="ai-chat-header-actions">
             <Button variant="ghost" size="icon" type="button" aria-label="New conversation" onClick={() => { setMessages([]); setError("") }} disabled={status !== "idle"}><MessageSquarePlus /></Button>
             <Button variant="ghost" size="icon" type="button" aria-label="Chat settings" onClick={() => setSettingsOpen(true)}><Settings2 /></Button>
             <Button variant="ghost" size="icon" type="button" aria-label="Close AI assistant" onClick={() => onOpenChange(false)}><X /></Button>
           </div>
-        </DialogHeader>
+        </div>
 
         <MessageScrollerProvider autoScroll>
           <MessageScroller className="ai-chat-conversation" aria-live="polite" aria-busy={status === "streaming"}>
             <MessageScrollerViewport>
               <MessageScrollerContent className="ai-chat-conversation-content">
-                {messages.length === 0 ? <div className="ai-chat-welcome"><Bot aria-hidden="true" /><h2>How can I help?</h2><p>I can inspect workspace status, explore the displayed graph, adjust its presentation, select nodes, and navigate between registered views.</p><div className="ai-chat-suggestions"><Button variant="outline" size="sm" onClick={() => void send("Summarize this graph")}>Summarize graph</Button><Button variant="outline" size="sm" onClick={() => void send("What views are available?")}>List views</Button></div></div> : null}
+                {messages.length === 0 ? <div className="ai-chat-welcome"><div className="ai-chat-suggestions"><Button variant="outline" size="sm" onClick={() => void send("Summarize this graph")}>Summarize graph</Button><Button variant="outline" size="sm" onClick={() => void send("What views are available?")}>List views</Button></div></div> : null}
                 {messages.map((message) => <MessageScrollerItem key={message.id} messageId={message.id} scrollAnchor={message.role === "user"}>
                   <article className={`ai-chat-message is-${message.role}`}>
-                    <strong>{message.role === "user" ? "You" : "PRISM"}</strong>
-                    <div className="ai-chat-message-content">{message.content ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown> : message.streaming ? <span className="ai-chat-thinking">Thinking…</span> : null}</div>
-                    {message.tools?.map((tool, index) => <details className="ai-chat-tool" key={`${tool.name}-${index}`}><summary>{tool.name}{tool.error ? " · error" : " · complete"}</summary><pre>{JSON.stringify(tool.output, null, 2)}</pre></details>)}
+                    <div className="ai-chat-message-content">
+                      {message.segments.length === 0 && message.streaming ? <span className="ai-chat-thinking">Thinking…</span> : null}
+                      {message.segments.map((segment) => segment.kind === "text"
+                        ? segment.content ? <ReactMarkdown key={segment.id} remarkPlugins={[remarkGfm]} components={markdownComponents}>{segment.content}</ReactMarkdown> : null
+                        : <details className="ai-chat-tool" key={segment.id}><summary>{segment.name}{segment.error ? " · error" : " · complete"}</summary><pre>{JSON.stringify(segment.output, null, 2)}</pre></details>)}
+                    </div>
                   </article>
                 </MessageScrollerItem>)}
               </MessageScrollerContent>
@@ -262,11 +361,10 @@ export function AiChatPanel({
 
         <div className="ai-chat-composer">
           <label className="sr-only" htmlFor="ai-chat-prompt">Message</label>
-          <textarea ref={promptRef} id="ai-chat-prompt" value={draft} disabled={status === "streaming"} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(draft) } }} placeholder="Ask about the workspace or graph…" />
-          <Button type="button" size="icon" aria-label={status === "streaming" ? "Stop response" : "Send message"} disabled={status === "idle" && !draft.trim()} onClick={() => status === "streaming" ? abortRef.current?.abort() : void send(draft)}>{status === "streaming" ? <Square /> : <Send />}</Button>
+          <textarea ref={promptRef} id="ai-chat-prompt" rows={1} value={draft} disabled={status === "streaming"} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(draft) } }} placeholder="Ask about the workspace or graph…" />
+          <Button type="button" size="icon" className="ai-chat-send" aria-label={status === "streaming" ? "Stop response" : "Send message"} disabled={status === "idle" && !draft.trim()} onClick={() => status === "streaming" ? abortRef.current?.abort() : void send(draft)}>{status === "streaming" ? <Square /> : <ArrowUp />}</Button>
         </div>
         {error ? <p className="ai-chat-error" role="alert">{error}</p> : null}
-        <small className="ai-chat-disclaimer">AI can make mistakes. Only registered workspace, graph, and navigation tools are available.</small>
     </aside>,
     portalTarget,
   ) : null
@@ -276,7 +374,7 @@ export function AiChatPanel({
 
     <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
       <DialogContent>
-        <DialogHeader><DialogTitle>Chat settings</DialogTitle><DialogDescription>Your OpenRouter API key is kept in memory for this tab and cleared when the page reloads. Production deployments can route requests through a backend by configuring the OpenRouter endpoint.</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>Chat settings</DialogTitle><DialogDescription>Your OpenRouter API key is stored in this browser's local storage so you don't need to re-enter it. Production deployments can route requests through a backend by configuring the OpenRouter endpoint.</DialogDescription></DialogHeader>
         <FieldGroup>
           <Field><FieldLabel htmlFor="openrouter-key">OpenRouter API key</FieldLabel><div className="ai-chat-key-field"><KeyRound aria-hidden="true" /><Input id="openrouter-key" type="password" autoComplete="off" value={apiKey} onChange={(event) => setApiKey(event.target.value)} /></div></Field>
           <Field><FieldLabel htmlFor="ai-chat-model">Model</FieldLabel><Select value={model} onValueChange={setModel}><SelectTrigger id="ai-chat-model" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{MODELS.map(([id, label]) => <SelectItem value={id} key={id}>{label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>

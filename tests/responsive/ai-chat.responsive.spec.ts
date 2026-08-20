@@ -83,17 +83,17 @@ test("assistant rejects an unavailable Sankey view", async ({ page }) => {
   await prompt.fill("Open the Sankey view")
   await prompt.press("Enter")
 
-  await expect(page.getByRole("complementary", { name: "PRISM assistant" }).getByText(/Calculate the current model/).first()).toBeVisible()
+  await expect(page.locator(".ai-chat-message-content p").getByText(/Calculate the current model/)).toBeVisible()
   await expect(page.locator(".react-flow")).toBeVisible()
 })
 
-test("chat settings clear the API key on reload", async ({ page }) => {
+test("chat settings persist the API key across reload", async ({ page }) => {
   await configureChat(page)
   await page.reload()
   await page.getByRole("button", { name: "Explore PRISM" }).click()
   await page.getByRole("button", { name: "AI assistant" }).click()
   await page.getByRole("button", { name: "Chat settings" }).click()
-  await expect(page.getByLabel("OpenRouter API key")).toHaveValue("")
+  await expect(page.getByLabel("OpenRouter API key")).toHaveValue("test-key")
 })
 
 test("assistant reads bounded workspace and graph summaries", async ({ page }) => {
