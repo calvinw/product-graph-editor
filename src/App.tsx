@@ -9,7 +9,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import prismLogoRound from "./assets/prism-logo-round.png"
 import {
-  BarChart3, Bot, Check, CopyPlus, Scan, LayoutGrid, ChevronDown, Globe2,
+  BarChart3, Bot, Check, CopyPlus, Scan, LayoutGrid, ChevronDown,
   ChevronsDownUp, ChevronsUpDown, Minus, Moon, MousePointer2, Plus, Save as SaveIcon, Search, Settings2, Sun, X,
 } from "lucide-react"
 import { parse } from "yaml"
@@ -532,7 +532,7 @@ function AppContent() {
             <Button variant="ghost" className={`ai-chat-trigger ${chatOpen ? "is-active" : ""}`} type="button" aria-label="AI assistant" aria-expanded={chatOpen} onClick={() => setChatOpen(true)}><Bot /><span>Assistant</span></Button>
             <Popover modal open={settingsOpen} onOpenChange={setSettingsOpen}>
               <PopoverTrigger asChild>
-                <Button variant="ghost" className={`global-settings-trigger ${settingsOpen ? "is-active" : ""}`} type="button" aria-label="Global settings"><Globe2 size={16} /><span>Settings</span></Button>
+                <Button variant="ghost" className={`global-settings-trigger ${settingsOpen ? "is-active" : ""}`} type="button" aria-label="Global settings"><span>Settings</span></Button>
               </PopoverTrigger>
               <PopoverContent className="global-settings-panel" side="bottom" align="end" sideOffset={3}>
                 <div className="global-settings-title"><div><Settings2 size={15} /><span>Global settings</span></div><Button variant="ghost" size="icon" type="button" onClick={() => setSettingsOpen(false)} aria-label="Close global settings"><X size={15} /></Button></div>
