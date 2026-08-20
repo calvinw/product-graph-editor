@@ -529,10 +529,10 @@ function AppContent() {
           <div className="brand"><button className="brand-home" type="button" onClick={() => setWelcomeOpen(true)} aria-label="Open PRISM welcome page"><span className="brand-mark"><img src={prismLogoRound} alt="" aria-hidden="true" /></span></button><span className="brand-product-name"><span>PRISM</span><span className="brand-product-descriptor"> Life Cycle Assessment</span></span><span className="brand-separator">·</span><h1 className="brand-study-title">{workspaceTitle}</h1></div>
           <div ref={setNavbarTarget} className="navbar-portal-target" />
           <div className="top-actions">
-            <Button variant="ghost" className={`ai-chat-trigger ${chatOpen ? "is-active" : ""}`} type="button" aria-label="AI assistant" aria-expanded={chatOpen} onClick={() => setChatOpen(true)}><Bot /><span>Assistant</span></Button>
+            <Button variant="ghost" className={`ai-chat-trigger ${chatOpen ? "is-active" : ""}`} type="button" aria-label="AI assistant" aria-expanded={chatOpen} onClick={() => setChatOpen(true)}><Bot size={16} /><span>Assistant</span></Button>
             <Popover modal open={settingsOpen} onOpenChange={setSettingsOpen}>
               <PopoverTrigger asChild>
-                <Button variant="ghost" className={`global-settings-trigger ${settingsOpen ? "is-active" : ""}`} type="button" aria-label="Global settings"><span>Settings</span></Button>
+                <Button variant="ghost" className={`global-settings-trigger ${settingsOpen ? "is-active" : ""}`} type="button" aria-label="Global settings"><Settings2 size={16} /><span>Settings</span></Button>
               </PopoverTrigger>
               <PopoverContent className="global-settings-panel" side="bottom" align="end" sideOffset={3}>
                 <div className="global-settings-title"><div><Settings2 size={15} /><span>Global settings</span></div><Button variant="ghost" size="icon" type="button" onClick={() => setSettingsOpen(false)} aria-label="Close global settings"><X size={15} /></Button></div>
