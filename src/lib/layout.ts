@@ -99,9 +99,29 @@ export function layoutNodes<T extends Record<string, unknown>>(
     acyclicer: "greedy",
   })
 
+  // Dagre's crossing-minimization has ties it breaks by insertion order, so
+  // feeding it nodes/edges in a canonical order every time keeps the layout
+  // stable across renders -- otherwise the same graph can flip a loosely
+  // connected node (e.g. one background input with a single edge) to the
+  // opposite side of its rank depending only on incidental array order
+  // upstream, which looks like the layout "randomly" changing. Ordering by
+  // ascending degree (fewest connections first) additionally tends to let
+  // lightly connected nodes settle toward the outer edge of their rank
+  // instead of crowding the busier, more-connected nodes' side.
   const dimensions = measuredDimensions(nodes)
-  nodes.forEach((node) => graph.setNode(node.id, dimensions.get(node.id)))
-  edges.forEach((edge) => graph.setEdge(edge.source, edge.target, { weight: 2 }))
+  const degree = new Map<string, number>()
+  edges.forEach((edge) => {
+    degree.set(edge.source, (degree.get(edge.source) ?? 0) + 1)
+    degree.set(edge.target, (degree.get(edge.target) ?? 0) + 1)
+  })
+  const orderedNodes = [...nodes].sort((a, b) => (
+    (degree.get(a.id) ?? 0) - (degree.get(b.id) ?? 0) || a.id.localeCompare(b.id)
+  ))
+  const orderedEdges = [...edges].sort((a, b) => (
+    a.source === b.source ? a.target.localeCompare(b.target) : a.source.localeCompare(b.source)
+  ))
+  orderedNodes.forEach((node) => graph.setNode(node.id, dimensions.get(node.id)))
+  orderedEdges.forEach((edge) => graph.setEdge(edge.source, edge.target, { weight: 2 }))
 
   dagre.layout(graph)
 
