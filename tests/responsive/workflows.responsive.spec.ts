@@ -10,7 +10,6 @@ test.beforeEach(async ({ page }) => {
 
 test("graph controls, settings, and node inspector remain reachable", async ({ page }) => {
   await expectInsideViewport(page.locator(".graph-toolbar"), page)
-  await expectInsideViewport(page.locator(".graph-search"), page)
 
   await page.getByRole("button", { name: "Graph settings" }).click()
   await expectInsideViewport(page.locator(".graph-settings-picker"), page)

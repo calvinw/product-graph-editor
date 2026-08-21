@@ -286,6 +286,10 @@ button, input { font: inherit; }
 .canvas-wrap::after { content: ""; pointer-events: none; position: absolute; inset: 0; background: var(--canvas-vignette); }
 .canvas-head { position: absolute; z-index: 2; left: 28px; right: 28px; top: 22px; display: flex; align-items: center; justify-content: flex-end; pointer-events: none; }
 .graph-toolbar { position: absolute; z-index: 3; left: 18px; top: 82px; display: grid; gap: 6px; padding: 6px; border: 1px solid var(--floating-border); border-radius: 10px; background: var(--floating-background); box-shadow: var(--floating-shadow); backdrop-filter: blur(10px); }
+.toolbar-grip { display: flex; align-items: center; justify-content: center; width: 100%; height: 12px; margin-bottom: 2px; padding: 0; border: 0; border-radius: 4px; color: var(--muted-foreground); background: transparent; cursor: grab; touch-action: none; }
+.toolbar-grip:hover { color: var(--foreground); background: var(--control-background-hover); }
+.toolbar-grip:active { cursor: grabbing; }
+.graph-toolbar button.is-active { color: var(--accent-foreground); background: var(--graph-action-active-background); }
 .graph-settings-picker { z-index: 5; width: 330px; gap: 0; padding: 10px; border: 1px solid var(--floating-border); border-radius: 10px; background: var(--floating-background-strong); box-shadow: var(--floating-shadow-strong); font-size: 16px; line-height: 1.5; backdrop-filter: blur(12px); }.graph-settings-title { display: flex; align-items: center; justify-content: space-between; padding: 3px 3px 10px; border-bottom: 1px solid var(--section-border); color: var(--popover-foreground); font-size: 11px; font-weight: 650; }.graph-settings-title > div { display: flex; align-items: center; gap: 7px; }.graph-settings-title > button { display: grid; place-items: center; width: 25px; height: 25px; padding: 0; border: 0; border-radius: 6px; color: var(--control-muted); background: transparent; cursor: pointer; }.graph-settings-title > button:hover { color: var(--foreground); background: var(--control-active-background); }
 .graph-settings-grid { display: grid; grid-template-columns: minmax(0, 1fr); }.graph-settings-picker label { display: grid; min-width: 0; gap: 5px; padding: 12px 3px 4px; color: var(--control-muted); font-size: 9px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }.graph-settings-picker [data-slot="select-trigger"], .graph-settings-picker input[type="number"] { width: 100%; height: 34px; padding: 0 30px 0 10px; border: 1px solid var(--control-border); border-radius: 7px; outline: none; color: var(--control-foreground); background: var(--control-background); box-shadow: none; font-size: 11px; text-transform: none; }.graph-settings-picker .number-stepper-value { position: relative; }.graph-settings-picker .number-stepper-value input { padding-right: 28px; text-align: center; }.graph-settings-picker .number-stepper-value > span { position: absolute; right: 10px; top: 10px; color: var(--control-muted); font-size: 10px; }
 .toolbar-group { display: grid; gap: 3px; padding-bottom: 6px; border-bottom: 1px solid var(--floating-border); }
@@ -306,10 +310,6 @@ button, input { font: inherit; }
 @keyframes calculation-message-pulse { 0%,100% { opacity: .52; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .calculation-message, .welcome-connections path { animation: none; }.inspector, .welcome-explore, .welcome-explore svg { transition: none; } }
 h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
-.search { pointer-events: auto; display: flex; align-items: center; gap: 8px; width: 238px; height: 34px; padding: 0 9px; color: var(--search-foreground); border: 1px solid var(--floating-border); border-radius: 8px; background: var(--search-background); box-shadow: 0 8px 30px rgba(0,0,0,.24); }
-.graph-search { position: absolute; z-index: 3; top: 82px; left: 76px; }
-.search input { width: auto; min-width: 0; height: auto; flex: 1; padding: 0; color: var(--search-input-foreground); border: 0; border-radius: 0; outline: 0; background: transparent; box-shadow: none; font-size: 12px; }
-.search kbd { padding: 2px 5px; border: 1px solid #343840; border-radius: 4px; color: #676d77; font-size: 9px; }
 .graph-viewport { position: absolute; inset: 0; z-index: 1; }
 .graph-viewport.has-inspector { right: 322px; }
 .reactflow-canvas { position: absolute; inset: 0; z-index: 1; }
@@ -674,7 +674,6 @@ html[data-theme="light"] .process-flow-table .empty-row td { color: #6b7280; }
   html[data-theme="light"] .ai-chat-trigger { border-color: rgba(71,85,105,.16); color: #475569; background: rgba(241,245,249,.82); }
   html[data-theme="light"] .global-settings-trigger:hover, html[data-theme="light"] .global-settings-trigger.is-active { border-color: rgba(71,85,105,.24); color: #172033; background: rgba(226,232,240,.9); }
   .canvas-head { display: none; }
-  .graph-search { top: 108px; left: 76px; }
   .graph-toolbar { top: 168px; }
   .yaml-editor, .results-empty, .results-panel { inset: 108px 28px 28px; }
   .inventory-view, .impact-view, .process-results-view, .contribution-view, .sankey-view { inset: 108px 28px 28px; border-radius: 12px; }
@@ -713,7 +712,7 @@ html[data-theme="light"] .process-flow-table .empty-row td { color: #6b7280; }
   .view-tab-groups { width: 100%; margin-left: 0; justify-content: flex-start; gap: 4px; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; }
   .view-tab-groups > [data-slot="toggle-group"] { flex: 0 0 auto; }
   .view-tabs button { min-height: 32px; }
-  .graph-toolbar, .graph-search { top: 104px; }
+  .graph-toolbar { top: 104px; }
   .graph-settings-picker { width: min(330px, calc(100vw - 82px)); max-height: calc(100vh - 124px); overflow-y: auto; }
   .sankey-chart-picker { top: 104px; left: 72px; width: calc(100vw - 82px); max-height: calc(100vh - 124px); overflow-y: auto; }
   .sankey-toolbar { top: 104px; }
@@ -721,8 +720,6 @@ html[data-theme="light"] .process-flow-table .empty-row td { color: #6b7280; }
   .yaml-editor-head, .yaml-editor-foot { align-items: stretch; flex-direction: column; gap: 9px; padding: 11px 12px; }
   .yaml-editor-foot button { width: 100%; min-height: 36px; }
   .yaml-editor textarea { padding: 14px; }
-  .search { width: 42px; }
-  .search input, .search kbd { display: none; }
   .graph-meta { display: none; }
 }
 

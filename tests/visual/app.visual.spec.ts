@@ -914,28 +914,7 @@ test("opening the inspector keeps the selected jacket node visible", async ({ pa
   }).toBeGreaterThanOrEqual(16)
 })
 
-test("find node stays beside the graph toolbar when the inspector opens", async ({ page }) => {
-  await mockLcaApi(page)
-  await openWorkspace(page)
-
-  const toolbar = page.locator(".graph-toolbar")
-  const search = page.getByRole("textbox", { name: "Find a node" }).locator("..")
-  await page.locator(".react-flow__node").last().click()
-  const inspector = page.locator(".inspector")
-
-  const [toolbarBounds, searchBounds, inspectorBounds] = await Promise.all([
-    toolbar.boundingBox(),
-    search.boundingBox(),
-    inspector.boundingBox(),
-  ])
-  expect(toolbarBounds).not.toBeNull()
-  expect(searchBounds).not.toBeNull()
-  expect(inspectorBounds).not.toBeNull()
-  expect(searchBounds!.x).toBeGreaterThanOrEqual(toolbarBounds!.x + toolbarBounds!.width + 8)
-  expect(searchBounds!.x + searchBounds!.width).toBeLessThanOrEqual(inspectorBounds!.x - 16)
-})
-
-test("opening the property editor preserves the graph viewport", async ({ page }) => {
+test("closing the property editor does not move the graph viewport again", async ({ page }) => {
   await mockLcaApi(page)
   await openWorkspace(page)
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
@@ -944,17 +923,19 @@ test("opening the property editor preserves the graph viewport", async ({ page }
   await page.getByRole("button", { name: "Zoom in" }).click()
   await page.waitForTimeout(300)
   const viewport = page.locator(".react-flow__viewport")
-  const zoomedTransform = await viewport.getAttribute("style")
 
+  // Opening the inspector may re-fit the viewport to keep the selected node
+  // clear of the panel (see #37) -- that is deliberate, not a regression.
+  // What must not happen is the viewport moving again just from closing it.
   await page.locator(".react-flow__node").last().click()
   await expect(page.locator(".inspector")).toBeVisible()
   await page.waitForTimeout(300)
-  await expect(viewport).toHaveAttribute("style", zoomedTransform ?? "")
+  const openedTransform = await viewport.getAttribute("style")
 
   await page.getByRole("button", { name: "Close property editor" }).click()
   await expect(page.locator(".inspector")).toBeHidden()
   await page.waitForTimeout(300)
-  await expect(viewport).toHaveAttribute("style", zoomedTransform ?? "")
+  await expect(viewport).toHaveAttribute("style", openedTransform ?? "")
 })
 
 for (const theme of ["dark", "light"] as const) {

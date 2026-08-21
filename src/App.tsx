@@ -9,8 +9,8 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import prismLogoRound from "./assets/prism-logo-round.png"
 import {
-  BarChart3, Bot, Check, CopyPlus, Scan, LayoutGrid, ChevronDown,
-  ChevronsDownUp, ChevronsUpDown, Minus, Moon, MousePointer2, Plus, Save as SaveIcon, Search, Settings2, Sun, X,
+  BarChart3, Bot, Check, CopyPlus, GripHorizontal, Scan, LayoutGrid, ChevronDown,
+  ChevronsDownUp, ChevronsUpDown, Minus, Moon, MousePointer2, Plus, Save as SaveIcon, Settings2, Sun, X,
 } from "lucide-react"
 import { parse } from "yaml"
 import { Button } from "@/components/ui/button"
@@ -19,7 +19,6 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -45,6 +44,7 @@ import { GraphCanvas } from "@/components/graph/GraphCanvas"
 import { Inspector } from "@/components/graph/Inspector"
 import { ScenarioPanel } from "@/components/graph/ScenarioPanel"
 import { useGraphModel } from "@/hooks/useGraphModel"
+import { useDraggablePosition } from "@/hooks/useDraggablePosition"
 import { useModelWorkspace } from "@/hooks/useModelWorkspace"
 import { safeYamlFilename } from "./lib/modelWorkspace"
 import { WelcomePage } from "@/components/welcome/WelcomePage"
@@ -77,6 +77,8 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
   const graphMode = useProductGraphStore((state) => state.graphMode)
   const showReferenceAmounts = useProductGraphStore((state) => state.showReferenceAmounts)
   const [graphSettingsOpen, setGraphSettingsOpen] = useState(false)
+  const [selectMode, setSelectMode] = useState(false)
+  const { position: graphToolbarPosition, startDrag: startGraphToolbarDrag } = useDraggablePosition("product-graph-editor:graph-toolbar-position")
   const graphMaxProcesses = useProductGraphStore((state) => state.graphMaxProcesses)
   const graphOrientation = useProductGraphStore((state) => state.graphOrientation)
   const graphConnectionStyle = useProductGraphStore((state) => state.graphConnectionStyle)
@@ -107,7 +109,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
 
   const {
     nodes, edges, onNodesChange, onEdgesChange,
-    query, setQuery, yamlError, setYamlError,
+    yamlError, setYamlError,
     availableGraphProcessCount,
     fitView, zoomIn, zoomOut, fit, relayout,
     toggleExpanded, setAllExpanded,
@@ -128,7 +130,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     if (view !== "graph" || !active) return
     let fitFrame = 0
     const resizeFrame = requestAnimationFrame(() => {
-      fitFrame = requestAnimationFrame(() => fitView({ padding: 0.35, maxZoom: 0.75, duration: 250 }))
+      fitFrame = requestAnimationFrame(() => fitView({ padding: 0.4, maxZoom: 0.85, duration: 250 }))
     })
     return () => {
       cancelAnimationFrame(resizeFrame)
@@ -144,7 +146,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
       if (Math.abs(nextWidth - previousWidth) < 1) return
       previousWidth = nextWidth
       cancelAnimationFrame(fitFrame)
-      fitFrame = requestAnimationFrame(() => fitView({ padding: 0.35, maxZoom: 0.75 }))
+      fitFrame = requestAnimationFrame(() => fitView({ padding: 0.4, maxZoom: 0.85 }))
     })
     observer.observe(chatPortalTarget)
     return () => {
@@ -152,6 +154,27 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
       cancelAnimationFrame(fitFrame)
     }
   }, [active, chatPortalTarget, fitView, view])
+  useEffect(() => {
+    if (view !== "graph" || !active || !inspectorOpen || !selected) return
+    const frame = requestAnimationFrame(() => {
+      // Only re-fit when the selected node is actually too close to (or
+      // under) the inspector -- otherwise leave the viewport exactly as the
+      // user left it (a manual zoom/pan should survive opening the panel).
+      const nodeEl = document.querySelector(`.react-flow__node[data-id="${CSS.escape(selected.id)}"]`)
+      const inspectorEl = document.querySelector(".inspector")
+      if (nodeEl && inspectorEl) {
+        const gap = inspectorEl.getBoundingClientRect().left - nodeEl.getBoundingClientRect().right
+        if (gap >= 16) return
+      }
+      fitView({
+        nodes: [{ id: selected.id }],
+        padding: { top: 0.25, bottom: 0.25, left: 0.25, right: "360px" },
+        maxZoom: 1,
+        duration: 250,
+      })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [active, fitView, inspectorOpen, selected, view])
   const cumulativeCategories = (() => {
     try {
       const source = parse(appliedYaml) as {
@@ -387,15 +410,16 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
             </div>
           </div>
         </div>
-        {view === "graph" ? <div className="search graph-search"><Search size={16} /><Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a node…" aria-label="Find a node" /><kbd>⌘ K</kbd></div> : null}
         {view === "graph" ? <><GraphCanvas
           nodes={nodes} edges={edges}
           onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
           inspectorOpen={inspectorOpen} theme={theme}
           setSelected={setSelected} clearNodeSelection={clearNodeSelection}
           hydrateBackgroundNode={hydrateBackgroundNode} toggleExpanded={toggleExpanded}
+          selectMode={selectMode}
         />
-        <div className="graph-toolbar" aria-label="Graph tools">
+        <div className="graph-toolbar" data-draggable-panel aria-label="Graph tools" style={graphToolbarPosition ? { left: graphToolbarPosition.left, top: graphToolbarPosition.top } : undefined}>
+          <button type="button" className="toolbar-grip" aria-label="Move graph toolbar" onPointerDown={startGraphToolbarDrag}><GripHorizontal size={14} /></button>
           <div className="toolbar-group">
             <Popover modal open={graphSettingsOpen} onOpenChange={setGraphSettingsOpen}>
               <Tooltip>
@@ -427,7 +451,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
             </Popover>
           </div>
           <div className="toolbar-group">
-            <ToolButton label="Select"><MousePointer2 size={18} /></ToolButton>
+            <ToolButton label="Select" pressed={selectMode} onClick={() => setSelectMode((current) => !current)}><MousePointer2 size={18} /></ToolButton>
           </div>
           <div className="toolbar-group">
             <ToolButton label="Expand all activities" onClick={() => setAllExpanded(true)}><ChevronsUpDown size={18} /></ToolButton>

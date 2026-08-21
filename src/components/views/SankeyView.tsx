@@ -1,12 +1,13 @@
 import type React from "react"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import dagre from "@dagrejs/dagre"
 import {
-  ReactFlow, Background, BackgroundVariant, Handle, Position,
+  ReactFlow, Background, BackgroundVariant, Handle, Position, SelectionMode, getNodesBounds,
   useNodesState, useEdgesState, type Edge, type Node, type NodeProps, type ReactFlowInstance,
 } from "@xyflow/react"
-import { BarChart3, Component, LayoutGrid, Minus, MousePointer2, Plus, Scan, Settings2 } from "lucide-react"
+import { BarChart3, Component, GripHorizontal, LayoutGrid, Minus, MousePointer2, Plus, Scan, Settings2 } from "lucide-react"
 import { AppSelect, ToolButton } from "@/components/common/AppControls"
+import { useDraggablePosition } from "@/hooks/useDraggablePosition"
 import { NumberStepper } from "@/components/NumberStepper"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useDisplaySettings } from "@/lib/displaySettings"
@@ -55,6 +56,8 @@ export function SankeyView({ result, loadContributionGraphs }: {
   const [orientation, setOrientation] = useState<"vertical" | "horizontal">("vertical")
   const [connectionStyle, setConnectionStyle] = useState<"curved" | "straight" | "step">("curved")
   const [selectedProcessId, setSelectedProcessId] = useState<string | null>(null)
+  const [selectMode, setSelectMode] = useState(false)
+  const { position: toolbarPosition, startDrag: startToolbarDrag } = useDraggablePosition("product-graph-editor:sankey-toolbar-position")
   const instanceRef = useRef<ReactFlowInstance<Node<SankeyProcessNodeData>, Edge> | null>(null)
   const [renderedNodes, setRenderedNodes, onSankeyNodesChange] = useNodesState<Node<SankeyProcessNodeData>>([])
   const [renderedEdges, setRenderedEdges, onSankeyEdgesChange] = useEdgesState<Edge>([])
@@ -364,7 +367,7 @@ export function SankeyView({ result, loadContributionGraphs }: {
     setRenderedNodes(highlightConnectedNodes(sankeyNodes, sankeyEdges, selectedProcessId))
     setRenderedEdges(highlightConnectedEdges(sankeyEdges, selectedProcessId))
     const instance = instanceRef.current
-    if (instance) requestAnimationFrame(() => instance.fitView({ padding: .25, maxZoom: .68, duration: 350 }))
+    if (instance) requestAnimationFrame(() => instance.fitView({ padding: .35, maxZoom: 0.85, duration: 350 }))
     // Node and edge arrays are rebuilt during render; these are the settings
     // that change their contents and should reset the draggable graph state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -385,7 +388,15 @@ export function SankeyView({ result, loadContributionGraphs }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProcessId])
 
-  const fitSankey = () => instanceRef.current?.fitView({ padding: .4, maxZoom: .68, duration: 350 })
+  const fitSankey = () => instanceRef.current?.fitView({ padding: .45, maxZoom: 0.85, duration: 350 })
+  const zoomToSankeySelection = useCallback(() => {
+    const instance = instanceRef.current
+    if (!instance) return
+    const selectedNodes = instance.getNodes().filter((node) => node.selected)
+    if (!selectedNodes.length) return
+    const bounds = getNodesBounds(selectedNodes)
+    if (bounds.width && bounds.height) void instance.fitBounds(bounds, { padding: 0.15, duration: 300 })
+  }, [])
 
   return <div className="sankey-view">
     {chartPickerOpen ? <div className="sankey-chart-picker">
@@ -427,16 +438,21 @@ export function SankeyView({ result, loadContributionGraphs }: {
         minZoom={0.02}
         maxZoom={2}
         zoomOnScroll={false}
-        panOnScroll
+        panOnScroll={!selectMode}
+        panOnDrag={!selectMode}
+        selectionOnDrag={selectMode}
+        selectionMode={SelectionMode.Partial}
+        onSelectionEnd={zoomToSankeySelection}
         onlyRenderVisibleElements={false}
         fitView
-        fitViewOptions={{ padding: .25, maxZoom: .68 }}
+        fitViewOptions={{ padding: .35, maxZoom: 0.85 }}
         proOptions={{ hideAttribution: true }}
       ><Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#242831" /></ReactFlow> : <div className="sankey-empty"><strong>No contributions for this selection</strong><p>Choose another flow or impact category.</p></div>}
     </div>
-    {totalMagnitude && !impactGraphPending ? <div className="graph-toolbar sankey-toolbar" aria-label="Sankey graph tools">
+    {totalMagnitude && !impactGraphPending ? <div className="graph-toolbar sankey-toolbar" data-draggable-panel aria-label="Sankey graph tools" style={toolbarPosition ? { left: toolbarPosition.left, top: toolbarPosition.top } : undefined}>
+      <button type="button" className="toolbar-grip" aria-label="Move Sankey toolbar" onPointerDown={startToolbarDrag}><GripHorizontal size={14} /></button>
       <div className="toolbar-group"><ToolButton label="Chart settings" onClick={() => setChartPickerOpen((open) => !open)}><Settings2 size={18} /></ToolButton></div>
-      <div className="toolbar-group"><ToolButton label="Select"><MousePointer2 size={18} /></ToolButton></div>
+      <div className="toolbar-group"><ToolButton label="Select" pressed={selectMode} onClick={() => setSelectMode((current) => !current)}><MousePointer2 size={18} /></ToolButton></div>
       <div className="toolbar-group">
         <ToolButton label="Auto layout" onClick={() => setLayoutVersion((value) => value + 1)}><LayoutGrid size={18} /></ToolButton>
         <ToolButton label="Fit graph" onClick={fitSankey}><Scan size={18} /></ToolButton>
