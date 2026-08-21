@@ -24,8 +24,13 @@ test("editor actions and source remain reachable", async ({ page }) => {
   await page.getByRole("radio", { name: "Edit", exact: true }).click()
 
   await expectInsideViewport(page.locator(".yaml-editor"), page)
-  await expect(page.getByRole("textbox", { name: "Product graph YAML" })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Save As..." })).toBeVisible()
+  const yamlTextbox = page.getByRole("textbox", { name: "Product graph YAML" })
+  await expect(yamlTextbox).toBeVisible()
+  // Selecting a template gives an immediately editable session copy, so
+  // there is nothing to save until it is actually edited.
+  await yamlTextbox.press("End")
+  await page.keyboard.type("\n")
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible()
   await expect(page.getByText("Paste YAML", { exact: true })).toHaveCount(0)
   await page.getByRole("button", { name: "File", exact: true }).click()
   await expect(page.getByRole("menuitem", { name: "Upload YAML..." })).toBeVisible()

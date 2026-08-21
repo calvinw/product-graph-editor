@@ -254,6 +254,9 @@ button, input { font: inherit; }
 .model-menu-check { margin-left: auto; }
 .navbar-file-input { display: none; }
 .current-model-title { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button.current-model-title { padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: text; }
+button.current-model-title:hover, button.current-model-title:focus-visible { text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; outline: none; }
+input.current-model-title-input { display: block; width: 100%; min-width: 0; height: auto; padding: 1px 5px; border: 1px solid var(--ring); border-radius: 4px; background: var(--control-background); color: inherit; font: inherit; box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 22%, transparent); }
 .navbar-model-title { position: absolute; left: 0; width: 132px; padding-inline: 10px; color: var(--control-foreground); font-size: 12px; }
 .navbar-status { position: absolute; right: 0; font-size: 10px; }
 .global-settings-panel { z-index: 30; width: 330px; gap: 0; padding: 10px; border: 1px solid var(--floating-border); border-radius: 10px; color: var(--popover-foreground); background: var(--floating-background-strong); box-shadow: var(--floating-shadow-strong); font-size: 16px; line-height: 1.5; backdrop-filter: blur(12px); }
