@@ -4,11 +4,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
-export function ToolButton({ label, children, onClick }: { label: string; children: React.ReactNode; onClick?: () => void }) {
+export function ToolButton({ label, children, onClick, pressed }: { label: string; children: React.ReactNode; onClick?: () => void; pressed?: boolean }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button aria-label={label} onClick={onClick} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+        <Button aria-label={label} aria-pressed={pressed} onClick={onClick} variant="ghost" size="icon" className={cn("text-muted-foreground hover:text-foreground", pressed && "is-active")}>
           {children}
         </Button>
       </TooltipTrigger>

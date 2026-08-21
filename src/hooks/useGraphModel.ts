@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Position, useEdgesState, useNodesState, useReactFlow, type Edge, type Node } from "@xyflow/react"
+import { Position, useEdgesState, useNodesInitialized, useNodesState, useReactFlow, type Edge, type Node } from "@xyflow/react"
 import type { ProcessNodeData } from "@/components/ProcessNode"
 import { useDisplaySettings } from "@/lib/displaySettings"
 import { chemicalFlowLabel } from "@/lib/flowLabels"
 import { getBackgroundActivityDetails } from "@/lib/lcaApi"
-import { layoutNodes } from "@/lib/layout"
+import { layoutNodes, resolveNodeOverlaps } from "@/lib/layout"
 import { buildGraphFromYaml, buildGraphStructure, decorateAmounts, nodeScopeColors } from "@/lib/yamlGraph"
 import {
   applyScenarioToYaml, backgroundLinks, scenarioAmount, scenarioKey, scoreScenario,
@@ -75,6 +75,21 @@ export function useGraphModel({
   edgesRef.current = edges
   const { fitView, zoomIn, zoomOut } = useReactFlow()
 
+  // Fresh nodes are laid out before they have ever been rendered, so dagre
+  // spaces them using the NODE_WIDTH/NODE_HEIGHT guess rather than each
+  // label's real size -- long labels can then overlap their neighbors.
+  // useNodesInitialized flips false -> true whenever nodes are newly added
+  // and then measured (initial load, or a background branch expanding);
+  // relaying out only on that transition corrects the guessed positions
+  // without re-running on every render or fighting a manual drag in between.
+  const nodesInitialized = useNodesInitialized()
+  const wasNodesInitializedRef = useRef(false)
+  useEffect(() => {
+    if (nodesInitialized && !wasNodesInitializedRef.current) {
+      setNodes((current) => layoutNodes(current, edgesRef.current, { orientation: graphOrientation }))
+    }
+    wasNodesInitializedRef.current = nodesInitialized
+  }, [graphOrientation, nodesInitialized, setNodes])
 
   const hydrateBackgroundNode = useCallback(async (nodeId: string) => {
     const node = nodesRef.current.find((candidate) => candidate.id === nodeId)
@@ -275,7 +290,7 @@ export function useGraphModel({
           backgroundExplored: true,
         },
       }
-      const nextNodes = [...currentNodes, updatedParent, ...childNodes]
+      const nextNodes = resolveNodeOverlaps([...currentNodes, updatedParent, ...childNodes])
       const nextEdges = [...edgesRef.current.filter((edge) => !edge.id.startsWith(`${nodeId}::background-edge::`)), ...childEdges]
       setNodes(nextNodes)
       setEdges(nextEdges)
@@ -600,7 +615,13 @@ export function useGraphModel({
         : edge))
     }
     if (target?.data.scope === "background" && !target.data.expanded) void hydrateBackgroundNode(nodeId)
-  }, [edges, hydrateBackgroundNode, setEdges, setNodes])
+    // The toggled node's rendered size just changed (collapsed <-> expanded),
+    // so its dagre-computed slot no longer matches; relay out once the new
+    // size has been measured, or it can overlap its neighbors.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      setNodes((current) => layoutNodes(current, edgesRef.current, { orientation: graphOrientation }))
+    }))
+  }, [edges, graphOrientation, hydrateBackgroundNode, setEdges, setNodes])
 
   const setAllExpanded = useCallback((expanded: boolean) => {
     const currentEdges = edgesRef.current
@@ -627,7 +648,7 @@ export function useGraphModel({
     }))
   }, [graphOrientation, hydrateBackgroundNode, setEdges, setNodes])
 
-  const fit = () => fitView({ padding: 0.35, maxZoom: 0.75, duration: 350 })
+  const fit = () => fitView({ padding: 0.4, maxZoom: 0.85, duration: 350 })
   const relayout = () => {
     setNodes((current) => layoutNodes(current, edges, { orientation: graphOrientation }))
     requestAnimationFrame(fit)
@@ -739,7 +760,7 @@ export function useGraphModel({
       })), parsed.edges, { orientation: graphOrientation }))
       setYamlError("")
       onResultsMarkdown("")
-      requestAnimationFrame(() => requestAnimationFrame(() => fitView({ padding: 0.35, maxZoom: 0.75, duration: 350 })))
+      requestAnimationFrame(() => requestAnimationFrame(() => fitView({ padding: 0.4, maxZoom: 0.85, duration: 350 })))
       return nextRevision
     } catch (error) {
       setYamlError(error instanceof Error ? error.message : "Could not parse this YAML file.")
