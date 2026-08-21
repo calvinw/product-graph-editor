@@ -129,61 +129,47 @@ async function openDesktopAnalysis(page: Page, name: string, root: string) {
   await expect(page.locator(root)).toBeVisible()
 }
 
-test("template drafts must be saved as a session model or discarded before navigation", async ({ page }) => {
+test("session drafts must be saved or discarded before navigation", async ({ page }) => {
   await mockLcaApi(page)
   await openWorkspace(page)
   await calculate(page)
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   await expect(page.locator(".react-flow__node")).toHaveCount(5)
+  // Selecting a template gives an immediately editable "Copy of X" session
+  // (see #43) -- there is no separate "template" state requiring Save As
+  // just to make the first edit.
+  await expect(page.locator('[aria-label="Current model: Copy of Jacket"]:visible')).toBeVisible()
 
   await page.getByRole("radio", { name: "Edit", exact: true }).click()
   const editor = page.getByRole("textbox", { name: "Product graph YAML" })
   const appliedSource = await editor.inputValue()
   await editor.fill(appliedSource.replace("Jacket", "Draft jacket"))
-  await expect(page.getByText("Unsaved draft. Save As to create a session model.")).toBeVisible()
-  await expect(page.getByRole("button", { name: "Save As..." })).toBeEnabled()
+  await expect(page.getByText("Unsaved changes. Save to update this session model.")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeEnabled()
   await expect(page.getByRole("button", { name: "Results", exact: true })).toBeVisible()
 
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   const dialog = page.getByRole("alertdialog")
   await expect(dialog.getByRole("heading", { name: "Unsaved YAML changes" })).toBeVisible()
-  await expect(dialog).toContainText("Save a copy before continuing?")
   await dialog.getByRole("button", { name: "Keep editing" }).click()
   await expect(page.getByRole("radio", { name: "Edit", exact: true })).toBeChecked()
 
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   await dialog.getByRole("button", { name: "Discard changes" }).click()
-  await expect(page.locator('[aria-label="Current model: Jacket"]:visible')).toBeVisible()
+  await expect(page.locator('[aria-label="Current model: Copy of Jacket"]:visible')).toBeVisible()
   await expect(page.locator(".react-flow__node")).toHaveCount(5)
   await page.getByRole("radio", { name: "Edit", exact: true }).click()
   await expect(editor).toHaveValue(appliedSource)
 
   await editor.fill("not: [valid")
-  await page.getByRole("button", { name: "Save As..." }).click()
-  await page.getByRole("dialog").getByRole("button", { name: "Save As", exact: true }).click()
+  await page.getByRole("button", { name: "Save", exact: true }).click()
   await expect(page.locator(".yaml-error")).toBeVisible()
 
   await editor.fill(appliedSource.replace("Jacket", "Calculated jacket"))
-  await page.getByRole("button", { name: "Save As..." }).click()
-  const saveAsDialog = page.getByRole("dialog")
-  await saveAsDialog.getByRole("textbox", { name: "Model name" }).fill("Calculated jacket study")
-  await saveAsDialog.getByRole("button", { name: "Save As", exact: true }).click()
-  await expect(page.locator('[aria-label="Current model: Calculated jacket study"]:visible')).toBeVisible()
+  await page.getByRole("button", { name: "Save", exact: true }).click()
+  await expect(page.locator('[aria-label="Current model: Copy of Jacket"]:visible')).toBeVisible()
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   await expect(page.locator(".react-flow__node")).toHaveCount(5)
-  await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
-  await page.getByRole("button", { name: "Results", exact: true }).click()
-  await page.getByRole("menuitem", { name: "LCA results", exact: true }).click()
-  await expect(page.locator(".markdown-report")).toBeVisible()
-
-  await openDesktopAnalysis(page, "Inventory", ".inventory-view")
-
-  await page.getByRole("radio", { name: "Edit", exact: true }).click()
-  await editor.fill(appliedSource.replace("Jacket", "Modal calculated jacket"))
-  await page.getByRole("radio", { name: "Graph", exact: true }).click()
-  await expect(dialog).toContainText("Save changes to \"Calculated jacket study\"")
-  await dialog.getByRole("button", { name: "Save", exact: true }).click()
-  await expect(page.locator('[aria-label="Current model: Calculated jacket study"]:visible')).toBeVisible()
   await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
   await page.getByRole("button", { name: "Results", exact: true }).click()
   await page.getByRole("menuitem", { name: "LCA results", exact: true }).click()
@@ -271,7 +257,7 @@ test("an invalid upload keeps the prior committed graph and can be discarded", a
 
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   await page.getByRole("alertdialog").getByRole("button", { name: "Discard changes" }).click()
-  await expect(page.locator('[aria-label="Current model: Jacket"]:visible')).toBeVisible()
+  await expect(page.locator('[aria-label="Current model: Copy of Jacket"]:visible')).toBeVisible()
   await expect(page.locator(".react-flow__node")).toHaveCount(5)
 })
 
@@ -296,13 +282,13 @@ test("model replacement protects dirty drafts and unload warns only while dirty"
   const confirmation = page.getByRole("alertdialog")
   await confirmation.getByRole("button", { name: "Keep editing" }).click()
   await expect(editor).toHaveValue(/Protected jacket draft/)
-  await expect(page.locator('[aria-label="Current model: Jacket"]:visible')).toBeVisible()
+  await expect(page.locator('[aria-label="Current model: Copy of Jacket"]:visible')).toBeVisible()
 
   await page.getByRole("button", { name: "File", exact: true }).click()
   await openTemplates(page)
   await page.getByRole("menuitem", { name: "Cotton Fiber", exact: true }).click()
   await confirmation.getByRole("button", { name: "Discard changes" }).click()
-  await expect(page.locator('[aria-label="Current model: Cotton Fiber"]:visible')).toBeVisible()
+  await expect(page.locator('[aria-label="Current model: Copy of Cotton Fiber"]:visible')).toBeVisible()
   await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
   await expect(page.locator(".react-flow__node")).toHaveCount(2)
   await page.getByRole("radio", { name: "Edit", exact: true }).click()
@@ -317,7 +303,8 @@ test("an engine failure keeps the locally committed session model and structure 
   await page.getByRole("radio", { name: "Edit", exact: true }).click()
   const editor = page.getByRole("textbox", { name: "Product graph YAML" })
   await editor.fill((await editor.inputValue()).replace("Jacket", "Locally saved jacket"))
-  await page.getByRole("button", { name: "Save As..." }).click()
+  await page.getByRole("button", { name: "File", exact: true }).click()
+  await page.getByRole("menuitem", { name: "Save As...", exact: true }).click()
   await page.getByRole("dialog").getByRole("textbox", { name: "Model name" }).fill("Offline jacket study")
   await page.getByRole("dialog").getByRole("button", { name: "Save As", exact: true }).click()
   await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toHaveCount(0)
@@ -367,7 +354,8 @@ test("a calculation for an older applied revision cannot populate results", asyn
   await page.getByRole("radio", { name: "Edit", exact: true }).click()
   const editor = page.getByRole("textbox", { name: "Product graph YAML" })
   await editor.fill((await editor.inputValue()).replace("Jacket", "New revision"))
-  await page.getByRole("button", { name: "Save As..." }).click()
+  await page.getByRole("button", { name: "File", exact: true }).click()
+  await page.getByRole("menuitem", { name: "Save As...", exact: true }).click()
   await page.getByRole("dialog").getByRole("textbox", { name: "Model name" }).fill("New revision study")
   await page.getByRole("dialog").getByRole("button", { name: "Save As", exact: true }).click()
   await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toBeVisible()
@@ -515,7 +503,7 @@ test("form controls preserve selection, clamping, and disabled behavior", async 
   await modelMenu.click()
   await openTemplates(page)
   await page.getByRole("menuitem", { name: "Cotton Fiber", exact: true }).click()
-  await expect(page.locator('[aria-label="Current model: Cotton Fiber"]:visible')).toBeVisible()
+  await expect(page.locator('[aria-label="Current model: Copy of Cotton Fiber"]:visible')).toBeVisible()
   await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
   await page.getByRole("button", { name: "Results", exact: true }).click()
   await page.getByRole("menuitem", { name: "LCA results", exact: true }).click()
@@ -523,11 +511,13 @@ test("form controls preserve selection, clamping, and disabled behavior", async 
 
   await page.getByRole("radio", { name: "Edit", exact: true }).click()
   await expect(page.getByRole("textbox", { name: "Product graph YAML" })).toHaveValue(/Cotton Fiber/)
-  await expect(page.getByRole("button", { name: "Save As..." })).toBeEnabled()
+  // "Save As..." (an explicit named copy) stays reachable from the File menu
+  // for any document with content, session or not.
   await modelMenu.click()
+  await expect(page.getByRole("menuitem", { name: "Save As...", exact: true })).toBeEnabled()
   await openTemplates(page)
   await page.getByRole("menuitem", { name: "Simple Mock Plastic Broom", exact: true }).click()
-  const fullModelTitle = page.locator('[aria-label="Current model: Simple Mock Plastic Broom"]:visible')
+  const fullModelTitle = page.locator('[aria-label="Current model: Copy of Simple Mock Plastic Broom"]:visible')
   await expect(fullModelTitle).toBeVisible()
   expect(await fullModelTitle.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
   await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
@@ -536,7 +526,9 @@ test("form controls preserve selection, clamping, and disabled behavior", async 
   await expect(page.locator(".markdown-report")).toBeVisible()
   await page.getByRole("radio", { name: "Edit", exact: true }).click()
   await expect(page.getByRole("textbox", { name: "Product graph YAML" })).toHaveValue(/Mock freight transport, small truck, direct emissions only/)
-  await expect(page.getByRole("button", { name: "Save As..." })).toBeEnabled()
+  await modelMenu.click()
+  await expect(page.getByRole("menuitem", { name: "Save As...", exact: true })).toBeEnabled()
+  await page.keyboard.press("Escape")
 })
 
 test("settings popovers dismiss predictably and restore trigger focus", async ({ page }) => {

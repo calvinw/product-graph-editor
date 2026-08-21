@@ -11,16 +11,16 @@ test("application shell and primary graph controls load", async ({ page }) => {
   if ((page.viewportSize()?.width ?? 0) > 900) {
     await expect(page.getByText("PRISM Life Cycle Assessment", { exact: true })).toBeVisible()
     const fileTitle = page.locator(".navbar-model-title")
-    await expect(fileTitle).toHaveText("Jacket")
+    await expect(fileTitle).toHaveText("Copy of Jacket")
     await expect(fileTitle).toHaveCSS("border-top-width", "0px")
     await expect(fileTitle).toHaveCSS("border-radius", "0px")
     await expect(fileTitle).toHaveCSS("background-color", "rgba(0, 0, 0, 0)")
     await expect(fileTitle).toHaveCSS("text-overflow", "clip")
     await expect(fileTitle).toHaveCSS("overflow", "visible")
   } else {
-    await expect(page.getByRole("heading", { name: "Jacket" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Copy of Jacket" })).toBeVisible()
   }
-  await expect(page.locator('[aria-label="Current model: Jacket"]:visible')).toBeVisible()
+  await expect(page.locator('[aria-label="Current model: Copy of Jacket"]:visible')).toBeVisible()
   await expect(page.getByRole("button", { name: "File", exact: true })).toBeVisible()
   await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeVisible()
   await expect(page.getByRole("radio", { name: "Edit", exact: true })).toBeVisible()

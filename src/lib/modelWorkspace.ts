@@ -45,6 +45,7 @@ export type ModelWorkspaceAction =
   | { type: "start-invalid-upload"; title: string; filename: string; yaml: string }
   | { type: "commit-new-session"; document: SessionDocument }
   | { type: "commit-active-session"; yaml: string }
+  | { type: "rename-active"; title: string }
   | { type: "delete-session"; id: string }
   | { type: "discard" }
 
@@ -110,6 +111,17 @@ export function modelWorkspaceReducer(
           item.id === document.id ? document : item
         )),
         yamlDraft: action.yaml,
+      }
+    }
+    case "rename-active": {
+      if (state.activeDocument?.kind !== "session") return state
+      const document = { ...state.activeDocument, title: action.title, filename: safeYamlFilename(action.title) }
+      return {
+        activeDocument: document,
+        sessionDocuments: state.sessionDocuments.map((item) => (
+          item.id === document.id ? document : item
+        )),
+        yamlDraft: state.yamlDraft,
       }
     }
     case "delete-session":

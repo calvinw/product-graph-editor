@@ -3,7 +3,7 @@ import { parse } from "yaml"
 import type { SwitchViewOutcome } from "@/ai/viewTools"
 import { getProductGraphTemplates, type ProductGraphTemplate } from "@/lib/lcaApi"
 import {
-  safeYamlFilename, templateToDocument, uniqueSessionTitle, yamlFilenameStem,
+  safeYamlFilename, uniqueSessionTitle, yamlFilenameStem,
   type SessionDocument,
 } from "@/lib/modelWorkspace"
 import { productGraphLabel } from "@/lib/resultFormatting"
@@ -112,8 +112,16 @@ export function useModelWorkspace({
   const loadTemplate = (id: string) => {
     const entry = templates.find((item) => item.id === id)
     if (!entry) return
-    const document = { ...templateToDocument(entry), title: productGraphLabel(entry.name) }
-    dispatchModelWorkspace({ type: "load-document", document })
+    const title = uniqueSessionTitle(`Copy of ${productGraphLabel(entry.name)}`, sessionDocuments)
+    const document: SessionDocument = {
+      kind: "session",
+      id: crypto.randomUUID(),
+      title,
+      filename: safeYamlFilename(title),
+      committedYaml: entry.product_graph,
+      source: "template-copy",
+    }
+    dispatchModelWorkspace({ type: "commit-new-session", document })
     setYamlError("")
     setView("graph")
     applyAndCalculateYaml(document.committedYaml, false)
@@ -178,6 +186,16 @@ export function useModelWorkspace({
     if (revision === null) return false
     dispatchModelWorkspace({ type: "commit-active-session", yaml: yamlDraft })
     void calculateSource(yamlDraft, revision)
+    return true
+  }
+
+  const renameActiveDocument = (proposedTitle: string) => {
+    if (activeDocument?.kind !== "session") return false
+    const title = proposedTitle.trim()
+    if (!title || title.length > 120) return false
+    if (title === activeDocument.title) return true
+    if (sessionDocuments.some((item) => item.id !== activeDocument.id && item.title.toLocaleLowerCase() === title.toLocaleLowerCase())) return false
+    dispatchModelWorkspace({ type: "rename-active", title })
     return true
   }
 
@@ -256,10 +274,16 @@ export function useModelWorkspace({
         if (!initial) throw new Error("The product-graph templates have no default selection.")
         setTemplates(templateCollection.product_graphs)
         setTemplateState("ready")
-        dispatchModelWorkspace({
-          type: "load-document",
-          document: { ...templateToDocument(initial), title: productGraphLabel(initial.name) },
-        })
+        const title = uniqueSessionTitle(`Copy of ${productGraphLabel(initial.name)}`, sessionDocuments)
+        const document: SessionDocument = {
+          kind: "session",
+          id: crypto.randomUUID(),
+          title,
+          filename: safeYamlFilename(title),
+          committedYaml: initial.product_graph,
+          source: "template-copy",
+        }
+        dispatchModelWorkspace({ type: "commit-new-session", document })
         const revision = applyYaml(initial.product_graph)
         if (revision !== null) void calculateSource(initial.product_graph, revision)
       } catch (error) {
@@ -358,7 +382,7 @@ export function useModelWorkspace({
     saveAsReturnFocusRef, navbarUploadRef,
     isDirty, isTransient, hasUncommittedWorkspace, canSave, canSaveAs, canDownload,
     loadYamlFile, loadTemplate, loadSessionModel,
-    openSaveAsDialog, openBlankYamlEditor, saveSessionModel, saveAsSessionModel,
+    openSaveAsDialog, openBlankYamlEditor, saveSessionModel, saveAsSessionModel, renameActiveDocument,
     discardYamlChanges, downloadCurrentYaml, downloadTextFile,
     saveAsSessionModelWithName,
     openAnalysisView, continueToView, requestAction, requestView, requestAssistantView,

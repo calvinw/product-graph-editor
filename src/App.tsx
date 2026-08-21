@@ -202,7 +202,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     loadYamlFile,
     openSaveAsDialog, saveSessionModel, saveAsSessionModel,
     downloadCurrentYaml, downloadTextFile,
-    saveAsSessionModelWithName, isTransient,
+    saveAsSessionModelWithName, isTransient, renameActiveDocument,
     requestAction, requestView, requestAssistantView,
     cancelPendingAction, discardAndContinue, saveAndContinue, saveAsAndContinue,
     setPendingAction,
@@ -320,7 +320,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
   return (
     <>
       {navbarTarget ? createPortal(<div className="desktop-navbar" aria-label="Application navigation">
-        <CurrentModelTitle title={currentModelTitle} className="navbar-model-title" />
+        <CurrentModelTitle title={currentModelTitle} className="navbar-model-title" onRename={activeDocument?.kind === "session" ? renameActiveDocument : undefined} />
         <FileMenu
           activeDocument={activeDocument}
           templates={templates}
@@ -373,7 +373,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           <div className="canvas-actions">
             <div className="view-tabs">
               <div className="navigation-model-group">
-                <CurrentModelTitle title={currentModelTitle} className="navigation-model-title" />
+                <CurrentModelTitle title={currentModelTitle} className="navigation-model-title" onRename={activeDocument?.kind === "session" ? renameActiveDocument : undefined} />
                 <FileMenu
                   activeDocument={activeDocument}
                   templates={templates}
@@ -471,13 +471,13 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           <Button variant="ghost" className={`graph-action ${graphMode === "structure" ? "is-active" : ""}`} aria-pressed={graphMode === "structure"} onClick={() => showGraphMode("structure")}><LayoutGrid size={16} />Structure Graph</Button>
         </div></> : view === "yaml" ? <div className="yaml-editor">
           <div className="yaml-editor-head">
-            <div><strong>Product graph YAML</strong><span>{isTransient ? "Start writing YAML, or upload an existing file from the File menu." : activeDocument?.kind === "template" ? "Edit this template, then save a session copy." : "Edit the current session model."}</span></div>
+            <div><strong>Product graph YAML</strong><span>{isTransient ? "Start writing YAML, or upload an existing file from the File menu." : "Edit the current session model."}</span></div>
           </div>
           <textarea value={yamlDraft} onChange={(event) => { dispatchModelWorkspace({ type: "edit-draft", yaml: event.target.value }); setYamlError("") }} spellCheck={false} aria-label="Product graph YAML" />
           <div className="yaml-editor-foot">
-            <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (!yamlDraft.trim() ? "Start writing YAML, or upload a file from the File menu." : isDirty ? activeDocument?.kind === "session" ? "Unsaved changes. Save to update this session model." : "Unsaved draft. Save As to create a session model." : isCalculating ? "Calculating the saved YAML…" : activeDocument?.kind === "template" ? "Template loaded as an immutable example." : "Saved in this browser session.")}</span>
+            <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (!yamlDraft.trim() ? "Start writing YAML, or upload a file from the File menu." : isDirty ? activeDocument?.kind === "session" ? "Unsaved changes. Save to update this session model." : "Unsaved draft. Save As to create a session model." : isCalculating ? "Calculating the saved YAML…" : "Saved in this browser session.")}</span>
             {activeDocument?.kind === "session" && isDirty ? <Button size="sm" onClick={saveSessionModel}><SaveIcon data-icon="inline-start" />Save</Button>
-              : activeDocument?.kind === "template" || isTransient ? <Button size="sm" disabled={!canSaveAs} onClick={openSaveAsDialog}><CopyPlus data-icon="inline-start" />Save As...</Button>
+              : isTransient ? <Button size="sm" disabled={!canSaveAs} onClick={openSaveAsDialog}><CopyPlus data-icon="inline-start" />Save As...</Button>
                 : null}
           </div>
         </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} loadContributionGraphs={loadContributionGraphs} /> : view === "realtime" ? <RealtimeView result={lcaResult} isCurrent={hasCurrentResults} error={resultsError} overrides={scenarioOverrides} onOverride={setScenarioOverride} onReset={resetScenario} onCommit={commitScenario} committing={calculationInProgress} /> : <div className="results-panel">
