@@ -1,8 +1,9 @@
 # Plan: Command Pattern and Undo
 
-Status: **proposed**, not started
+Status: **Phase 0 delivered**; Phases 1-6 not started
 Date: August 21, 2026
 Basis: `main` at `aa5108c`, derived from source code
+Delivered: `d116171`, `0abf734` (on `main`, August 21, 2026)
 Related: supersedes the undo/patch speculation in
 [`ai-chat-tool-roadmap.md`](ai-chat-tool-roadmap.md) Phase 6
 
@@ -116,8 +117,9 @@ plan.
 
 ## Defects to fix first
 
-Each is a real bug today, and each is exactly a boundary problem the command
-layer must solve anyway.
+**Delivered** in `d116171` and `0abf734`. Each was a real bug, and each was a
+boundary problem the command layer would have had to solve anyway. Kept here as
+the record of what changed and why.
 
 ### 1. The scenario commit boundary is explicit, and the UI hides it
 
@@ -337,8 +339,8 @@ valuable undo and the highest risk to get wrong - and revisiting later.
 | 6 | History panel; retire `recordToolAudit` |
 | - | Vitest for `src/commands`, `src/lib/realtimeScore`, `src/lib/modelWorkspace` |
 
-Phase 0 is five standalone bug fixes with no architectural commitment and is
-worth doing whether or not the rest proceeds.
+Phase 0 is delivered. It was five standalone bug fixes with no architectural
+commitment, worth doing whether or not the rest proceeds.
 
 Phases 0-3 ship working undo on their own. Phases 5-6 are the agentic payoff
 and depend on nothing in 4.
@@ -361,21 +363,45 @@ commit-on-release. See defect 1.
 
 ## Effort
 
-Roughly one day of agent working time end to end, spread across review cycles.
-As human-engineer estimates, about seven days.
+Phase 0 is done. It took about 45 minutes of agent working time, including two
+full verification passes, and it came in close to the 30-60 minutes estimated.
+
+### Remaining: Phases 1-6
+
+| Phase | Agent working time | Review needed |
+| --- | --- | --- |
+| 1 - store slices | ~45 min | Skim the diff; build and lint catch most of it |
+| 2 - command registry | ~1.5 h | Real review - this is the API the project lives with |
+| 3 - history and undo | ~2 h | Hands-on; coalescing and camera behavior cannot be judged from a diff |
+| 4 - result cache | ~30 min | Minimal |
+| 5 - chat invoker | ~1 h | Review the per-turn transaction semantics |
+| 6 - history panel | ~1 h | UX review |
+| Vitest | ~30 min | Minimal, but do it before Phase 3 |
+
+**About 7.5 hours of agent working time**, or roughly one working day, spread
+across however long the review cycles take. As human-engineer estimates, about
+six days for what remains.
+
+Phases 1-3 plus Vitest are the undo milestone: **~4.75 hours**, and they ship a
+working undo system on their own. Phases 4-6 are independent of each other and
+can be dropped or deferred without blocking anything.
 
 The cheap alternative - a stack of `appliedYaml` snapshots behind `applySource`,
-no registry - is about a day of human time and does deliver working
-scenario-edit undo. It gives no unified human/assistant timeline and no per-turn
-revert, and it gets rewritten when content-mutation tools land.
+no registry - is perhaps 45 minutes and does deliver working scenario-edit undo.
+It gives no unified human/assistant timeline and no per-turn revert, and it gets
+rewritten when content-mutation tools land. Not recommended now that Phase 0 has
+already cleaned the commit boundary.
 
-The real calendar cost is not typing. It is:
+### What actually costs calendar time
 
-- the Playwright suites, which should run per phase rather than once at the end
-- the three accepted visual failures recorded in `responsive-baseline.md`: if a
-  refactor shifts a screenshot, baselines may not be updated without a human
-  reviewing actual, expected, and diff images
-- the three decisions above
+Not typing. In Phase 0 the verification passes took roughly three times as long
+as the edits:
+
+- `test:responsive` runs about 1.1 minutes, `test:visual` about 1.3 minutes, and
+  both should run per phase rather than once at the end
+- if a refactor shifts a screenshot, baselines may not be updated without a
+  human reviewing actual, expected, and diff images
+- the three decisions listed above, each of which blocks Phase 3
 
 ## Non-goals
 
@@ -405,11 +431,22 @@ npm run test:responsive
 npm run test:visual
 ```
 
-Baseline: 24 responsive passed with no skips; 29 visual passed with 3 accepted
-failures. `test:visual` exits nonzero because of those. Compare every failure
-against `responsive-baseline.md`: previously passing tests must stay green, and
-accepted failures must not change or expand. Never update screenshot baselines
-without visually reviewing actual, expected, and diff images.
+**The recorded baselines are stale.** `AGENTS.md`, `CLAUDE.md`, `TODOs.md`, and
+`responsive-baseline.md` all state 24 responsive passed with no skips and 29
+visual passed with 3 accepted failures, and warn that `test:visual` exits
+nonzero. Measured on `main` at `0abf734`:
+
+- responsive: **53 passed, 1 skipped, 0 failed** (the skip is a phone-width
+  conditional at `ai-chat.responsive.spec.ts:181`, not a contract gap)
+- visual: **31 passed, 0 failed** - the suite exits zero, and the three accepted
+  failures tracked by issues #37, #38, and #39 appear resolved
+
+Use those numbers. Update the four documents above, and close or re-verify the
+three issues, before Phase 1 - otherwise every later phase is measured against
+a baseline that does not describe the suite.
+
+Never update screenshot baselines without visually reviewing actual, expected,
+and diff images.
 
 Beyond the suites, Phase 3 needs hands-on verification at the three supported
 viewports - coalescing feel cannot be judged from a diff.
