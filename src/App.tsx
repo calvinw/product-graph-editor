@@ -235,6 +235,9 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
 
 
   const connectionCount = edges.length
+  // Multi-select is otherwise invisible unless you happen to notice the node
+  // outlines, and the property editor deliberately stays closed for it.
+  const selectedNodeCount = nodes.filter((node) => node.selected).length
   const hasCurrentResults = useProductGraphStore(selectHasCurrentResults)
   if (selected) lastSelectedRef.current = selected
   const inspectorSelection = selected ?? lastSelectedRef.current
@@ -513,7 +516,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           visibleCategories={visibleImpactCategories}
           onToggleCategory={toggleImpactCategory}
         /> : null}
-        {view === "graph" ? <div className="graph-meta">{nodes.length} nodes&nbsp;&nbsp;·&nbsp;&nbsp;{connectionCount} connections</div> : null}
+        {view === "graph" ? <div className="graph-meta">{nodes.length} nodes&nbsp;&nbsp;·&nbsp;&nbsp;{connectionCount} connections{selectedNodeCount > 1 ? <>&nbsp;&nbsp;·&nbsp;&nbsp;<strong>{selectedNodeCount} selected</strong></> : null}</div> : null}
       </div>
 
       {view === "graph" && inspectorSelection ? <Inspector
