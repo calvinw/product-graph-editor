@@ -11,12 +11,12 @@ set -euo pipefail
 # configuration file, so it keeps working if the container tooling changes.
 #
 #   ./scripts/setup-local.sh              full setup
-#   ./scripts/setup-local.sh --skip-deps  only skills and MCP wiring
+#   ./scripts/setup-local.sh --skip-deps  never touch node_modules
 #   ./scripts/setup-local.sh --help
 #
 # What it does:
 #   1. checks prerequisites and reports which agents it found
-#   2. npm ci, then the Playwright Chromium runtime
+#   2. installs dependencies if they are stale, then Playwright's Chromium
 #   3. makes .agents/skills discoverable by all three agents
 #   4. registers the local shadcn MCP server
 #
@@ -84,10 +84,34 @@ fi
 
 # ── 2. Dependencies ──────────────────────────────────────────────────────────
 if [ "$skip_deps" -eq 1 ]; then
-  step "Skipping npm ci and Playwright (--skip-deps)"
+  step "Skipping dependencies and Playwright (--skip-deps)"
 else
-  step "Installing project dependencies"
-  npm ci
+  step "Checking project dependencies"
+
+  # npm ci deletes node_modules and reinstalls from scratch, so only run it
+  # when something is actually stale. These are the same four checks
+  # start_server.sh makes, so the two agree about when a reinstall is needed.
+  deps_stale=0
+  if [ ! -d node_modules ]; then
+    deps_stale=1
+  elif [ ! -f node_modules/.package-lock.json ] \
+    || [ package.json -nt node_modules/.package-lock.json ] \
+    || [ package-lock.json -nt node_modules/.package-lock.json ]; then
+    deps_stale=1
+  elif ! npm ls --depth=0 >/dev/null 2>&1; then
+    deps_stale=1
+  elif ! node --input-type=module -e "await import('vite')" >/dev/null 2>&1; then
+    # npm can report a healthy top-level tree while a nested optional
+    # dependency, such as Rollup's platform binary, is missing.
+    deps_stale=1
+  fi
+
+  if [ "$deps_stale" -eq 1 ]; then
+    note "dependencies are stale, running npm ci"
+    npm ci
+  else
+    note "dependencies are current, nothing to install"
+  fi
 
   step "Installing the Playwright Chromium runtime"
   # --with-deps installs Linux system packages through apt. On macOS the
@@ -208,4 +232,4 @@ note "  npx --no-install skills list     skills the agents can see"
 note "  claude mcp list                  claude's MCP servers"
 note "  codex mcp list                   codex's MCP servers"
 note ""
-note "Run the app with: npm run dev"
+note "Run the app with: ./start_server.sh"
