@@ -274,8 +274,8 @@ input.current-model-title-input { display: block; width: 100%; min-width: 0; hei
 .ai-chat-message { display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 18px; }.ai-chat-message.is-user { align-items: flex-end; }.ai-chat-message-content { max-width: 100%; color: var(--foreground); font-size: 12px; line-height: 1.55; }.ai-chat-message.is-user .ai-chat-message-content { max-width: 92%; padding: 9px 11px; border-radius: 10px; color: var(--primary-foreground); background: var(--primary); }.ai-chat-message-content > :first-child { margin-top: 0; }.ai-chat-message-content > :last-child { margin-bottom: 0; }.ai-chat-message-content pre, .ai-chat-tool pre { max-width: 100%; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
 .ai-chat-thinking { color: var(--muted-foreground); }.ai-chat-tool { width: 92%; margin-top: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); font-size: 10px; }.ai-chat-tool summary { padding: 7px 9px; cursor: pointer; }.ai-chat-tool pre { margin: 0; padding: 8px 9px; border-top: 1px solid var(--border); color: var(--muted-foreground); }
 .ai-chat-table-wrap { max-width: 100%; margin: 10px 0; overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
-.ai-chat-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-.ai-chat-table th, .ai-chat-table td { padding: 6px 9px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+.ai-chat-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 11px; }
+.ai-chat-table th, .ai-chat-table td { padding: 6px 9px; border-bottom: 1px solid var(--border); text-align: left; overflow-wrap: break-word; word-break: break-word; }
 .ai-chat-table thead th { color: var(--muted-foreground); background: var(--muted); font-size: 10px; letter-spacing: .02em; text-transform: uppercase; }
 .ai-chat-table tbody tr:last-child td { border-bottom: 0; }
 .ai-chat-table-actions { display: flex; gap: 4px; justify-content: flex-end; padding: 4px 6px; border-top: 1px solid var(--border); background: var(--muted); }
