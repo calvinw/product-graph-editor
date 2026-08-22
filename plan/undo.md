@@ -567,12 +567,14 @@ npm run test:responsive
 npm run test:visual
 ```
 
-The baselines recorded in `AGENTS.md`, `CLAUDE.md`, `TODOs.md`, and
-`responsive-baseline.md` (24 responsive, 29 visual with 3 accepted failures) do
-not match the suite. Measured on `0abf734`: 53 responsive passed with 1
-viewport-conditional skip, and 31 visual passed with no failures. Re-measure and
-update those documents before Phase 1 so later phases are not compared against a
-baseline that describes nothing.
+**Done (August 22, 2026).** The stale baselines were re-measured at `0612d95`
+and corrected in `AGENTS.md`, `CLAUDE.md`, `TODOs.md`, `README.md`, and
+`responsive-baseline.md`. `README.md` also carried the stale numbers and was not
+in the original list. The current baseline is **53 responsive passed with 1
+deliberate viewport-conditional skip, and 31 visual passed with no failures**;
+both suites exit zero. All three formerly accepted visual failures (#37, #38,
+#39) are fixed and closed, so there is no accepted-failure allowance and a
+failing visual test is now a regression.
 
 Never update screenshot baselines without visually reviewing actual, expected,
 and diff images.
