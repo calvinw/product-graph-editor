@@ -9,7 +9,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import prismLogoRound from "./assets/prism-logo-round.png"
 import {
-  BarChart3, Bot, Check, CopyPlus, GripHorizontal, Scan, LayoutGrid, ChevronDown,
+  BarChart3, Check, ChevronLeft, CopyPlus, GripHorizontal, Scan, LayoutGrid, ChevronDown,
   ChevronsDownUp, ChevronsUpDown, Minus, Moon, MousePointer2, Plus, Save as SaveIcon, Settings2, Sun, X,
 } from "lucide-react"
 import { parse } from "yaml"
@@ -154,6 +154,19 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
       cancelAnimationFrame(fitFrame)
     }
   }, [active, chatPortalTarget, fitView, view])
+  useEffect(() => {
+    if (view !== "graph" || !active) return
+    let fitFrame = 0
+    const onResize = () => {
+      cancelAnimationFrame(fitFrame)
+      fitFrame = requestAnimationFrame(() => fitView({ padding: 0.4, maxZoom: 0.85, duration: 200 }))
+    }
+    window.addEventListener("resize", onResize)
+    return () => {
+      window.removeEventListener("resize", onResize)
+      cancelAnimationFrame(fitFrame)
+    }
+  }, [active, fitView, view])
   useEffect(() => {
     if (view !== "graph" || !active || !inspectorOpen || !selected) return
     const frame = requestAnimationFrame(() => {
@@ -418,7 +431,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           hydrateBackgroundNode={hydrateBackgroundNode} toggleExpanded={toggleExpanded}
           selectMode={selectMode}
         />
-        <div className="graph-toolbar" data-draggable-panel aria-label="Graph tools" style={graphToolbarPosition ? { left: graphToolbarPosition.left, top: graphToolbarPosition.top } : undefined}>
+        <div className="graph-toolbar" data-draggable-panel aria-label="Graph tools" style={graphToolbarPosition ? { position: "fixed", left: graphToolbarPosition.left, top: graphToolbarPosition.top } : undefined}>
           <button type="button" className="toolbar-grip" aria-label="Move graph toolbar" onPointerDown={startGraphToolbarDrag}><GripHorizontal size={14} /></button>
           <div className="toolbar-group">
             <Popover modal open={graphSettingsOpen} onOpenChange={setGraphSettingsOpen}>
@@ -553,7 +566,6 @@ function AppContent() {
           <div className="brand"><button className="brand-home" type="button" onClick={() => setWelcomeOpen(true)} aria-label="Open PRISM welcome page"><span className="brand-mark"><img src={prismLogoRound} alt="" aria-hidden="true" /></span></button><span className="brand-product-name"><span>PRISM</span><span className="brand-product-descriptor"> Life Cycle Assessment</span></span><span className="brand-separator">·</span><h1 className="brand-study-title">{workspaceTitle}</h1></div>
           <div ref={setNavbarTarget} className="navbar-portal-target" />
           <div className="top-actions">
-            <Button variant="ghost" className={`ai-chat-trigger ${chatOpen ? "is-active" : ""}`} type="button" aria-label="AI assistant" aria-expanded={chatOpen} onClick={() => setChatOpen(true)}><Bot size={16} /><span>Assistant</span></Button>
             <Popover modal open={settingsOpen} onOpenChange={setSettingsOpen}>
               <PopoverTrigger asChild>
                 <Button variant="ghost" className={`global-settings-trigger ${settingsOpen ? "is-active" : ""}`} type="button" aria-label="Global settings"><Settings2 size={16} /><span>Settings</span></Button>
@@ -578,6 +590,11 @@ function AppContent() {
             </Popover>
           </div>
           </header>
+          {!welcomeOpen && !chatOpen ? (
+            <button type="button" className="ai-chat-edge-tab" aria-label="Open AI assistant" aria-expanded={chatOpen} onClick={() => setChatOpen(true)}>
+              <ChevronLeft size={14} aria-hidden="true" />
+            </button>
+          ) : null}
 
           <section className="workspace" hidden={welcomeOpen}>
             <ReactFlowProvider>
