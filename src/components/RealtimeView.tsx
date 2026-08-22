@@ -84,7 +84,7 @@ export function RealtimeView({
           <RotateCcw data-icon="inline-start" /> Reset
         </Button>
         <Button size="sm" onClick={onCommit} disabled={!dirty || committing}>
-          {committing ? "Calculating…" : "Update YAML"}
+          {committing ? "Calculating…" : "Save to File"}
         </Button>
       </div>
     </div>

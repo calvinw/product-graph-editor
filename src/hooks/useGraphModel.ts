@@ -338,8 +338,12 @@ export function useGraphModel({
 
   // Dragging an edge or moving a slider only writes a scenario override. This
   // is the one path that turns those overrides into YAML, and it runs on an
-  // explicit Update YAML press -- never on drag release -- so there is no burst
-  // to debounce.
+  // explicit Save to File press -- never on drag release -- so there is no
+  // burst to debounce.
+  //
+  // Save to File saves: the draft, the applied source, and the session
+  // document all move together, so the editor does not report unsaved changes
+  // for an edit the user just committed.
   const commitScenario = useCallback(() => {
     const current = commitInputsRef.current
     if (!current.lcaResult) return
@@ -352,6 +356,9 @@ export function useGraphModel({
     // blank after every commit.
     const loadedCategories = current.lcaResult.contribution_graphs.map((graph) => graph.label)
     current.dispatchWorkspace({ type: "edit-draft", yaml: source })
+    // A no-op unless the active document is a writable session model, which it
+    // is for every template copy, upload, and Save As.
+    current.dispatchWorkspace({ type: "commit-active-session", yaml: source })
     const revision = current.applyScenarioSource(source)
     current.markRevision(revision)
     void Promise.resolve(current.calculateSource(source, revision)).then(() => {

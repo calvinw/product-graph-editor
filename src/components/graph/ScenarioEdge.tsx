@@ -29,7 +29,7 @@ const DRAG_SPAN = 220
  * the edge. Dragging maps horizontal travel onto 0..2x the baseline amount.
  *
  * Editing only previews: it writes a scenario override and nothing reaches the
- * YAML until the Update YAML button in the ScenarioPanel is pressed. There is
+ * YAML until the Save to File button in the ScenarioPanel is pressed. There is
  * currently no way to set an amount beyond 2x the baseline on the graph.
  */
 export function ScenarioEdge({
