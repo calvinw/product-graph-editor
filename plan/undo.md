@@ -80,6 +80,36 @@ first, and they stop experimenting.
 
 ## Design
 
+### An append-only version list, not a stack pair
+
+The artifact model is the right shape: every accepted change creates a
+**version**, there is a list of them, and you can go back to any one. That is
+not an undo stack, and the difference matters because two people are editing
+here. A stack encodes "take back *my* last action", but half the actions are
+the assistant's. A version list says what the document has been, who changed
+it, and when.
+
+Two consequences.
+
+**Restoring appends.** Going back to v3 adds a new version whose content is
+v3's, rather than truncating the list. Nothing is ever discarded. Go back to
+v3, dislike it, jump forward to v7 - v7 is still there. With a stack pair,
+making one edit after undoing would have destroyed everything ahead of you,
+which is the worst possible behaviour when the thing ahead of you was written
+by a model three steps ago and you have only just noticed it was wrong.
+
+**There is no redo stack.** Redo is just restoring a later version, so the
+"what clears redo" questions disappear. Cmd+Z outside the text editor restores
+the previous version, so the muscle memory still works.
+
+The cost: going back and forth leaves several restore entries in the list.
+Artifacts behave the same way and nobody minds, because the list is the
+interface rather than a hidden stack.
+
+This also settles a question that looks separate: **a save does not clear
+history, because saves are the entries.** The version list and the undo
+history are one object, so there is no relationship between them to get wrong.
+
 ### Snapshots, not inverses
 
 Keep copies of the previous document and restore them. Do not write a reverse
@@ -122,16 +152,35 @@ Undo should still put the view roughly back where the change is visible, so it
 does not feel like the app teleported. That is a best-effort context hint, not
 authoritative state.
 
-### Granularity
+### When a version is written
 
-One entry per accepted change:
+Two triggers, and the second is the one that actually protects you.
 
-- an accepted assistant edit
-- a Save
-- a Save to File
+**1. You committed something.** A Save, a Save to File, or accepting an
+assistant proposal - which is itself a Save under this design.
 
-Nothing else. No keystroke coalescing, no time windows - one request is one
-edit is one entry, which is the granularity the user already thinks in.
+**2. A proposal arrives, just before it overwrites your draft.** Version at the
+boundary of risk, so there is always a restore point immediately in front of
+every opaque change, whether or not you end up accepting it.
+
+Trigger 2 closes a hole trigger 1 cannot. Type twenty lines by hand, do not
+save, then ask the assistant to tidy it up: it rewrites, and those twenty lines
+were never a version. They existed only as a draft. Versioning at the handoff
+catches exactly that.
+
+"Send it to the assistant" could mean the `get_yaml_source` call or the
+proposal coming back. Take the proposal. Reading the document to answer a
+question is not a risk boundary, and versioning on every read fills the list
+with noise; capturing at proposal time is the same protection and is also
+correct if you edited something between the read and the reply.
+
+**Dedupe: never write a version identical to the latest one.** This makes
+trigger 2 tidy. Save and then immediately ask the assistant, and the
+pre-proposal snapshot equals the last version, so nothing is added. The
+automatic version appears only when you actually have uncommitted work to
+protect.
+
+Nothing else is a version. No keystroke coalescing, no time windows.
 
 ### Where it hooks in
 
@@ -142,11 +191,14 @@ file the copy.
 Add a single store action that takes the snapshot before applying:
 
 ```
-commitDocument(nextYaml, { label, source })
-  -> push the current document tier onto the undo stack
-  -> clear the redo stack
+commitVersion(nextYaml, { label, source })
+  -> skip if identical to the latest version (dedupe)
+  -> append the document tier to the version list
   -> apply
 ```
+
+Restoring is the same call with an older version's content, so a restore is an
+ordinary append and needs no separate path.
 
 ### The restore path
 
@@ -159,32 +211,26 @@ Use a variant of `applyScenarioSource` (`:130`), which already advances the
 revision while preserving mode, selection, and the previous result. The correct
 apply path for undo is essentially already written.
 
-### Redo
+### Going forward again
 
-A second stack, filled by undo and cheap once snapshots exist. Redoing an
-assistant edit is no different from redoing your own - the snapshot does not
-care who authored it.
+There is no redo stack to reason about. Restoring a later version is the same
+operation as restoring an earlier one, and every version stays in the list, so
+"going forward" needs no separate mechanism and no rules about what clears it.
 
-Two rules need stating, because assistant editing makes them ambiguous:
+Restoring an assistant's version is no different from restoring your own - the
+snapshot does not care who wrote it.
 
-**Only an accepted edit clears the redo stack.** Undo an assistant edit, then
-ask a follow-up question, and redo must still be available - reading the graph,
-listing views, or summarizing results are not edits. The stack clears when a new
-document is committed, not when the assistant does something.
+### Proposals are not versions
 
-**A new proposal does not clear it either.** A proposal writes the draft; it
-does not commit a document. Redo survives until you accept something.
+A proposal writes the draft. It does not create a version of its own, and a
+second proposal replaces the first in the draft rather than queueing behind it.
+The only trace a proposal leaves is the pre-proposal snapshot described above,
+and only when there was uncommitted work to protect.
 
-### Proposals are not history
-
-Only accepted changes become entries. A proposal that is never saved leaves no
-trace in the stack, and a second proposal replaces the first in the draft rather
-than queueing behind it.
-
-This keeps the history honest: it lists documents that actually existed, not
-things the assistant suggested. It also means the Discard action on a pending
-proposal is not undo - it is just abandoning a draft, which the workspace
-reducer already handles.
+This keeps the list honest: it records documents that actually existed, not
+things that were suggested. It also means Discard on a pending proposal is not
+a restore - it is abandoning a draft, which the workspace reducer already
+handles.
 
 ### Instant undo
 
@@ -257,6 +303,33 @@ version handshake means the model cannot silently rely on a pruned copy anyway.
 Corollary: do not cache the document in the assistant's context across turns as
 a token optimization. It saves little and reintroduces exactly the staleness
 this section exists to prevent.
+
+## Whole documents everywhere, never patches
+
+Two places a patch format could creep in. Both are rejected. The only diff in
+this design is the one rendered on screen so you can see what changed, and it
+is computed from two whole documents at display time - never stored, never
+transported, never a source of truth.
+
+**Do not store versions as deltas.** At roughly 2 KB a document, a hundred
+versions is about 200 KB against a 5 MB localStorage budget - optimizing a
+number that does not matter, and paying for it three ways: restoring becomes
+replaying patches rather than assigning a string, one bad patch poisons every
+version after it, and you own a patch-application implementation with all its
+context-matching and fuzz. Assistant edits are large anyway, so a rewrite
+touching half the file produces a delta barely smaller than the file. Git works
+this way too: whole objects, packed into deltas later purely as an
+optimization, with the full object always reconstructable.
+
+**Do not have the assistant return a patch either.** Fewer tokens and clearer
+intent, but models are unreliable at emitting patches that actually apply - line
+numbers drift, context lines get paraphrased, whitespace shifts - and the
+failure mode is a patch that lands in the wrong place. Full document in,
+validated by `buildGraphStructure`, diffed by us. The model does what it is good
+at; exact comparison is what code is good at.
+
+A line-level LCS diff is about forty lines and needs no dependency. Revisit only
+if documents reach thousands of lines with hundreds of versions.
 
 ## The history panel
 
@@ -405,45 +478,83 @@ assistant editing produces variants faster than anyone remembers to download
 them. It is a convenience, not a backup - clearing site data wipes it, and
 Download YAML remains the real archive.
 
+## Later: a database
+
+The version list is already the right shape for a server. It is append-only,
+which is the easiest thing there is to store: no row updates, no write
+conflicts, no locking.
+
+```sql
+models   (id, user_id, title, created_at, updated_at)
+versions (id, model_id, parent_id, yaml, label, author, created_at)
+```
+
+**Versions sync, drafts do not.** Versions are committed and immutable, so they
+are safe to store, share, and read back. Drafts - the working YAML in the
+editor, a pending proposal, the scenario overrides - are per-session working
+state; syncing them means two tabs fighting over one buffer and needing conflict
+resolution for no benefit. The database holds the version history and the model
+metadata; the current position in that history is a pointer, held locally.
+
+What changes with a server: durability becomes real rather than a convenience,
+the size ceiling disappears so full snapshots are even more clearly right,
+`author` becomes a user id instead of "you"/"assistant", and writes become async
+and can fail - append locally first, sync in the background, stay usable
+offline. With Supabase specifically, row-level security on `user_id` and
+realtime subscriptions for cross-tab updates both come nearly free.
+
+**The one thing to get right now, before any of this exists:** put the version
+store behind a small interface - `list(modelId)`, `get(versionId)`,
+`append(modelId, version)` - with localStorage as the first implementation. The
+database then becomes a second implementation and the migration is a day. The
+failure mode to avoid is scattering `localStorage` calls through components the
+way the chat panel currently does; retrofitting that later means touching
+everything.
+
 ## Phases
 
 | Phase | Work | Est. |
 | --- | --- | --- |
 | 1 | Nest the workspace slice so there is an object to snapshot | ~45 min |
-| 2 | Undo/redo stacks, `commitDocument`, the restore path | ~1.5 h |
+| 2 | Version list behind a store interface, `commitVersion`, restore path | ~1.5 h |
 | 3 | History panel with labels and "restore to here" | ~1 h |
 | 3b | Extract `<YamlEditor>`; Cmd+Z routing, blur/unmount snapshots, remount | ~1 h |
 | 4 | Diff rendering, in the panel and for assistant proposals | ~1 h |
 | 5 | `get_yaml_source`, `propose_yaml_edit`, version handshake, prompt change | ~1 h |
 | 5b | Transcript pruning for stale `get_yaml_source` results | ~30 min |
 | 6 | Result cache for instant undo (optional) | ~30 min |
-| - | Persist the workspace slice (optional, independent) | ~30 min |
-| - | Vitest for the pure parts - reducer, stacks, validation | ~30 min |
+| - | Persist the version list to localStorage (optional, independent) | ~30 min |
+| - | Vitest for the pure parts - reducer, version list, validation | ~30 min |
 
 **About 7.5 hours** of agent working time, or roughly a working day spread
 across review cycles.
 
-Phases 1-3 give working undo. Phase 4 is what makes it trustworthy for
-assistant edits. Phase 5 is the editing itself and can land before or after
-undo - they are independent, but 4 should not ship without 5 or there is nothing
-interesting to diff.
+Phases 1-3 give a working version history. Phase 4 is what makes it
+trustworthy for assistant edits. Phase 5 is the editing itself and can land
+before or after - they are independent, though 4 has little to show without 5.
 
-Do Vitest before Phase 2. The stacks and the reducer are pure functions and the
-highest-value thing to test; there is currently no unit test runner, only
-Playwright.
+Phase 2 should put the version list behind `list` / `get` / `append` from the
+start, so the later move to a database is a second implementation rather than a
+rewrite.
+
+Do Vitest before Phase 2. The version list and the reducer are pure functions
+and the highest-value thing to test; there is currently no unit test runner,
+only Playwright.
 
 ## Open decisions
 
 1. Does `propose_yaml_edit` take the whole document or a named section? Whole
    document is simpler and fine at current sizes.
 2. Does the diff appear in the chat, in the Edit view, or both?
-3. How many undo levels? 100 is free at 2 KB per document.
-4. Should undo move the view to where the change is, or leave the camera alone?
+3. How many versions are kept? 100 is free at 2 KB per document, and the list
+   is append-only, so this is a trimming policy rather than a limit.
+4. Should restoring move the view to where the change is, or leave the camera
+   alone?
 5. When an undo reverts an assistant edit, is a note appended to the
    conversation, or is the mandatory re-read before each proposal enough on its
    own?
-6. Do unsaved draft snapshots belong in the same history list as accepted
-   documents, or in a separate, quieter section of the panel?
+6. Do the automatic pre-proposal versions belong in the same list as the ones
+   you committed deliberately, or in a quieter section of the panel?
 
 ## Verification
 
