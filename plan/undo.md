@@ -216,16 +216,59 @@ This is where the diff requirement is satisfied, and it is why the panel is not
 an optional extra: for assistant edits, seeing what changed is the primary need
 and undo is the response to it.
 
-## Cmd+Z
+## Cmd+Z and the text editor
 
-The YAML textarea already has the browser's own undo, per keystroke. Model-level
-undo steps between accepted documents. Two different scopes, and binding both to
-Cmd+Z means the same key does different things depending on where the cursor is.
+Two undo scopes exist and they must not fight. The browser gives the YAML
+textarea per-keystroke undo for free; model-level undo steps between accepted
+documents. Focus decides which one Cmd+Z drives:
 
-Recommendation: leave native text undo alone inside the textarea, and put
-model-level undo in the history panel where it is explicit and labelled. Under
-this design the textarea is no longer the main editing surface, so the loss is
-small. Add a global shortcut later if it is actually missed.
+- `event.target` is a text input or textarea -> let the browser handle it
+- anything else -> `preventDefault` and run model undo
+
+Same routing for Shift+Cmd+Z. This also leaves the chat composer's native undo
+alone, which is what anyone would expect.
+
+### The handoff: snapshot when text undo dies
+
+Focus-based routing alone would leave a hole, because native text undo is not
+durable. The Edit view is conditionally rendered (`App.tsx:485`), so the
+textarea **unmounts** when you switch to the graph - and its undo stack is
+destroyed with it. That is true today: type, look at the graph, come back, and
+there is nothing to undo.
+
+So capture a history entry at exactly the moment native undo stops being able to
+help: when focus or the view leaves the editor. Text undo covers the current
+editing session; model undo covers everything before it. Clean handoff, no
+overlap, and it plugs an existing hole rather than only dividing labour.
+
+Three rules make it behave:
+
+**Only snapshot when the draft actually changed.** Blur fires constantly -
+clicking a toolbar button, opening a menu, focusing the chat. Compare against
+the last entry and do nothing if the text is identical. That removes most of the
+noise without any timing heuristics.
+
+**Do not rely on blur alone.** Removing a focused element does not fire `blur`
+reliably across browsers. Also snapshot on a view change away from `yaml`, and
+in the editor's unmount cleanup.
+
+**Label draft entries differently.** These are unsaved drafts, not documents
+that were ever applied. The history should distinguish "Edited YAML (unsaved)"
+from "Saved", because undoing to a draft entry restores `yamlDraft` only -
+`appliedYaml` does not move, so the graph stays put and the only visible changes
+are the editor contents and the dirty flag. From any other view that undo step
+looks like nothing happened, which is an argument for open decision 4.
+
+### The poisoned native stack
+
+When model undo programmatically replaces the textarea's contents, the browser's
+undo stack for that element is stale but still live. Focus the field, press
+Cmd+Z, and the browser may undo back to pre-restore text, desyncing the draft
+from the history.
+
+There is no API to clear an element's undo stack. The practical fix is to remount
+the textarea - change its `key` - after any programmatic replacement, which
+resets it. Cheap, and the editor holds no other local state worth preserving.
 
 ## The edit tools
 
@@ -286,14 +329,15 @@ Download YAML remains the real archive.
 | 1 | Nest the workspace slice so there is an object to snapshot | ~45 min |
 | 2 | Undo/redo stacks, `commitDocument`, the restore path | ~1.5 h |
 | 3 | History panel with labels and "restore to here" | ~1 h |
+| 3b | Cmd+Z routing, editor blur/unmount snapshots, textarea remount | ~45 min |
 | 4 | Diff rendering, in the panel and for assistant proposals | ~1 h |
 | 5 | `get_yaml_source`, `propose_yaml_edit`, prompt change, re-read rule | ~1 h |
 | 6 | Result cache for instant undo (optional) | ~30 min |
 | - | Persist the workspace slice (optional, independent) | ~30 min |
 | - | Vitest for the pure parts - reducer, stacks, validation | ~30 min |
 
-**About 6 hours** of agent working time, or roughly a working day spread across
-review cycles.
+**About 6.75 hours** of agent working time, or roughly a working day spread
+across review cycles.
 
 Phases 1-3 give working undo. Phase 4 is what makes it trustworthy for
 assistant edits. Phase 5 is the editing itself and can land before or after
@@ -314,6 +358,8 @@ Playwright.
 5. When an undo reverts an assistant edit, is a note appended to the
    conversation, or is the mandatory re-read before each proposal enough on its
    own?
+6. Do unsaved draft snapshots belong in the same history list as accepted
+   documents, or in a separate, quieter section of the panel?
 
 ## Verification
 
