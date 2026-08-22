@@ -106,6 +106,22 @@ export function shouldAppend(history: Version[], snapshot: DocumentSnapshot): bo
   return !latest || !snapshotsEqual(latest.snapshot, snapshot)
 }
 
+/**
+ * Compact relative time for history rows. `now` is injectable so this stays a
+ * pure function rather than something only testable with fake timers.
+ */
+export function relativeTime(timestamp: string, now: Date = new Date()): string {
+  const elapsed = now.getTime() - new Date(timestamp).getTime()
+  if (!Number.isFinite(elapsed)) return ""
+  const seconds = Math.max(0, Math.round(elapsed / 1000))
+  if (seconds < 45) return "just now"
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${Math.max(1, minutes)}m ago`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.round(hours / 24)}d ago`
+}
+
 export function createVersion(
   snapshot: DocumentSnapshot,
   { label, source, id, timestamp }: {

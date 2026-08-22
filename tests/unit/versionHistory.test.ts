@@ -3,6 +3,7 @@ import {
   createMemoryVersionStore,
   createVersion,
   historyKeyFor,
+  relativeTime,
   shouldAppend,
   snapshotsEqual,
   TRANSIENT_HISTORY_KEY,
@@ -133,6 +134,34 @@ describe("createVersion", () => {
     const a = createVersion(snapshot(), { label: "a", source: "you" })
     const b = createVersion(snapshot(), { label: "b", source: "you" })
     expect(a.id).not.toBe(b.id)
+  })
+})
+
+describe("relativeTime", () => {
+  const now = new Date("2026-08-22T12:00:00.000Z")
+  const ago = (ms: number) => new Date(now.getTime() - ms).toISOString()
+
+  it("calls anything under 45 seconds just now", () => {
+    expect(relativeTime(ago(0), now)).toBe("just now")
+    expect(relativeTime(ago(44_000), now)).toBe("just now")
+  })
+
+  it("counts minutes, hours, then days", () => {
+    expect(relativeTime(ago(5 * 60_000), now)).toBe("5m ago")
+    expect(relativeTime(ago(3 * 3_600_000), now)).toBe("3h ago")
+    expect(relativeTime(ago(2 * 86_400_000), now)).toBe("2d ago")
+  })
+
+  it("never reports 0m for a value just past the just-now threshold", () => {
+    expect(relativeTime(ago(50_000), now)).toBe("1m ago")
+  })
+
+  it("treats a clock skewed into the future as just now rather than negative", () => {
+    expect(relativeTime(ago(-10_000), now)).toBe("just now")
+  })
+
+  it("returns empty for an unparseable timestamp", () => {
+    expect(relativeTime("not a date", now)).toBe("")
   })
 })
 

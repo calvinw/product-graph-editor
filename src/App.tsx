@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
   ReactFlowProvider,
@@ -37,6 +37,7 @@ import { InventoryView } from "@/components/views/InventoryView"
 import { ProcessResultsView } from "@/components/views/ProcessResultsView"
 import { SankeyView } from "@/components/views/SankeyView"
 import { FileMenu } from "@/components/workspace/FileMenu"
+import { HistoryPanel } from "@/components/workspace/HistoryPanel"
 import { SaveAsDialog } from "@/components/workspace/SaveAsDialog"
 import { UnsavedChangesDialog } from "@/components/workspace/UnsavedChangesDialog"
 import { useCalculation } from "@/hooks/useCalculation"
@@ -67,6 +68,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
   const activeDocument = useProductGraphStore((state) => state.workspace.activeDocument)
   const sessionDocuments = useProductGraphStore((state) => state.workspace.sessionDocuments)
   const yamlDraft = useProductGraphStore((state) => state.workspace.yamlDraft)
+  const versions = useProductGraphStore((state) => state.versions)
   const appliedYaml = useProductGraphStore((state) => state.appliedYaml)
   const appliedRevision = useProductGraphStore((state) => state.appliedRevision)
   const [resultsMarkdown, setResultsMarkdown] = useState("")
@@ -114,7 +116,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     fitView, zoomIn, zoomOut, fit, relayout,
     toggleExpanded, setAllExpanded,
     applyGraphSettings, showGraphMode, applyYaml, applyAndCalculateYaml,
-    hydrateBackgroundNode, commitScenario, scenarioEditCount,
+    hydrateBackgroundNode, commitScenario, scenarioEditCount, restoreVersion,
     categoryTotals, visibleImpactCategories, toggleImpactCategory, categoryOrder,
   } = useGraphModel({
     resetCalculationState, markRevision, calculateSource,
@@ -234,6 +236,14 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
   useEffect(() => onTitleChange(currentModelTitle), [currentModelTitle, onTitleChange])
 
 
+  // Built from already-selected fields rather than a store selector: zustand
+  // v5 runs selectors through useSyncExternalStore, so one returning a fresh
+  // object on every call risks an infinite re-render.
+  const documentSnapshot = useMemo(
+    () => ({ activeDocument, sessionDocuments, yamlDraft, appliedYaml }),
+    [activeDocument, sessionDocuments, yamlDraft, appliedYaml],
+  )
+
   const connectionCount = edges.length
   const hasCurrentResults = useProductGraphStore(selectHasCurrentResults)
   if (selected) lastSelectedRef.current = selected
@@ -349,6 +359,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           onUpload={() => requestAction({ kind: "upload" })}
           onDownload={downloadCurrentYaml}
         />
+        <HistoryPanel versions={versions} current={documentSnapshot} onRestore={restoreVersion} />
         <input ref={navbarUploadRef} className="navbar-file-input" type="file" accept=".yaml,.yml,text/yaml" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; loadYamlFile(file) }} />
         <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && requestView(next as "graph" | "yaml")} className="desktop-primary-nav" aria-label="Primary views">
           <ToggleGroupItem value="yaml">Edit</ToggleGroupItem>
