@@ -127,10 +127,24 @@ not wanted.
 
 Three things follow.
 
-**1a. Rename the button to say what it does.** `ScenarioPanel.tsx:122` labels
-it `"Done"`, which reads as "dismiss this panel". It does not dismiss anything -
-it rewrites the product graph YAML and starts a calculation. Rename to
-`"Update YAML"`. Keep the `"Calculating…"` busy label.
+**1a. Rename the button to say what it does, and make it do it.**
+`ScenarioPanel.tsx:122` labels it `"Done"`, which reads as "dismiss this
+panel". It does not dismiss anything - it rewrites the product graph YAML and
+starts a calculation. Rename to `"Save to File"`, keeping the `"Calculating…"`
+busy label.
+
+The label then has to be true. `commitScenario` wrote `yamlDraft` and
+`appliedYaml` but never `activeDocument.committedYaml`, so dirty
+(`yamlDraft !== committedYaml`, `useModelWorkspace.ts:148`) stayed set and the
+editor reported unsaved changes for an edit the user had just committed. Add a
+`commit-active-session` dispatch so draft, applied source, and session document
+move together. The reducer no-ops unless the active document is a writable
+session model, which it is for every template copy, upload, and Save As -
+`templateToDocument` is dead code, so a template is never the active document.
+
+Accepted risk: the press now overwrites the saved session model with no undo.
+Phase 3 removes that risk; until then the session model is browser-memory only
+and Reset still discards uncommitted overrides.
 
 **1b. Delete the dead commit plumbing.** The edge label is a real control:
 `role="slider"`, `tabIndex={0}` (`ScenarioEdge.tsx:69-72`), draggable by pointer
@@ -150,7 +164,7 @@ and implies a commit-on-release that is not wanted.
 
 **1c. Rename the second commit button to match.** `RealtimeView.tsx:86` calls
 the same `commitScenario` under the label `"Calculate exactly"`. One action must
-not have two names. Rename it to `"Update YAML"` as well, keeping its
+not have two names. Rename it to `"Save to File"` as well, keeping its
 `"Calculating…"` busy label and its `disabled={!dirty || committing}` guard.
 
 Not a defect, verified: `ScenarioPanel` renders only when
@@ -292,12 +306,12 @@ The transaction boundary already exists and is correctly placed: intermediate
 `setScenarioOverride` calls are Tier C and never touch YAML; `commitScenario` is
 the only writer.
 
-That boundary is an explicit button press - Update YAML - and decision 1 keeps
+That boundary is an explicit button press - Save to File - and decision 1 keeps
 it that way. One press is one command is one history entry. **No coalescing is
 required for scenario edits**, which removes the most delicate part of the
 original design.
 
-A user who drags four edges and then presses Update YAML gets one undo entry
+A user who drags four edges and then presses Save to File gets one undo entry
 covering all four. That is the correct granularity: it matches what they did,
 and it matches the one YAML write and the one calculation.
 
@@ -314,7 +328,7 @@ valuable undo and the highest risk to get wrong - and revisiting later.
 
 | Phase | Work |
 | --- | --- |
-| 0 | Defects 1-5: rename Done -> Update YAML and delete the dead commit plumbing, delete the vestigial debounce, `parseDocument` round-trip, `nodesDeletable={false}` after confirming the Backspace behavior, drop the dead audit writer |
+| 0 | Defects 1-5: rename Done -> Save to File and make it commit the session document, delete the dead commit plumbing, delete the vestigial debounce, `parseDocument` round-trip, `nodesDeletable={false}` after confirming the Backspace behavior, drop the dead audit writer |
 | 1 | Nest `ModelWorkspaceState` as a `workspace` slice; split the presentation slice |
 | 2 | `src/commands/` registry and dispatcher; migrate `executeAppTool` and `runtime.actions`; delete the four-place duplication |
 | 3 | History store: memento stacks, transactions, dual coalescing, Cmd+Z / Shift+Cmd+Z with textarea exemption |
@@ -342,7 +356,7 @@ Each changes the design; guessing wrong means redoing Phase 3.
 2. Does undo restore the viewport and selection, or leave the camera untouched?
 3. Does an assistant turn revert as one step, or per tool call?
 
-Settled: the scenario commit boundary is the explicit Update YAML button, not
+Settled: the scenario commit boundary is the explicit Save to File button, not
 commit-on-release. See defect 1.
 
 ## Effort
