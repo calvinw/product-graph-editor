@@ -58,6 +58,10 @@ export function GraphCanvas({
       }}
       onNodeDoubleClick={(_, node) => toggleExpanded(node.id)}
       onPaneClick={clearNodeSelection}
+      // The graph renders appliedYaml and has no structural editing. Without
+      // this, Backspace on a selected node removes it from React Flow's state
+      // only, desyncing the canvas from the YAML with no way back.
+      deleteKeyCode={null}
       minZoom={0.05}
       maxZoom={2.4}
       zoomOnScroll={false}

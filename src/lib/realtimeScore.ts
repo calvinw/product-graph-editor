@@ -1,4 +1,4 @@
-import { parse, stringify } from "yaml"
+import { parseDocument } from "yaml"
 import type { BackgroundLinkIntensity, LcaResult } from "./lcaApi"
 
 /**
@@ -109,25 +109,27 @@ export function exceedsDriftTolerance(preview: number, exact: number): boolean {
 /**
  * Write scenario amounts back into the source YAML, addressing each exchange by
  * the process/input index the engine used to build the link.
+ *
+ * This edits the parsed document in place rather than reserializing a plain
+ * object, so the user's comments, key order, and formatting survive. A commit
+ * rewrites only the amount scalars that actually moved.
  */
 export function applyScenarioToYaml(
   source: string,
   links: BackgroundLinkIntensity[],
   overrides: ScenarioOverrides,
 ): string {
-  const document = parse(source) as {
-    processes?: Array<{ inputs?: Array<{ amount: number }> }>
-  }
+  const document = parseDocument(source)
   let changed = false
   for (const link of links) {
     const amount = overrides[scenarioKey(link)]
     if (!Number.isFinite(amount) || amount === link.amount) continue
-    const exchange = document.processes?.[link.process_index]?.inputs?.[link.input_index]
-    if (!exchange) continue
-    exchange.amount = amount
+    const exchange = ["processes", link.process_index, "inputs", link.input_index]
+    if (!document.hasIn(exchange)) continue
+    document.setIn([...exchange, "amount"], amount)
     changed = true
   }
-  return changed ? stringify(document) : source
+  return changed ? document.toString() : source
 }
 
 /** A sensible slider range around a baseline amount. */

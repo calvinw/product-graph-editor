@@ -320,13 +320,6 @@ export function useGraphModel({
     try { return buildGraphStructure(appliedYaml) } catch { return null }
   }, [appliedYaml])
 
-  // Releasing a drag does not calculate immediately. A person nudging a value
-  // back and forth would otherwise queue one 800ms calculation per release, so
-  // a short idle window collapses a burst into one, and the result is usually
-  // ready before they switch to a view that needs it.
-  const commitTimerRef = useRef<number | null>(null)
-  useEffect(() => () => { if (commitTimerRef.current) window.clearTimeout(commitTimerRef.current) }, [])
-
   // Everything the commit needs is read through a ref rather than captured in
   // the dependency list. calculateSource and loadContributionGraphs are new
   // functions on every render, so depending on them would make commitScenario
@@ -343,26 +336,27 @@ export function useGraphModel({
     applyScenarioSource, markRevision,
   }
 
+  // Dragging an edge or moving a slider only writes a scenario override. This
+  // is the one path that turns those overrides into YAML, and it runs on an
+  // explicit Update YAML press -- never on drag release -- so there is no burst
+  // to debounce.
   const commitScenario = useCallback(() => {
-    if (commitTimerRef.current) window.clearTimeout(commitTimerRef.current)
-    {
-      const current = commitInputsRef.current
-      if (!current.lcaResult) return
-      const source = applyScenarioToYaml(
-        current.appliedYaml, backgroundLinks(current.lcaResult), current.scenarioOverrides,
-      )
-      if (source === current.appliedYaml) return
-      // The new result_id correctly invalidates these, so remember what was
-      // loaded and ask for it again; otherwise an open Contribution view goes
-      // blank after every commit.
-      const loadedCategories = current.lcaResult.contribution_graphs.map((graph) => graph.label)
-      current.dispatchWorkspace({ type: "edit-draft", yaml: source })
-      const revision = current.applyScenarioSource(source)
-      current.markRevision(revision)
-      void Promise.resolve(current.calculateSource(source, revision)).then(() => {
-        if (loadedCategories.length) void current.loadContributionGraphs(loadedCategories).catch(() => {})
-      })
-    }
+    const current = commitInputsRef.current
+    if (!current.lcaResult) return
+    const source = applyScenarioToYaml(
+      current.appliedYaml, backgroundLinks(current.lcaResult), current.scenarioOverrides,
+    )
+    if (source === current.appliedYaml) return
+    // The new result_id correctly invalidates these, so remember what was
+    // loaded and ask for it again; otherwise an open Contribution view goes
+    // blank after every commit.
+    const loadedCategories = current.lcaResult.contribution_graphs.map((graph) => graph.label)
+    current.dispatchWorkspace({ type: "edit-draft", yaml: source })
+    const revision = current.applyScenarioSource(source)
+    current.markRevision(revision)
+    void Promise.resolve(current.calculateSource(source, revision)).then(() => {
+      if (loadedCategories.length) void current.loadContributionGraphs(loadedCategories).catch(() => {})
+    })
   }, [])
 
   // Only links the engine published intensities for can be scored locally, so
