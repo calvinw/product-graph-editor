@@ -32,6 +32,29 @@ Undo does not depend on the edit tools shipping first - it already covers Save
 and Save to File. But it is designed around them, because that is where the
 risk is.
 
+## This is artifact editing with a different transport
+
+One document, two authors, edited through a chat, with a preview beside it.
+That is the artifact pattern, and the only thing that differs here is how the
+document moves: tool calls rather than `<artifact>` tags embedded in the message
+body.
+
+`calvinw/llm-artifacts` (Nov 2024) implemented the tag version of this and got
+several things right that are worth carrying over directly. It also shows where
+the work stops: `revisions` was initialized and never written, `saveRevision`
+was never called, and the `prev-version` / `next-version` / `clear-revisions`
+buttons exist in the DOM with no listeners. The exchange protocol was solved;
+the history was not. That is the part this plan builds.
+
+Tool transport is a real improvement in one respect. Tags could only ask the
+model to honour a version handshake and hope. A tool takes a parameter and can
+reject outright, so the same rule becomes enforceable in code rather than by
+convention.
+
+The one thing genuinely new here: the document drives a graph and a
+calculation, so applying an edit invalidates downstream state. That is what
+"apply" does; it does not change the versioning model.
+
 ## What that demands of undo
 
 Assistant edits are unlike hand edits in four ways, and each one drives a
@@ -174,34 +197,66 @@ The existing revision guard (`useCalculation.ts:75,80`) already makes
 undo-during-calculation safe. This is optional - skip it if calculations feel
 fast enough.
 
-## After undo, the conversation is stale
+## Staleness: the version handshake
 
-This is the one problem that only exists because the assistant is doing the
-editing, and it has no analogue in a hand-edited app.
+The assistant can be working from a document that no longer exists. Undo is the
+obvious way this happens - you accept an edit, undo it, and the transcript still
+says the dyeing stage is there - but so is editing the YAML by hand between
+turns, or restoring an old version from the history panel.
 
-You accept an edit. The assistant's message in the transcript says it added a
-dyeing stage. You undo. The model is now gone, but the transcript still says it
-is there - and on the next turn the assistant will reason from that transcript
-and propose something that assumes a stage which no longer exists.
+`llm-artifacts` solved this with two pieces, and both translate.
 
-Two ways to handle it:
+### A version stamp on every exchange
 
-**Tell the model.** Append a note to the conversation when an undo reverts an
-edit the assistant made: "the dyeing stage edit was reverted by the user."
-Keeps the transcript truthful, but relies on the model reading and respecting
-it, and gets fiddly across several undos.
+It kept an `exchangeVersion` counter that both sides stamped, and on each reply
+checked `llmsReturnedVersion == exchangeVersion + 1`. Here the equivalent is:
 
-**Never trust the transcript.** Require `get_yaml_source` immediately before any
-`propose_yaml_edit`, so every proposal is built from the document as it actually
-is right now. Costs one extra tool call and a few hundred tokens.
+- `get_yaml_source` returns the document **and** the current version id
+- `propose_yaml_edit(yaml, basedOnVersion)` requires that id back
+- the tool **rejects** the proposal if `basedOnVersion` is not the current
+  version, and tells the model to re-read
 
-Recommended: the second, with a short version of the first. Re-reading is cheap,
-robust against any amount of undo and redo, and correct even when the user edits
-the YAML by hand between turns. The transcript note is a nicety on top, not the
-mechanism.
+The tag version could only check and shrug. A tool rejects, so a stale proposal
+can never be written to the draft. This is the mechanism; everything else is
+convenience.
 
-This also argues against caching the document in the assistant's context across
-turns as an optimization. It would save tokens and reintroduce exactly this bug.
+### A dirty flag so the document is only re-sent when it changed
+
+`llm-artifacts` tracked `llmNeedsUserChanges`: the artifact was re-embedded in
+the next user message only when the user had actually edited it, set true on
+editor change and blur and cleared once the model replied.
+
+The same idea, adapted to pull-based tools: when the user has changed the
+document since the assistant last read it, say so in the next turn - a short
+system note, "the document changed since you last read it; call
+`get_yaml_source` before proposing" - rather than pushing the whole document
+again. When nothing has changed, say nothing and let the model use what it has.
+
+This is better than the blanket "always re-read before every proposal" rule an
+earlier draft of this plan recommended. It costs a tool call only when one is
+actually needed, and the `basedOnVersion` rejection is the backstop for when the
+model ignores the hint.
+
+## Keeping the document out of the transcript
+
+`cleanupOldArtifacts()` in `llm-artifacts` stripped embedded artifacts older
+than `current - 2` out of the message history, so the conversation did not
+accumulate a full copy of the document per turn.
+
+The same problem exists here in a different shape. Tool results are pushed into
+the conversation as messages (`AiChatPanel.tsx`, `apiMessages.push({ role:
+"tool", ... })`), so every `get_yaml_source` result sits in the transcript
+exactly as an embedded artifact would, and context grows linearly with the
+number of reads.
+
+Prune it the same way: keep the most recent one or two `get_yaml_source`
+results in full and replace older ones with a short placeholder. The document is
+always retrievable by calling the tool again, so nothing is lost - and the
+version handshake means the model cannot silently rely on a pruned copy anyway.
+
+Corollary: do not cache the document in the assistant's context across turns as
+a token optimization. It saves little and reintroduces exactly the staleness
+this section exists to prevent.
 
 ## The history panel
 
@@ -266,29 +321,57 @@ undo stack for that element is stale but still live. Focus the field, press
 Cmd+Z, and the browser may undo back to pre-restore text, desyncing the draft
 from the history.
 
-There is no API to clear an element's undo stack. The practical fix is to remount
-the textarea - change its `key` - after any programmatic replacement, which
-resets it. Cheap, and the editor holds no other local state worth preserving.
+There is no API to clear a plain textarea's undo stack. **Fix: remount it** -
+change the textarea's `key` after any programmatic replacement, which resets the
+stack. One line, and the editor holds no other local state worth preserving.
+
+### Deferred: a real code editor
+
+Ace or CodeMirror ship their own undo managers with an API to reset them, which
+would remove this problem rather than work around it. `llm-artifacts` used Ace
+for exactly this surface.
+
+Not now. Under this design the textarea stops being the main authoring surface -
+it is mostly read, and diffs are accepted rather than typed - so investing in a
+code editor for a surface being deliberately de-emphasized is backwards. It
+costs a dependency, a wrapper, dark and light theming, responsive verification
+at all three viewports, and visual snapshot churn, against a bundle already over
+1 MB with Vite's chunk warning firing.
+
+**What would justify it:** YAML syntax highlighting, and specifically error
+markers on the line where `buildGraphStructure` failed. That is a real win for a
+YAML-driven app and is the trigger to watch for. The undo behaviour would come
+along free at that point.
+
+**Keep the option cheap.** The textarea currently sits inline in `App.tsx:476`,
+tangled with the editor chrome and the status line. Extract it into a
+`<YamlEditor>` component - fifteen minutes, no behaviour change - so a later
+swap is one file rather than surgery on `App.tsx`.
 
 ## The edit tools
 
 Two tools, and a system-prompt change.
 
-**`get_yaml_source`** - returns the full document. Must come first; the
-assistant cannot sensibly rewrite something it has never seen, and it must be
-called again immediately before every proposal so that undo, redo, and hand
-edits between turns cannot leave it working from a stale copy. Two consequences
-to accept deliberately: the document goes to the configured model provider, and
-this design assumes documents of a few KB rather than a few thousand lines.
+**`get_yaml_source`** - returns the full document **and the current version
+id**. Must come first; the assistant cannot sensibly rewrite something it has
+never seen. Two consequences to accept deliberately: the document goes to the
+configured model provider, and this design assumes documents of a few KB rather
+than a few thousand lines.
 
-**`propose_yaml_edit(yaml)`** - takes the proposed document, then:
+**`propose_yaml_edit(yaml, basedOnVersion)`** - takes the proposed document
+and the version it was written against, then:
 
 ```
+staleness: reject unless basedOnVersion is the current version
 validate:  parse + buildGraphStructure, reject on throw
 write:     dispatchWorkspace({ type: "edit-draft", yaml })
 open:      the Edit view, showing the diff
 you:       press Save
 ```
+
+The staleness check comes first and is the load-bearing one - it is what makes
+undo, hand edits, and history restores safe to perform mid-conversation. A
+rejection returns the current version id so the model can re-read and retry.
 
 `Save` already applies, recalculates, and commits the session document
 (`useModelWorkspace.ts:183`). So the confirmation step is a button that already
@@ -329,14 +412,15 @@ Download YAML remains the real archive.
 | 1 | Nest the workspace slice so there is an object to snapshot | ~45 min |
 | 2 | Undo/redo stacks, `commitDocument`, the restore path | ~1.5 h |
 | 3 | History panel with labels and "restore to here" | ~1 h |
-| 3b | Cmd+Z routing, editor blur/unmount snapshots, textarea remount | ~45 min |
+| 3b | Extract `<YamlEditor>`; Cmd+Z routing, blur/unmount snapshots, remount | ~1 h |
 | 4 | Diff rendering, in the panel and for assistant proposals | ~1 h |
-| 5 | `get_yaml_source`, `propose_yaml_edit`, prompt change, re-read rule | ~1 h |
+| 5 | `get_yaml_source`, `propose_yaml_edit`, version handshake, prompt change | ~1 h |
+| 5b | Transcript pruning for stale `get_yaml_source` results | ~30 min |
 | 6 | Result cache for instant undo (optional) | ~30 min |
 | - | Persist the workspace slice (optional, independent) | ~30 min |
 | - | Vitest for the pure parts - reducer, stacks, validation | ~30 min |
 
-**About 6.75 hours** of agent working time, or roughly a working day spread
+**About 7.5 hours** of agent working time, or roughly a working day spread
 across review cycles.
 
 Phases 1-3 give working undo. Phase 4 is what makes it trustworthy for
