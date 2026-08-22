@@ -66,6 +66,7 @@ export function useGraphModel({
   const {
     applySource, applyScenarioSource, setGraphMode, setGraphMaxProcesses, setReferenceAmountsVisible,
     requestViewChange: setView, setScenarioOverride, dispatchWorkspace,
+    commitVersion, restoreVersion: restoreVersionInStore,
   } = useProductGraphStore((state) => state.actions)
 
   const foldDirectionRef = useRef<"upstream" | "downstream">("upstream")
@@ -776,6 +777,42 @@ export function useGraphModel({
     void calculateSource(source, revision, openGraphWhenReady)
   }
 
+  /**
+   * Put a recorded version back on screen.
+   *
+   * The store action restores the document tier without disturbing graph mode
+   * or the selection; this rebuilds the graph from the restored YAML and
+   * recalculates, which the store cannot do on its own.
+   *
+   * Node positions are re-laid-out rather than preserved: a restored document
+   * may have different processes entirely, so carrying over the current
+   * positions would leave new nodes stacked at the origin.
+   */
+  const restoreVersion = (versionId: string) => {
+    const revision = restoreVersionInStore(versionId)
+    if (revision === null) return null
+    const source = useProductGraphStore.getState().appliedYaml
+    markRevision(revision)
+    try {
+      const parsed = buildGraphFromYaml(source, "structure", undefined, graphDecimalPlaces)
+      foldDirectionRef.current = "upstream"
+      setEdges(parsed.edges)
+      setNodes(layoutNodes(parsed.nodes.map((node) => ({
+        ...node,
+        data: { ...node.data, canFold: parsed.edges.some((edge) => edge.target === node.id) },
+      })), parsed.edges, { orientation: graphOrientation }))
+      setYamlError("")
+      requestAnimationFrame(() => requestAnimationFrame(() => fitView({ padding: 0.4, maxZoom: 0.85, duration: 350 })))
+    } catch (error) {
+      // A recorded version parsed when it was written, so this should not
+      // happen; surface it rather than leaving a half-restored graph.
+      setYamlError(error instanceof Error ? error.message : "Could not rebuild the restored version.")
+      return revision
+    }
+    if (source.trim()) void calculateSource(source, revision)
+    return revision
+  }
+
   return {
     nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange,
     nodesRef, edgesRef, foldDirectionRef,
@@ -784,6 +821,7 @@ export function useGraphModel({
     fitView, zoomIn, zoomOut, fit, relayout,
     removeNode, restoreNode, toggleExpanded, setAllExpanded,
     applyGraphSettings, showGraphMode, applyYaml, applyAndCalculateYaml,
+    commitVersion, restoreVersion,
     commitScenario, scenarioEditCount,
     foregroundImpacts, backgroundImpacts, categoryTotals,
     visibleImpactCategories, toggleImpactCategory, categoryOrder,

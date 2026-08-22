@@ -58,6 +58,7 @@ export function useModelWorkspace({
     requestViewChange: setView,
     dispatchWorkspace: dispatchModelWorkspace,
     failCalculation,
+    commitVersion,
   } = useProductGraphStore((state) => state.actions)
 
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
@@ -102,6 +103,7 @@ export function useModelWorkspace({
         source: "upload",
       }
       dispatchModelWorkspace({ type: "commit-new-session", document })
+      commitVersion({ label: "Uploaded" })
       setView("graph")
       void calculateSource(source, revision)
     }
@@ -125,6 +127,8 @@ export function useModelWorkspace({
     setYamlError("")
     setView("graph")
     applyAndCalculateYaml(document.committedYaml, false)
+    // Baseline version, recorded after the apply so appliedYaml is populated.
+    commitVersion({ label: `Opened ${document.title}` })
   }
 
   const loadSessionModel = (id: string) => {
@@ -134,6 +138,7 @@ export function useModelWorkspace({
     setYamlError("")
     setView("graph")
     applyAndCalculateYaml(document.committedYaml, false)
+    commitVersion({ label: `Opened ${document.title}` })
   }
 
   const downloadTextFile = (contents: string, filename: string, type: string) => {
@@ -185,6 +190,9 @@ export function useModelWorkspace({
     const revision = applyYaml(yamlDraft)
     if (revision === null) return false
     dispatchModelWorkspace({ type: "commit-active-session", yaml: yamlDraft })
+    // After the dispatch, so the version records the saved document rather
+    // than the dirty draft that preceded it.
+    commitVersion({ label: "Saved" })
     void calculateSource(yamlDraft, revision)
     return true
   }
@@ -231,6 +239,7 @@ export function useModelWorkspace({
     }
     const destination = pendingAction
     dispatchModelWorkspace({ type: "commit-new-session", document })
+    commitVersion({ label: `Saved as ${title}` })
     setSaveAsOpen(false)
     setSaveAsError("")
     setPendingAction(null)
@@ -285,6 +294,9 @@ export function useModelWorkspace({
         }
         dispatchModelWorkspace({ type: "commit-new-session", document })
         const revision = applyYaml(initial.product_graph)
+        // Baseline version for the boot document, so there is always
+        // somewhere to return to even before the first save.
+        commitVersion({ label: `Opened ${document.title}` })
         if (revision !== null) void calculateSource(initial.product_graph, revision)
       } catch (error) {
         const message = error instanceof Error ? error.message : "Could not load product graphs from the LCA server."

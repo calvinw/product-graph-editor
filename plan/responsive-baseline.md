@@ -32,7 +32,7 @@ Infrastructure failures such as a missing browser executable or shared library a
 | --- | --- | --- |
 | `npm run build` | Pass | Vite reports the existing large-chunk advisory. |
 | `npm run lint` | Pass | Repository-skill implementation scripts use their own tooling contracts and are excluded from the product application lint gate. |
-| `npm run test:unit` | 21 passed | Vitest, added August 22, 2026. Pure functions only (`tests/unit`); no DOM, no browser. |
+| `npm run test:unit` | 54 passed | Vitest, added August 22, 2026. Pure functions only (`tests/unit`); no DOM, no browser. |
 | `npm run test:visual` | 31 passed, 0 failed | 31 tests, one Chromium worker. Exits zero. |
 | `npm run test:responsive` | 53 passed, 1 skipped | 54 tests across three viewport projects. Exits zero. The skip is deliberate and viewport-conditional (see below). |
 

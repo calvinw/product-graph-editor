@@ -32,7 +32,7 @@ npm run test:visual
 
 The recorded baseline is:
 
-- unit: 21 passed
+- unit: 54 passed
 - responsive: 53 passed, 1 skipped
 - visual: 31 passed, 0 failures
 

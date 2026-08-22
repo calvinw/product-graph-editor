@@ -29,7 +29,7 @@ Do not add tablet-landscape or large-desktop projects unless the testing contrac
 
 - Build: passes, with Vite's existing large-chunk advisory
 - Lint: passes
-- Unit: 21 passed
+- Unit: 54 passed
 - Responsive: 53 passed, 1 skipped
 - Visual: 31 passed, 0 failures
 
