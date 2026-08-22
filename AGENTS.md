@@ -34,7 +34,7 @@ The recorded baseline is:
 
 - unit: 93 passed
 - responsive: 53 passed, 1 skipped
-- visual: 45 passed, 0 failures
+- visual: 47 passed, 0 failures
 
 All three suites exit zero. The single responsive skip is deliberate and
 viewport-conditional: the assistant split-pane test does not apply at phone

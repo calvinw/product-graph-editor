@@ -7,6 +7,7 @@ import {
   type ModelWorkspaceAction,
   type ModelWorkspaceState,
 } from "@/lib/modelWorkspace"
+import { savePersistedWorkspace } from "@/lib/workspacePersistence"
 import {
   createMemoryVersionStore,
   createVersion,
@@ -264,6 +265,16 @@ export const useProductGraphStore = create<ProductGraphState>()((set, get) => ({
     },
   },
 }))
+
+/**
+ * Persist the document tier whenever it changes, so session models survive a
+ * reload. Subscribed here rather than written from each action, so there is
+ * one place doing it and no action can forget.
+ */
+useProductGraphStore.subscribe((state, previous) => {
+  if (state.workspace === previous.workspace && state.appliedYaml === previous.appliedYaml) return
+  savePersistedWorkspace({ ...state.workspace, appliedYaml: state.appliedYaml })
+})
 
 export const selectHasCurrentResults = (state: ProductGraphState) => (
   state.lcaResult !== null && state.calculatedRevision === state.appliedRevision

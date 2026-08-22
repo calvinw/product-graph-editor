@@ -231,3 +231,28 @@ test("undo restores previously calculated scores without recalculating", async (
   await expect(page.locator(".markdown-report")).toBeVisible()
   expect(calculations).toBe(afterSave)
 })
+
+test("session models survive a reload", async ({ page }) => {
+  // sessionDocuments otherwise lives only in memory, so a refresh loses every
+  // model made this session -- and the unload warning fires only while there
+  // are unsaved changes, so saving properly is what lets the work go silently.
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
+  const editor = page.getByRole("textbox", { name: "Product graph YAML" })
+  await editor.fill((await editor.inputValue()).replace("Jacket — 1 unit", "Survives a reload"))
+  await page.getByRole("button", { name: "Save", exact: true }).click()
+  await expect(page.getByText("Saved in this browser session.")).toBeVisible()
+
+  await page.reload()
+  await page.getByRole("button", { name: "Explore PRISM" }).click()
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
+  await expect(page.getByRole("textbox", { name: "Product graph YAML" })).toHaveValue(/Survives a reload/)
+})
+
+test("a fresh browser still opens the default model", async ({ page, context }) => {
+  // The restore path must not strand someone with no persisted state.
+  await context.clearCookies()
+  await page.evaluate(() => localStorage.clear())
+  await page.reload()
+  await page.getByRole("button", { name: "Explore PRISM" }).click()
+  await expect(page.locator('[aria-label="Current model: Copy of Jacket"]:visible')).toBeVisible()
+})

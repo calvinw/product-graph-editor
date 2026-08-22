@@ -1,6 +1,6 @@
 # Plan: Undo
 
-Status: not started
+Status: phases 1-6 delivered on branch `undo` (August 22, 2026), including persistence. Open decisions 2, 4, 5, and 6 remain.
 Date: August 22, 2026
 Basis: `main` at `75f3b7b`
 

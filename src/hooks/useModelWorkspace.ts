@@ -7,6 +7,7 @@ import {
   type SessionDocument,
 } from "@/lib/modelWorkspace"
 import { productGraphLabel } from "@/lib/resultFormatting"
+import { loadPersistedWorkspace } from "@/lib/workspacePersistence"
 import { useProductGraphStore, type ProductGraphView as View } from "@/state/productGraphStore"
 
 // The cotton tote is the default: four foreground stages, six background
@@ -283,6 +284,19 @@ export function useModelWorkspace({
         if (!initial) throw new Error("The product-graph templates have no default selection.")
         setTemplates(templateCollection.product_graphs)
         setTemplateState("ready")
+
+        // Restore the previous session's models rather than starting over.
+        // Templates are still fetched above, because the File menu needs them
+        // either way.
+        const persisted = loadPersistedWorkspace()
+        if (persisted) {
+          dispatchModelWorkspace({ type: "restore-persisted", workspace: persisted })
+          const restoredRevision = applyYaml(persisted.appliedYaml || persisted.yamlDraft)
+          commitVersion({ label: `Reopened ${persisted.activeDocument?.title ?? "model"}` })
+          if (restoredRevision !== null) void calculateSource(persisted.appliedYaml || persisted.yamlDraft, restoredRevision)
+          return
+        }
+
         const title = uniqueSessionTitle(`Copy of ${productGraphLabel(initial.name)}`, sessionDocuments)
         const document: SessionDocument = {
           kind: "session",

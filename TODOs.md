@@ -31,7 +31,7 @@ Do not add tablet-landscape or large-desktop projects unless the testing contrac
 - Lint: passes
 - Unit: 93 passed
 - Responsive: 53 passed, 1 skipped
-- Visual: 45 passed, 0 failures
+- Visual: 47 passed, 0 failures
 
 All three suites exit zero. The three accepted visual failures previously recorded in `plan/responsive-baseline.md` and tracked by GitHub issues #37, #38, and #39 are all fixed and closed, so there is no accepted-failure allowance any more — a failing visual test is a regression. The one responsive skip is deliberate and viewport-conditional: the assistant split-pane test does not apply at phone width, where the chat uses the full contained width.
 
