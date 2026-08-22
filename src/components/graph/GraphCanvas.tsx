@@ -56,7 +56,16 @@ export function GraphCanvas({
       edgeTypes={edgeTypes}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
-      onNodeClick={(_, node) => {
+      onNodeClick={(event, node) => {
+        // Cmd/Ctrl (or Shift) click adds to the selection. React Flow already
+        // tracks that selection; what has to stop is the single-node property
+        // editor stealing the interaction -- it would open on the last node
+        // clicked and pan the camera toward it, which made multi-select look
+        // like it was only ever selecting one.
+        if (event.metaKey || event.ctrlKey || event.shiftKey) {
+          clearNodeSelection()
+          return
+        }
         setSelected({ id: node.id, label: node.data.label, kind: node.data.kind, detail: node.data.detail, color: node.data.color, scope: node.data.scope })
         if (node.data.scope === "background") void hydrateBackgroundNode(node.id)
       }}
@@ -76,6 +85,10 @@ export function GraphCanvas({
       // Alt is free: Shift/Space/Meta are already React Flow defaults for
       // box-select, pan, and multi-select respectively.
       selectionKeyCode="Alt"
+      // Explicit and cross-platform: Cmd on macOS, Ctrl elsewhere. Shift is
+      // included because it is the other modifier people reach for, and it is
+      // free here now that box-select lives on Alt.
+      multiSelectionKeyCode={["Meta", "Control", "Shift"]}
       onSelectionEnd={zoomToSelectionIfModified}
       onInit={(instance) => requestAnimationFrame(() => requestAnimationFrame(() => instance.fitView({ padding: 0.4, maxZoom: 0.85 })))}
       proOptions={{ hideAttribution: true }}
