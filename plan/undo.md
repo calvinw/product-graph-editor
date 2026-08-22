@@ -138,8 +138,30 @@ apply path for undo is essentially already written.
 
 ### Redo
 
-A second stack, filled by undo and cleared the moment a new edit lands. Standard
-behavior, and cheap once snapshots exist.
+A second stack, filled by undo and cheap once snapshots exist. Redoing an
+assistant edit is no different from redoing your own - the snapshot does not
+care who authored it.
+
+Two rules need stating, because assistant editing makes them ambiguous:
+
+**Only an accepted edit clears the redo stack.** Undo an assistant edit, then
+ask a follow-up question, and redo must still be available - reading the graph,
+listing views, or summarizing results are not edits. The stack clears when a new
+document is committed, not when the assistant does something.
+
+**A new proposal does not clear it either.** A proposal writes the draft; it
+does not commit a document. Redo survives until you accept something.
+
+### Proposals are not history
+
+Only accepted changes become entries. A proposal that is never saved leaves no
+trace in the stack, and a second proposal replaces the first in the draft rather
+than queueing behind it.
+
+This keeps the history honest: it lists documents that actually existed, not
+things the assistant suggested. It also means the Discard action on a pending
+proposal is not undo - it is just abandoning a draft, which the workspace
+reducer already handles.
 
 ### Instant undo
 
@@ -151,6 +173,35 @@ restores its scores immediately.
 The existing revision guard (`useCalculation.ts:75,80`) already makes
 undo-during-calculation safe. This is optional - skip it if calculations feel
 fast enough.
+
+## After undo, the conversation is stale
+
+This is the one problem that only exists because the assistant is doing the
+editing, and it has no analogue in a hand-edited app.
+
+You accept an edit. The assistant's message in the transcript says it added a
+dyeing stage. You undo. The model is now gone, but the transcript still says it
+is there - and on the next turn the assistant will reason from that transcript
+and propose something that assumes a stage which no longer exists.
+
+Two ways to handle it:
+
+**Tell the model.** Append a note to the conversation when an undo reverts an
+edit the assistant made: "the dyeing stage edit was reverted by the user."
+Keeps the transcript truthful, but relies on the model reading and respecting
+it, and gets fiddly across several undos.
+
+**Never trust the transcript.** Require `get_yaml_source` immediately before any
+`propose_yaml_edit`, so every proposal is built from the document as it actually
+is right now. Costs one extra tool call and a few hundred tokens.
+
+Recommended: the second, with a short version of the first. Re-reading is cheap,
+robust against any amount of undo and redo, and correct even when the user edits
+the YAML by hand between turns. The transcript note is a nicety on top, not the
+mechanism.
+
+This also argues against caching the document in the assistant's context across
+turns as an optimization. It would save tokens and reintroduce exactly this bug.
 
 ## The history panel
 
@@ -181,7 +232,9 @@ small. Add a global shortcut later if it is actually missed.
 Two tools, and a system-prompt change.
 
 **`get_yaml_source`** - returns the full document. Must come first; the
-assistant cannot sensibly rewrite something it has never seen. Two consequences
+assistant cannot sensibly rewrite something it has never seen, and it must be
+called again immediately before every proposal so that undo, redo, and hand
+edits between turns cannot leave it working from a stale copy. Two consequences
 to accept deliberately: the document goes to the configured model provider, and
 this design assumes documents of a few KB rather than a few thousand lines.
 
@@ -234,7 +287,7 @@ Download YAML remains the real archive.
 | 2 | Undo/redo stacks, `commitDocument`, the restore path | ~1.5 h |
 | 3 | History panel with labels and "restore to here" | ~1 h |
 | 4 | Diff rendering, in the panel and for assistant proposals | ~1 h |
-| 5 | `get_yaml_source`, `propose_yaml_edit`, prompt change | ~1 h |
+| 5 | `get_yaml_source`, `propose_yaml_edit`, prompt change, re-read rule | ~1 h |
 | 6 | Result cache for instant undo (optional) | ~30 min |
 | - | Persist the workspace slice (optional, independent) | ~30 min |
 | - | Vitest for the pure parts - reducer, stacks, validation | ~30 min |
@@ -258,6 +311,9 @@ Playwright.
 2. Does the diff appear in the chat, in the Edit view, or both?
 3. How many undo levels? 100 is free at 2 KB per document.
 4. Should undo move the view to where the change is, or leave the camera alone?
+5. When an undo reverts an assistant edit, is a note appended to the
+   conversation, or is the mandatory re-read before each proposal enough on its
+   own?
 
 ## Verification
 
