@@ -114,8 +114,33 @@ function MarkdownTable({ children }: { children?: ReactNode }) {
 
 const markdownComponents = { table: MarkdownTable }
 
+/** How many full YAML reads stay in the transcript before older ones are stubbed. */
+const KEPT_SOURCE_READS = 1
+
+/**
+ * Replace all but the most recent `get_yaml_source` results with a short
+ * placeholder, so the conversation does not accumulate a full copy of the
+ * document per read.
+ *
+ * Nothing is lost: the document is always retrievable by calling the tool
+ * again, and the version handshake means the model cannot silently rely on a
+ * pruned copy anyway — a proposal built from stale content is rejected.
+ */
+function pruneStaleSourceReads(messages: ModelMessage[], sourceReadIds: string[]) {
+  const stale = new Set(sourceReadIds.slice(0, -KEPT_SOURCE_READS))
+  if (!stale.size) return
+  for (const message of messages) {
+    if (message.role !== "tool" || !message.tool_call_id || !stale.has(message.tool_call_id)) continue
+    if (message.content?.startsWith("{\"pruned\"")) continue
+    message.content = JSON.stringify({
+      pruned: true,
+      reason: "Superseded by a later get_yaml_source call. Call get_yaml_source again if you need the document.",
+    })
+  }
+}
+
 function systemPrompt(runtime: AppToolRuntime) {
-  return `You are the assistant embedded in PRISM Product Graph Editor. Use only the registered tools. You can inspect bounded workspace, graph, YAML-structure, and LCA-result summaries; change graph presentation and selection; navigate views; and propose registered model, calculation, download, export, and deletion actions. Actions marked for confirmation must be approved by the user in the application before they run. Never claim access to complete YAML contents or unregistered application state, and never claim an action succeeded until its tool result confirms it. Be concise and explain unavailable actions clearly.\n\nCurrent registered application context:\n${JSON.stringify({ activeView: runtime.activeView, views: listViews(runtime.hasCurrentResults), workspace: { calculationStatus: runtime.workspace.calculationStatus, hasCurrentResults: runtime.hasCurrentResults }, graph: { nodeCount: runtime.graph.nodes.length, connectionCount: runtime.graph.connectionCount, mode: runtime.graph.mode, orientation: runtime.graph.orientation, selectedNodeId: runtime.graph.selectedNodeId } }, null, 2)}`
+  return `You are the assistant embedded in PRISM Product Graph Editor. Use only the registered tools. You can inspect bounded workspace, graph, YAML-structure, and LCA-result summaries; change graph presentation and selection; navigate views; and propose registered model, calculation, download, export, and deletion actions. Actions marked for confirmation must be approved by the user in the application before they run. You can read the complete YAML with get_yaml_source and propose a rewrite with propose_yaml_edit. Always call get_yaml_source immediately before proposing, and pass its version token back as basedOnVersion: a proposal written against a document that has since changed is rejected, and you must re-read and rewrite it. Send the complete document, never a patch or a fragment, and preserve existing comments and formatting. A proposal is written to the editor as an unsaved draft for the user to review and save; it is never applied automatically, so never claim an edit has been applied. Never claim access to unregistered application state, and never claim an action succeeded until its tool result confirms it. Be concise and explain unavailable actions clearly.\n\nCurrent registered application context:\n${JSON.stringify({ activeView: runtime.activeView, views: listViews(runtime.hasCurrentResults), workspace: { calculationStatus: runtime.workspace.calculationStatus, hasCurrentResults: runtime.hasCurrentResults }, graph: { nodeCount: runtime.graph.nodes.length, connectionCount: runtime.graph.connectionCount, mode: runtime.graph.mode, orientation: runtime.graph.orientation, selectedNodeId: runtime.graph.selectedNodeId } }, null, 2)}`
 }
 
 export function AiChatPanel({
@@ -232,6 +257,10 @@ export function AiChatPanel({
     const controller = new AbortController()
     abortRef.current = controller
 
+    // Tool results are pushed into the conversation as messages, so every
+    // get_yaml_source result sits in the transcript exactly as an embedded
+    // document would and context grows linearly with the number of reads.
+    const sourceReadIds: string[] = []
     const apiMessages: ModelMessage[] = [
       { role: "system", content: systemPrompt(runtime) },
       ...priorMessages.map((message) => ({ role: message.role, content: messageText(message) } as ModelMessage)),
@@ -279,7 +308,9 @@ export function AiChatPanel({
           }
           toolViews.push({ name: call.function.name, output, error: failed })
           apiMessages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(output) })
+          if (call.function.name === "get_yaml_source") sourceReadIds.push(call.id)
         }
+        pruneStaleSourceReads(apiMessages, sourceReadIds)
         appendToolSegments(assistantId, toolViews)
         if (round === 7) throw new Error("The assistant exceeded the view-tool round limit.")
       }

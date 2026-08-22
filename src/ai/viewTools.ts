@@ -1,6 +1,7 @@
 import type { ActiveDocument, SessionDocument } from "@/lib/modelWorkspace"
 import type { LcaResult, ProductGraphTemplate } from "@/lib/lcaApi"
 import { buildGraphFromYaml } from "@/lib/yamlGraph"
+import { documentToken } from "@/lib/versionHistory"
 import { parse } from "yaml"
 import type {
   GraphConnectionStyle, GraphMode, GraphOrientation, ProductGraphView, SelectedGraphNode,
@@ -91,6 +92,8 @@ export type AppToolRuntime = {
     downloadYaml(): void
     exportResults(format: "json" | "markdown"): void
     deleteSessionModel(id: string): void
+    /** Write a validated proposal into the editor as an unsaved draft. */
+    proposeYamlEdit(yaml: string): void
   }
 }
 
@@ -287,6 +290,23 @@ export const appToolDefinitions: ViewToolDefinition[] = [
   },
   { type: "function", function: { name: "validate_yaml_draft", description: "Validate the current YAML draft and return bounded structural errors without returning its contents.", parameters: noArguments } },
   { type: "function", function: { name: "get_yaml_outline", description: "Get a bounded structural outline of the current YAML draft without returning the complete document.", parameters: noArguments } },
+  { type: "function", function: { name: "get_yaml_source", description: "Read the complete YAML source of the current model, together with the version token identifying it. Call this before proposing an edit; the token must be passed back to propose_yaml_edit.", parameters: noArguments } },
+  {
+    type: "function",
+    function: {
+      name: "propose_yaml_edit",
+      description: "Propose a complete replacement YAML document for the current model. The proposal is validated and written to the editor as an unsaved draft for the user to review and save; it is never applied automatically. Pass the version token returned by get_yaml_source; the proposal is rejected if the document changed since then.",
+      parameters: {
+        type: "object",
+        additionalProperties: false,
+        required: ["yaml", "basedOnVersion"],
+        properties: {
+          yaml: { type: "string", description: "The complete replacement YAML document, not a patch or a fragment. Preserve existing comments and formatting." },
+          basedOnVersion: { type: "string", description: "The version token returned by the most recent get_yaml_source call." },
+        },
+      },
+    },
+  },
   { type: "function", function: { name: "calculate_current_model", description: "Calculate the currently applied model after explicit user confirmation.", parameters: noArguments } },
   { type: "function", function: { name: "save_current_model", description: "Save changes to the active writable session model after explicit user confirmation.", parameters: noArguments } },
   {
@@ -591,6 +611,65 @@ export async function executeAppTool(call: ViewToolCall, runtime: AppToolRuntime
       return { valid: true, nodeCount: graph.nodes.length, connectionCount: graph.edges.length }
     } catch (error) {
       return { valid: false, code: "INVALID_YAML", message: error instanceof Error ? error.message.slice(0, 500) : "The YAML draft is invalid." }
+    }
+  }
+  if (name === "get_yaml_source") {
+    requireNoArguments(name, args)
+    const yaml = runtime.workspace.yamlDraft
+    if (!yaml.trim()) return { status: "unavailable", code: "EMPTY_DRAFT", reason: "The YAML draft is empty." }
+    return {
+      yaml,
+      version: documentToken({
+        activeDocument: runtime.workspace.activeDocument,
+        sessionDocuments: runtime.workspace.sessionDocuments,
+        yamlDraft: yaml,
+        appliedYaml: "",
+      }),
+      title: runtime.workspace.activeDocument?.title ?? null,
+    }
+  }
+  if (name === "propose_yaml_edit") {
+    const { yaml, basedOnVersion } = args as { yaml?: unknown; basedOnVersion?: unknown }
+    if (typeof yaml !== "string" || !yaml.trim()) {
+      return { status: "rejected", code: "EMPTY_PROPOSAL", message: "Provide the complete replacement YAML document." }
+    }
+    if (typeof basedOnVersion !== "string") {
+      return { status: "rejected", code: "MISSING_VERSION", message: "Call get_yaml_source first and pass its version token back as basedOnVersion." }
+    }
+
+    const currentVersion = documentToken({
+      activeDocument: runtime.workspace.activeDocument,
+      sessionDocuments: runtime.workspace.sessionDocuments,
+      yamlDraft: runtime.workspace.yamlDraft,
+      appliedYaml: "",
+    })
+    // The staleness check comes first and is the load-bearing one: it is what
+    // makes undo, hand edits, and history restores safe to perform mid
+    // conversation. A tool can reject outright, where an embedded-tag protocol
+    // could only ask the model to honour a handshake and hope.
+    if (basedOnVersion !== currentVersion) {
+      return {
+        status: "rejected",
+        code: "STALE_VERSION",
+        message: "The document changed since you read it. Call get_yaml_source again and rewrite the edit against the current document.",
+        currentVersion,
+      }
+    }
+
+    try {
+      buildGraphFromYaml(yaml, "structure")
+    } catch (error) {
+      return {
+        status: "rejected",
+        code: "INVALID_YAML",
+        message: error instanceof Error ? error.message.slice(0, 500) : "The proposed YAML is invalid.",
+      }
+    }
+
+    runtime.actions.proposeYamlEdit(yaml)
+    return {
+      status: "proposed",
+      message: "The proposal was validated and written to the editor as an unsaved draft. The user reviews the diff and presses Save; it is not applied automatically.",
     }
   }
   if (name === "get_yaml_outline") {

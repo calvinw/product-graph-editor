@@ -369,12 +369,26 @@ before the editor unmounts — Save records a version, Discard reverts the draft
 — so by the time the unmount fires there is nothing new to capture and dedupe
 correctly records nothing.
 
-The unmount capture is still implemented, as a cheap safety net and because it
-stays correct if that guard is ever relaxed. But it is not the load-bearing
-protection this section assumed, and blur was deliberately **not** used as a
-trigger: a textarea's native undo stack survives losing focus, so capturing on
-blur would add a spurious "unsaved" entry before every Save (clicking Save
-blurs the field). A browser test pins the normal path to zero spurious entries.
+Blur was deliberately **not** used as a trigger either: a textarea's native
+undo stack survives losing focus, so capturing on blur would add a spurious
+"unsaved" entry before every Save, because clicking Save blurs the field.
+
+The unmount capture was then **removed entirely** during Phase 5. Two reasons,
+the second decisive:
+
+1. It was nearly always a no-op, for the reason above.
+2. It fought the "proposals are not versions" rule. When a proposal writes the
+   draft and opens the editor, the editor mounts holding content that is
+   deliberately not a version — and React StrictMode double-invokes effects in
+   development (mount → cleanup → mount), so the "unmount" cleanup fired
+   immediately and recorded the proposal as `Edited YAML (unsaved)`. Even
+   without StrictMode, a later genuine unmount would record it.
+
+Nothing is lost by removing it. The two cases it was meant to cover are both
+already handled: leaving a dirty editor is intercepted by the unsaved-changes
+guard, and uncommitted work in front of an assistant proposal is captured by
+the pre-proposal snapshot (trigger 2), which is where that protection belongs.
+A browser test pins the normal path to zero spurious entries.
 
 Focus-based routing alone would leave a hole, because native text undo is not
 durable. The Edit view is conditionally rendered (`App.tsx:485`), so the

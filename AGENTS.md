@@ -32,9 +32,9 @@ npm run test:visual
 
 The recorded baseline is:
 
-- unit: 59 passed
+- unit: 86 passed
 - responsive: 53 passed, 1 skipped
-- visual: 40 passed, 0 failures
+- visual: 44 passed, 0 failures
 
 All three suites exit zero. The single responsive skip is deliberate and
 viewport-conditional: the assistant split-pane test does not apply at phone

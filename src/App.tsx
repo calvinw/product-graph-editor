@@ -360,6 +360,17 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
         else downloadTextFile(resultsMarkdown, `${base}-lca-results.md`, "text/markdown")
       },
       deleteSessionModel: (id) => dispatchModelWorkspace({ type: "delete-session", id }),
+      proposeYamlEdit: (yaml) => {
+        // Record what is in the editor before the proposal overwrites it, so
+        // there is always a restore point immediately in front of an opaque
+        // change. Dedupe means this adds nothing when the draft was already
+        // saved -- the automatic entry appears only when there is genuinely
+        // uncommitted work to protect.
+        captureDraftVersion()
+        dispatchModelWorkspace({ type: "edit-draft", yaml })
+        setYamlError("")
+        setView("yaml")
+      },
     },
   }
 
@@ -526,7 +537,6 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           canSaveAs={canSaveAs}
           remountKey={appliedRevision}
           onChange={(yaml) => { dispatchModelWorkspace({ type: "edit-draft", yaml }); setYamlError("") }}
-          onDraftSettled={captureDraftVersion}
           onSave={saveSessionModel}
           onSaveAs={openSaveAsDialog}
         /> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} loadContributionGraphs={loadContributionGraphs} /> : view === "realtime" ? <RealtimeView result={lcaResult} isCurrent={hasCurrentResults} error={resultsError} overrides={scenarioOverrides} onOverride={setScenarioOverride} onReset={resetScenario} onCommit={commitScenario} committing={calculationInProgress} /> : <div className="results-panel">

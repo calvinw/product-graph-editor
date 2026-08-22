@@ -1,4 +1,3 @@
-import { useEffect, useRef } from "react"
 import { CopyPlus, Save as SaveIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { ActiveDocument } from "@/lib/modelWorkspace"
@@ -25,7 +24,6 @@ export function YamlEditor({
   canSaveAs,
   remountKey,
   onChange,
-  onDraftSettled,
   onSave,
   onSaveAs,
 }: {
@@ -45,26 +43,9 @@ export function YamlEditor({
    */
   remountKey: number
   onChange: (yaml: string) => void
-  /**
-   * Called when native text undo can no longer help, i.e. when this editor
-   * unmounts. The handler records a draft version so the work done in this
-   * editing session stays reachable afterwards.
-   */
-  onDraftSettled: () => void
   onSave: () => void
   onSaveAs: () => void
 }) {
-  const settledRef = useRef(onDraftSettled)
-  settledRef.current = onDraftSettled
-
-  // Unmount, not blur, is the moment that matters: a textarea's native undo
-  // stack survives losing focus, but is destroyed when the element goes away.
-  // This view is conditionally rendered, so switching to the graph unmounts it
-  // -- without this, typing and then switching views would lose the stack with
-  // nothing recorded in its place. Capturing on blur instead would also add a
-  // spurious "unsaved" entry before every Save, since clicking Save blurs.
-  useEffect(() => () => settledRef.current(), [])
-
   return (
     <div className="yaml-editor">
       <div className="yaml-editor-head">

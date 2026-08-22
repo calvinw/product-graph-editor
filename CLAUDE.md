@@ -214,7 +214,7 @@ npm run test:responsive
 npm run test:visual
 ```
 
-Expected baseline results are 59 unit tests passed, 53 responsive tests passed with 1 deliberate viewport-conditional skip (the assistant split-pane test does not apply at phone width), and 40 visual tests passed with no failures. All three suites exit zero. The three formerly accepted visual failures (issues #37, #38, #39) are fixed and closed, so there is no accepted-failure allowance: a failing visual test is a regression. Never update screenshot baselines without visually reviewing the actual, expected, and diff images.
+Expected baseline results are 86 unit tests passed, 53 responsive tests passed with 1 deliberate viewport-conditional skip (the assistant split-pane test does not apply at phone width), and 44 visual tests passed with no failures. All three suites exit zero. The three formerly accepted visual failures (issues #37, #38, #39) are fixed and closed, so there is no accepted-failure allowance: a failing visual test is a regression. Never update screenshot baselines without visually reviewing the actual, expected, and diff images.
 
 ---
 

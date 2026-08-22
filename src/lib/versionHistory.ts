@@ -107,6 +107,28 @@ export function shouldAppend(history: Version[], snapshot: DocumentSnapshot): bo
 }
 
 /**
+ * The token both sides of an assistant edit stamp, so a proposal written
+ * against a document that no longer exists can be rejected outright rather
+ * than silently overwriting newer work.
+ *
+ * Derived from the content the assistant actually reads and rewrites — the
+ * draft — plus the document's identity, so it changes on a hand edit, an undo,
+ * a history restore, or a switch to another model. Nothing extra to keep in
+ * sync, because there is no separate counter to forget to bump.
+ *
+ * FNV-1a: short, stable across reloads, and collision-resistant enough for a
+ * staleness check whose failure mode is asking the model to re-read.
+ */
+export function documentToken(snapshot: DocumentSnapshot): string {
+  const source = `${snapshot.activeDocument?.title ?? ""}${snapshot.yamlDraft}`
+  let hash = 2166136261
+  for (let index = 0; index < source.length; index += 1) {
+    hash = Math.imul(hash ^ source.charCodeAt(index), 16777619)
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0")
+}
+
+/**
  * Where the live document sits in the version list, or -1 when it matches no
  * recorded version — meaning there are edits ahead of the whole list.
  */
