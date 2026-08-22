@@ -200,3 +200,34 @@ test("the first version has nothing to compare against", async ({ page }) => {
   await first.getByText("What changed").click()
   await expect(first).toContainText("First recorded version")
 })
+
+test("undo restores previously calculated scores without recalculating", async ({ page }) => {
+  // Count calculation requests so a cache hit is observable rather than
+  // merely assumed.
+  let calculations = 0
+  await page.route("**/lca-api/api/lca/base", async (route) => {
+    calculations += 1
+    await route.fulfill({ json: { ...lcaResultFixture, contribution_graphs: [] } })
+  })
+
+  await page.getByRole("button", { name: "Results", exact: true }).click()
+  await page.getByRole("menuitem", { name: "LCA results", exact: true }).click()
+  await expect(page.locator(".markdown-report")).toBeVisible()
+
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
+  const editor = page.getByRole("textbox", { name: "Product graph YAML" })
+  await editor.fill((await editor.inputValue()).replace("amount: 1.8", "amount: 3.3"))
+  await page.getByRole("button", { name: "Save", exact: true }).click()
+  await expect.poll(() => calculations).toBeGreaterThan(0)
+  const afterSave = calculations
+
+  // Restoring a document calculated earlier should not hit the engine again.
+  await openHistory(page)
+  await historyRows(page).filter({ hasText: "Opened" }).first().getByRole("button", { name: "Restore" }).click()
+  await expect(editor).toHaveValue(/amount: 1\.8/)
+
+  await page.getByRole("button", { name: "Results", exact: true }).click()
+  await page.getByRole("menuitem", { name: "LCA results", exact: true }).click()
+  await expect(page.locator(".markdown-report")).toBeVisible()
+  expect(calculations).toBe(afterSave)
+})

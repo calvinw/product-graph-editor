@@ -4,6 +4,7 @@ import {
   type ContributionGraph,
 } from "@/lib/lcaApi"
 import { useDisplaySettings } from "@/lib/displaySettings"
+import { resultCache } from "@/lib/resultCache"
 import { useProductGraphStore } from "@/state/productGraphStore"
 
 /**
@@ -72,6 +73,10 @@ export function useCalculation({
     try {
       const result = await calculateLca(source, controller.signal)
       if (controller.signal.aborted || appliedRevisionRef.current !== revision) return
+      // Same YAML deterministically produces the same result, so remembering
+      // it makes stepping back to this document instant rather than a round
+      // trip. See resultCache.
+      resultCache.set(source, result)
       completeCalculation(result, revision)
       onResultsMarkdown(lcaResultToMarkdown(result, decimalPlaces, showAllDecimalPlaces))
       if (openGraphWhenReady) onOpenGraph()

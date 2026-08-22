@@ -3,7 +3,8 @@ import { Position, useEdgesState, useNodesInitialized, useNodesState, useReactFl
 import type { ProcessNodeData } from "@/components/ProcessNode"
 import { useDisplaySettings } from "@/lib/displaySettings"
 import { chemicalFlowLabel } from "@/lib/flowLabels"
-import { getBackgroundActivityDetails } from "@/lib/lcaApi"
+import { getBackgroundActivityDetails, lcaResultToMarkdown } from "@/lib/lcaApi"
+import { resultCache } from "@/lib/resultCache"
 import { layoutNodes, resolveNodeOverlaps } from "@/lib/layout"
 import { buildGraphFromYaml, buildGraphStructure, decorateAmounts, nodeScopeColors } from "@/lib/yamlGraph"
 import {
@@ -67,7 +68,7 @@ export function useGraphModel({
   const {
     applySource, applyScenarioSource, setGraphMode, setGraphMaxProcesses, setReferenceAmountsVisible,
     requestViewChange: setView, setScenarioOverride, dispatchWorkspace,
-    commitVersion, restoreVersion: restoreVersionInStore,
+    commitVersion, restoreVersion: restoreVersionInStore, completeCalculation,
   } = useProductGraphStore((state) => state.actions)
 
   const foldDirectionRef = useRef<"upstream" | "downstream">("upstream")
@@ -849,7 +850,18 @@ export function useGraphModel({
       setYamlError(error instanceof Error ? error.message : "Could not rebuild the restored version.")
       return revision
     }
-    if (source.trim()) void calculateSource(source, revision)
+    if (!source.trim()) return revision
+
+    // Instant undo: a document calculated earlier in the session has its
+    // scores restored without a round trip. The same YAML deterministically
+    // produces the same result, so this is exact rather than an approximation.
+    const cached = resultCache.get(source)
+    if (cached) {
+      completeCalculation(cached, revision)
+      onResultsMarkdown(lcaResultToMarkdown(cached, graphDecimalPlaces, showAllDecimalPlaces))
+    } else {
+      void calculateSource(source, revision)
+    }
     return revision
   }
 
