@@ -116,9 +116,13 @@ step "Registering remote MCP servers from configs/mcp-servers.conf"
 if [ ! -f configs/mcp-servers.conf ]; then
   warn "configs/mcp-servers.conf not found; no remote MCP servers registered."
 else
+  # Codex speaks streamable HTTP natively (codex-cli 0.149 registers
+  # [mcp_servers.NAME] with a url field). It has no SSE transport, so only SSE
+  # servers still need supergateway to bridge them.
   supergateway_bin="$(command -v supergateway || true)"
-  if [ -z "$supergateway_bin" ]; then
-    warn "supergateway not found. Codex reaches remote MCP servers through it; install with 'npm i -g supergateway' and re-run to add them to Codex. Claude and OpenCode are unaffected."
+  if [ -z "$supergateway_bin" ] \
+     && grep -vE '^[[:space:]]*(#|$)' configs/mcp-servers.conf | grep -qv '|http'; then
+    warn "supergateway not found, and configs/mcp-servers.conf has SSE servers. Codex has no SSE transport, so those are skipped for Codex; install with 'npm i -g supergateway' and re-run. HTTP servers register natively and are unaffected, as are Claude and OpenCode."
   fi
 
   python3 - "$supergateway_bin" <<'PYTHON'
@@ -207,9 +211,7 @@ if config is not None:
     print("    OpenCode: done")
 
 # ── Codex — ~/.codex/config.toml, bridged by supergateway ────────────────────
-if not bridge:
-    print("    Codex: supergateway not found, skipping remote servers")
-elif not shutil.which("codex"):
+if not shutil.which("codex"):
     print("    Codex: not found, skipping")
 else:
     config_path = os.path.join(home, ".codex", "config.toml")
@@ -230,20 +232,36 @@ else:
         if not skipping:
             kept.append(line)
     content = "".join(kept).rstrip("\n")
+    native, bridged, skipped = [], [], []
     for entry in entries:
-        if entry["transport"] == "sse":
+        if entry["transport"] != "sse":
+            # Native streamable HTTP: no bridge process involved.
+            block = f'[mcp_servers.{entry["name"]}]\nurl = "{entry["url"]}"'
+            if entry["headers"]:
+                rendered = ", ".join(f'"{k}" = "{v}"' for k, v in entry["headers"].items())
+                block += f"\nhttp_headers = {{ {rendered} }}"
+            content = content.rstrip("\n") + "\n\n" + block + "\n"
+            native.append(entry["name"])
+        elif bridge:
+            # Codex has no SSE transport; supergateway fronts it as stdio.
             args = ["--sse", entry["url"], "--logLevel", "none"]
+            rendered = "[" + ", ".join(f'"{a}"' for a in args) + "]"
+            content = (content.rstrip("\n") + f'\n\n[mcp_servers.{entry["name"]}]\n'
+                       f'command = "{bridge}"\nargs = {rendered}\n')
+            bridged.append(entry["name"])
         else:
-            args = ["--streamableHttp", entry["url"]]
-            for key, value in entry["headers"].items():
-                args += ["--header", f"{key}: {value}"]
-            args += ["--logLevel", "none"]
-        rendered = "[" + ", ".join(f'"{a}"' for a in args) + "]"
-        content += (f'\n\n[mcp_servers.{entry["name"]}]\n'
-                    f'command = "{bridge}"\nargs = {rendered}\n')
+            skipped.append(entry["name"])
     with open(config_path, "w") as handle:
         handle.write(content.lstrip("\n"))
-    print("    Codex: done")
+    detail = []
+    if native:
+        detail.append(f"{len(native)} native ({', '.join(native)})")
+    if bridged:
+        detail.append(f"{len(bridged)} bridged ({', '.join(bridged)})")
+    if skipped:
+        detail.append(f"{len(skipped)} skipped, SSE without supergateway "
+                      f"({', '.join(skipped)})")
+    print("    Codex: " + ("; ".join(detail) if detail else "nothing to do"))
 PYTHON
 fi
 
