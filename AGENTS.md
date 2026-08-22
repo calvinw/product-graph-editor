@@ -25,16 +25,18 @@ Run the verification suites separately:
 ```bash
 npm run build
 npm run lint
+npm run test:unit
 npm run test:responsive
 npm run test:visual
 ```
 
 The recorded baseline is:
 
+- unit: 21 passed
 - responsive: 53 passed, 1 skipped
 - visual: 31 passed, 0 failures
 
-Both suites exit zero. The single responsive skip is deliberate and
+All three suites exit zero. The single responsive skip is deliberate and
 viewport-conditional: the assistant split-pane test does not apply at phone
 width, where the chat uses the full contained width.
 

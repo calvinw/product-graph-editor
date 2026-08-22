@@ -33,11 +33,12 @@ Before changing a responsive surface, read `plan/responsive-ui-plan.md`, `plan/r
 ```bash
 npm run build
 npm run lint
+npm run test:unit
 npm run test:responsive
 npm run test:visual
 ```
 
-The current recorded baseline is 53 responsive tests passed with 1 deliberate viewport-conditional skip, plus 31 visual tests passed with no failures. Both commands exit zero. There is no accepted-failure allowance any more, so a failing visual test is a regression. Do not update screenshot baselines without visually reviewing the differences.
+The current recorded baseline is 21 unit tests passed, 53 responsive tests passed with 1 deliberate viewport-conditional skip, plus 31 visual tests passed with no failures. All three suites exit zero. There is no accepted-failure allowance any more, so a failing visual test is a regression. Do not update screenshot baselines without visually reviewing the differences.
 
 ## GitHub Pages
 
