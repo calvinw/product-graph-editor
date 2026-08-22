@@ -51,9 +51,9 @@ export function useModelWorkspace({
   cumulativeCategories: string[]
 }) {
   const view = useProductGraphStore((state) => state.activeView)
-  const activeDocument = useProductGraphStore((state) => state.activeDocument)
-  const sessionDocuments = useProductGraphStore((state) => state.sessionDocuments)
-  const yamlDraft = useProductGraphStore((state) => state.yamlDraft)
+  const activeDocument = useProductGraphStore((state) => state.workspace.activeDocument)
+  const sessionDocuments = useProductGraphStore((state) => state.workspace.sessionDocuments)
+  const yamlDraft = useProductGraphStore((state) => state.workspace.yamlDraft)
   const {
     requestViewChange: setView,
     dispatchWorkspace: dispatchModelWorkspace,

@@ -45,7 +45,17 @@ type ProductGraphActions = {
   reset: () => void
 }
 
-export type ProductGraphState = ModelWorkspaceState & {
+export type ProductGraphState = {
+  /**
+   * The document tier, nested rather than spread so there is a single object
+   * to snapshot for undo. `modelWorkspaceReducer` owns everything in here.
+   *
+   * `appliedYaml` is deliberately NOT in this slice: it is written by
+   * applySource/applyScenarioSource alongside the revision and calculation
+   * fields, not by the reducer. A version snapshot is therefore this slice
+   * plus `appliedYaml` -- see `selectDocumentSnapshot`.
+   */
+  workspace: ModelWorkspaceState
   activeView: ProductGraphView
   selectedNode: SelectedGraphNode | null
   graphMode: GraphMode
@@ -66,7 +76,7 @@ export type ProductGraphState = ModelWorkspaceState & {
 }
 
 const initialProductGraphState = {
-  ...initialModelWorkspace,
+  workspace: initialModelWorkspace,
   activeView: "graph" as const,
   selectedNode: null,
   graphMode: "structure" as const,
@@ -95,7 +105,7 @@ export const useProductGraphStore = create<ProductGraphState>()((set, get) => ({
     setGraphConnectionStyle: (graphConnectionStyle) => set({ graphConnectionStyle }),
     setReferenceAmountsVisible: (showReferenceAmounts) => set({ showReferenceAmounts }),
     setGraphMaxProcesses: (graphMaxProcesses) => set({ graphMaxProcesses: Math.max(1, graphMaxProcesses) }),
-    dispatchWorkspace: (action) => set((state) => modelWorkspaceReducer(state, action)),
+    dispatchWorkspace: (action) => set((state) => ({ workspace: modelWorkspaceReducer(state.workspace, action) })),
     applySource: (appliedYaml) => {
       const appliedRevision = get().appliedRevision + 1
       set({
@@ -164,7 +174,20 @@ export const selectHasCurrentResults = (state: ProductGraphState) => (
 )
 
 export const selectHasUncommittedWorkspace = (state: ProductGraphState) => (
-  state.yamlDraft !== (state.activeDocument?.committedYaml ?? "") ||
-  state.activeDocument?.kind === "new" ||
-  state.activeDocument?.kind === "invalid-upload"
+  state.workspace.yamlDraft !== (state.workspace.activeDocument?.committedYaml ?? "") ||
+  state.workspace.activeDocument?.kind === "new" ||
+  state.workspace.activeDocument?.kind === "invalid-upload"
 )
+
+/**
+ * Everything a version snapshot must capture: the reducer-owned document tier
+ * plus `appliedYaml`, which lives outside it. Undo restores exactly this and
+ * nothing else -- view, selection, zoom, and calculated results are excluded
+ * deliberately, because results are derived and the rest is not document state.
+ */
+export type DocumentSnapshot = ModelWorkspaceState & { appliedYaml: string }
+
+export const selectDocumentSnapshot = (state: ProductGraphState): DocumentSnapshot => ({
+  ...state.workspace,
+  appliedYaml: state.appliedYaml,
+})
