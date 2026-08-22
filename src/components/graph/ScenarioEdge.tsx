@@ -16,7 +16,6 @@ export type ScenarioEdgeData = {
   scale: number
   label: string
   onScenarioChange?: (key: string, amount: number) => void
-  onScenarioCommit?: () => void
 }
 
 /** Pixels of horizontal travel that sweep the whole range. */
@@ -27,9 +26,11 @@ const DRAG_SPAN = 220
  *
  * React Flow draws edge labels as SVG text, which cannot take interaction, so
  * the label is rendered as HTML through EdgeLabelRenderer and positioned over
- * the edge. Dragging maps horizontal travel onto 0..2x the baseline amount;
- * beyond that range the NumberStepper in the property editor is the precise
- * path, which is why it is a requirement rather than a convenience.
+ * the edge. Dragging maps horizontal travel onto 0..2x the baseline amount.
+ *
+ * Editing only previews: it writes a scenario override and nothing reaches the
+ * YAML until the Update YAML button in the ScenarioPanel is pressed. There is
+ * currently no way to set an amount beyond 2x the baseline on the graph.
  */
 export function ScenarioEdge({
   id, sourceX, sourceY, targetX, targetY,
@@ -41,7 +42,7 @@ export function ScenarioEdge({
   })
   if (!data) return <BaseEdge id={id} path={path} markerEnd={markerEnd} style={style} />
 
-  const { scenarioKey, baselineAmount, amount, label, onScenarioChange, onScenarioCommit } = data
+  const { scenarioKey, baselineAmount, amount, label, onScenarioChange } = data
   const max = baselineAmount > 0 ? baselineAmount * 2 : 1
   const edited = amount !== baselineAmount
   const draggable = Boolean(onScenarioChange)
@@ -88,7 +89,6 @@ export function ScenarioEdge({
             event.stopPropagation()
             drag.current = null
             event.currentTarget.releasePointerCapture(event.pointerId)
-            onScenarioCommit?.()
           }}
           onPointerCancel={() => { drag.current = null }}
           onKeyDown={(event) => {
@@ -97,9 +97,6 @@ export function ScenarioEdge({
             event.preventDefault()
             const step = (max / (event.shiftKey ? 20 : 100)) * (event.key === "ArrowRight" ? 1 : -1)
             nudge(step)
-          }}
-          onKeyUp={(event) => {
-            if (event.key === "ArrowLeft" || event.key === "ArrowRight") onScenarioCommit?.()
           }}
         >
           {label}

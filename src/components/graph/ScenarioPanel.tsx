@@ -119,7 +119,7 @@ export function ScenarioPanel({
         <span>Scores are exact. Inventory, contributions and Sankey need a calculation.</span>
         <Button variant="ghost" size="sm" onClick={onReset} disabled={calculating}>Reset</Button>
         <Button size="sm" onClick={onCommit} disabled={calculating}>
-          {calculating ? "Calculating…" : "Done"}
+          {calculating ? "Calculating…" : "Update YAML"}
         </Button>
       </footer>
     </aside>

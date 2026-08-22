@@ -50,7 +50,6 @@ const MODELS = [
 const ENDPOINT = import.meta.env.VITE_OPENROUTER_ENDPOINT ?? "https://openrouter.ai/api/v1/chat/completions"
 const MODEL_STORAGE = "product-graph-editor:chat-model"
 const WIDTH_STORAGE = "product-graph-editor:chat-width"
-const AUDIT_STORAGE = "product-graph-editor:chat-tool-audit"
 const API_KEY_STORAGE = "product-graph-editor:chat-api-key"
 
 function storedValue(key: string, fallback: string) {
@@ -59,17 +58,6 @@ function storedValue(key: string, fallback: string) {
 
 function messageId() {
   return globalThis.crypto?.randomUUID?.() ?? `message-${Date.now()}-${Math.random()}`
-}
-
-function recordToolAudit(name: string, status: "completed" | "rejected" | "error") {
-  try {
-    const current = JSON.parse(localStorage.getItem(AUDIT_STORAGE) ?? "[]") as unknown
-    const history = Array.isArray(current) ? current : []
-    localStorage.setItem(AUDIT_STORAGE, JSON.stringify([
-      { id: messageId(), name, source: "llm", status, timestamp: new Date().toISOString() },
-      ...history,
-    ].slice(0, 100)))
-  } catch { /* Audit persistence is best-effort in restricted browser contexts. */ }
 }
 
 function extractCellText(node: ReactNode): string {
@@ -266,14 +254,12 @@ export function AiChatPanel({
         for (const call of result.calls) {
           let output: unknown
           let failed = false
-          let rejected = false
           try {
             const typedCall = call as ViewToolCall
             const before = latestRuntimeRef.current
             if (confirmedToolNames.has(call.function.name)) {
               const accepted = await requestToolConfirmation(confirmationSummary(typedCall, before))
               if (!accepted) {
-                rejected = true
                 output = { status: "rejected", reason: "Rejected by user." }
               } else {
                 const latest = latestRuntimeRef.current
@@ -291,7 +277,6 @@ export function AiChatPanel({
             failed = true
             output = { error: toolError instanceof Error ? toolError.message : String(toolError) }
           }
-          recordToolAudit(call.function.name, failed ? "error" : rejected ? "rejected" : "completed")
           toolViews.push({ name: call.function.name, output, error: failed })
           apiMessages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(output) })
         }

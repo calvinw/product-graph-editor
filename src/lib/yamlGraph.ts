@@ -13,7 +13,6 @@ export type ScenarioDecoration = {
   draggableKeys: Set<string>
   baselineAmounts: Record<string, number>
   onChange?: (key: string, amount: number) => void
-  onCommit?: () => void
 }
 import { chemicalFlowLabel } from "./flowLabels"
 
@@ -300,7 +299,6 @@ export function decorateAmounts(
             scale: scales.get(consumer.name) ?? 0,
             label,
             onScenarioChange: scenario!.onChange,
-            onScenarioCommit: scenario!.onCommit,
           },
         } : {}),
         id: `${source}-${ids.get(consumer.name)}-${consumerIndex}-${inputIndex}`,
