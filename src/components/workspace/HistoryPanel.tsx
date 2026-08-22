@@ -2,7 +2,40 @@ import { useState } from "react"
 import { History, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { collapseContext, diffLines, diffStat } from "@/lib/diff"
 import { relativeTime, snapshotsEqual, type DocumentSnapshot, type Version } from "@/lib/versionHistory"
+
+/**
+ * What changed in this version, against the one before it.
+ *
+ * For assistant edits this matters more than the undo itself: the edit arrives
+ * as a wall of new YAML, and being able to step back without knowing what you
+ * are stepping back from is only half a feature.
+ *
+ * Computed at display time from two whole documents -- never stored, never
+ * transported.
+ */
+function VersionDiff({ previous, version }: { previous: Version | undefined; version: Version }) {
+  if (!previous) return <p className="history-diff-empty">First recorded version.</p>
+
+  const lines = diffLines(previous.snapshot.yamlDraft, version.snapshot.yamlDraft)
+  const stat = diffStat(lines)
+  if (!stat.added && !stat.removed) {
+    return <p className="history-diff-empty">No YAML changes; the document metadata changed.</p>
+  }
+
+  return (
+    <pre className="history-diff" aria-label="Changes in this version">
+      {collapseContext(lines).map((line, index) => (
+        line.kind === "gap"
+          ? <span key={index} className="history-diff-gap">{`⋯ ${line.count} unchanged line${line.count === 1 ? "" : "s"}`}</span>
+          : <span key={index} className={`history-diff-line is-${line.kind}`}>
+              {line.kind === "added" ? "+" : line.kind === "removed" ? "-" : " "}{line.text}
+            </span>
+      ))}
+    </pre>
+  )
+}
 
 /**
  * The version list made visible, and the main way to use undo.
@@ -53,29 +86,47 @@ export function HistoryPanel({
             {!currentId ? (
               <li className="history-uncommitted">Unsaved edits, not yet recorded as a version.</li>
             ) : null}
-            {newestFirst.map((version) => (
-              <li key={version.id} className={`history-row${version.id === currentId ? " is-current" : ""}`}>
-                <div className="history-row-head">
-                  <span className="history-row-label" title={version.label}>{version.label}</span>
-                  <span className={`history-badge is-${version.source}`}>{version.source}</span>
-                </div>
-                <div className="history-row-meta">
-                  <time dateTime={version.timestamp}>{relativeTime(version.timestamp)}</time>
-                  {version.id === currentId ? (
-                    <span className="history-current-tag">current</span>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="history-restore"
-                      onClick={() => restore(version.id)}
-                    >
-                      <RotateCcw data-icon="inline-start" size={12} />Restore
-                    </Button>
-                  )}
-                </div>
-              </li>
-            ))}
+            {newestFirst.map((version, index) => {
+              // newestFirst is reversed, so the chronologically previous
+              // version is the next one along.
+              const previous = newestFirst[index + 1]
+              const stat = previous
+                ? diffStat(diffLines(previous.snapshot.yamlDraft, version.snapshot.yamlDraft))
+                : null
+              return (
+                <li key={version.id} className={`history-row${version.id === currentId ? " is-current" : ""}`}>
+                  <div className="history-row-head">
+                    <span className="history-row-label" title={version.label}>{version.label}</span>
+                    <span className={`history-badge is-${version.source}`}>{version.source}</span>
+                  </div>
+                  <div className="history-row-meta">
+                    <time dateTime={version.timestamp}>{relativeTime(version.timestamp)}</time>
+                    {stat && (stat.added || stat.removed) ? (
+                      <span className="history-diff-stat">
+                        <span className="is-added">+{stat.added}</span>
+                        <span className="is-removed">-{stat.removed}</span>
+                      </span>
+                    ) : null}
+                    {version.id === currentId ? (
+                      <span className="history-current-tag">current</span>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="history-restore"
+                        onClick={() => restore(version.id)}
+                      >
+                        <RotateCcw data-icon="inline-start" size={12} />Restore
+                      </Button>
+                    )}
+                  </div>
+                  <details className="history-diff-toggle">
+                    <summary>What changed</summary>
+                    <VersionDiff previous={previous} version={version} />
+                  </details>
+                </li>
+              )
+            })}
           </ul>
         )}
       </PopoverContent>

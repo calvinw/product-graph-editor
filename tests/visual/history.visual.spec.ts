@@ -172,3 +172,31 @@ test("leaving a dirty editor is guarded, and discarding records no spurious vers
   await page.getByRole("radio", { name: "Edit", exact: true }).click()
   await expect(editor).toHaveValue(original)
 })
+
+test("a version row shows what changed against the one before it", async ({ page }) => {
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
+  const editor = page.getByRole("textbox", { name: "Product graph YAML" })
+  await editor.fill((await editor.inputValue()).replace("amount: 1.8", "amount: 9.9"))
+  await page.getByRole("button", { name: "Save", exact: true }).click()
+
+  await openHistory(page)
+  const saved = historyRows(page).first()
+  await expect(saved).toContainText("Saved")
+  // The change stat is visible without expanding anything.
+  await expect(saved.locator(".history-diff-stat")).toContainText("+1")
+  await expect(saved.locator(".history-diff-stat")).toContainText("-1")
+
+  await saved.getByText("What changed").click()
+  const diff = saved.locator(".history-diff")
+  await expect(diff.locator(".is-removed")).toContainText("amount: 1.8")
+  await expect(diff.locator(".is-added")).toContainText("amount: 9.9")
+  // Long unchanged stretches are collapsed rather than scrolled past.
+  await expect(diff.locator(".history-diff-gap").first()).toContainText("unchanged line")
+})
+
+test("the first version has nothing to compare against", async ({ page }) => {
+  await openHistory(page)
+  const first = historyRows(page).first()
+  await first.getByText("What changed").click()
+  await expect(first).toContainText("First recorded version")
+})
