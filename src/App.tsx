@@ -464,7 +464,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
             </Popover>
           </div>
           <div className="toolbar-group">
-            <ToolButton label="Select" pressed={selectMode} onClick={() => setSelectMode((current) => !current)}><MousePointer2 size={18} /></ToolButton>
+            <ToolButton label="Select nodes (hold Alt and drag to zoom to an area)" pressed={selectMode} onClick={() => setSelectMode((current) => !current)}><MousePointer2 size={18} /></ToolButton>
           </div>
           <div className="toolbar-group">
             <ToolButton label="Expand all activities" onClick={() => setAllExpanded(true)}><ChevronsUpDown size={18} /></ToolButton>

@@ -1,5 +1,6 @@
+import { useCallback } from "react"
 import {
-  Background, BackgroundVariant, ReactFlow, SelectionMode,
+  Background, BackgroundVariant, ReactFlow, SelectionMode, getNodesBounds, useReactFlow,
   type Edge, type Node, type OnEdgesChange, type OnNodesChange,
 } from "@xyflow/react"
 import { ProcessNode, type ProcessNodeData } from "@/components/ProcessNode"
@@ -34,6 +35,18 @@ export function GraphCanvas({
   hydrateBackgroundNode: (id: string) => void | Promise<void>
   toggleExpanded: (id: string) => void
 }) {
+  const { fitBounds, getNodes } = useReactFlow()
+  // Alt+drag draws a selection box (selectionKeyCode below) and zooms to it.
+  // Plain drag in Select mode stays a pure multi-select so the selected nodes
+  // can be dragged as a group -- the two are deliberately separate (#67).
+  const zoomToSelectionIfModified = useCallback((event: React.MouseEvent) => {
+    if (!event.altKey) return
+    const selectedNodes = getNodes().filter((node) => node.selected)
+    if (!selectedNodes.length) return
+    const bounds = getNodesBounds(selectedNodes)
+    if (bounds.width && bounds.height) void fitBounds(bounds, { padding: 0.15, duration: 300 })
+  }, [fitBounds, getNodes])
+
   return (
     <div className={`graph-viewport${inspectorOpen ? " has-inspector" : ""}`}><ReactFlow
       className="reactflow-canvas"
@@ -60,6 +73,10 @@ export function GraphCanvas({
       panOnDrag={!selectMode}
       selectionOnDrag={selectMode}
       selectionMode={SelectionMode.Partial}
+      // Alt is free: Shift/Space/Meta are already React Flow defaults for
+      // box-select, pan, and multi-select respectively.
+      selectionKeyCode="Alt"
+      onSelectionEnd={zoomToSelectionIfModified}
       onInit={(instance) => requestAnimationFrame(() => requestAnimationFrame(() => instance.fitView({ padding: 0.4, maxZoom: 0.85 })))}
       proOptions={{ hideAttribution: true }}
     >
