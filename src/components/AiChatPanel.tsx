@@ -40,12 +40,12 @@ function messageText(message: ChatMessage) {
 }
 
 const MODELS = [
-  ["openai/gpt-5.6-luna", "GPT-5.6 Luna"],
-  ["google/gemini-3.7-flash", "Gemini 3.7 Flash"],
-  ["google/gemini-3-flash-preview", "Gemini 3 Flash (preview)"],
-  ["deepseek/deepseek-v4-flash-0731", "DeepSeek V4 Flash"],
-  ["qwen/qwen3.7-flash", "Qwen3.7 Flash"],
-  ["openai/gpt-4o-mini", "GPT-4o mini"],
+  "openai/gpt-5.6-luna",
+  "google/gemini-3.7-flash",
+  "google/gemini-3-flash-preview",
+  "deepseek/deepseek-v4-flash-0731",
+  "qwen/qwen3.7-flash",
+  "openai/gpt-4o-mini",
 ] as const
 const ENDPOINT = import.meta.env.VITE_OPENROUTER_ENDPOINT ?? "https://openrouter.ai/api/v1/chat/completions"
 const MODEL_STORAGE = "product-graph-editor:chat-model"
@@ -132,7 +132,7 @@ export function AiChatPanel({
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState("")
   const [apiKey, setApiKey] = useState(() => storedValue(API_KEY_STORAGE, ""))
-  const [model, setModel] = useState(() => storedValue(MODEL_STORAGE, MODELS[0][0]))
+  const [model, setModel] = useState(() => storedValue(MODEL_STORAGE, MODELS[0]))
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [panelWidth, setPanelWidth] = useState(() => Number(storedValue(WIDTH_STORAGE, "410")) || 410)
   const [status, setStatus] = useState<"idle" | "streaming">("idle")
@@ -293,6 +293,7 @@ export function AiChatPanel({
       setStreaming(assistantId, false)
       abortRef.current = null
       setStatus("idle")
+      requestAnimationFrame(() => promptRef.current?.focus())
     }
   }, [appendToolSegments, messages, model, requestToolConfirmation, runtime, setStreaming, status, transport, upsertTextSegment])
 
@@ -316,10 +317,11 @@ export function AiChatPanel({
     <aside className="ai-chat-sidebar" aria-label="PRISM assistant">
         <button className="ai-chat-resize-handle" type="button" aria-label="Resize AI assistant" aria-valuemin={240} aria-valuemax={Math.max(240, window.innerWidth - 80)} aria-valuenow={Math.round(panelWidth)} onKeyDown={resizeByKeyboard} onPointerDown={startResize}><GripVertical aria-hidden="true" /></button>
         <div className="ai-chat-header">
+          <button type="button" className="ai-chat-model-readout" onClick={() => setSettingsOpen(true)} title="Change model in chat settings">{model}</button>
           <div className="ai-chat-header-actions">
-            <Button variant="ghost" size="icon" type="button" aria-label="New conversation" onClick={() => { setMessages([]); setError("") }} disabled={status !== "idle"}><MessageSquarePlus /></Button>
-            <Button variant="ghost" size="icon" type="button" aria-label="Chat settings" onClick={() => setSettingsOpen(true)}><Settings2 /></Button>
-            <Button variant="ghost" size="icon" type="button" aria-label="Close AI assistant" onClick={() => onOpenChange(false)}><X /></Button>
+            <Button variant="ghost" size="icon" type="button" aria-label="New conversation" onClick={() => { setMessages([]); setError("") }} disabled={status !== "idle"}><MessageSquarePlus size={16} /></Button>
+            <Button variant="ghost" size="icon" type="button" aria-label="Chat settings" onClick={() => setSettingsOpen(true)}><Settings2 size={16} /></Button>
+            <Button variant="ghost" size="icon" type="button" aria-label="Close AI assistant" onClick={() => onOpenChange(false)}><X size={16} /></Button>
           </div>
         </div>
 
@@ -347,7 +349,7 @@ export function AiChatPanel({
         <div className="ai-chat-composer">
           <label className="sr-only" htmlFor="ai-chat-prompt">Message</label>
           <textarea ref={promptRef} id="ai-chat-prompt" rows={1} value={draft} disabled={status === "streaming"} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(draft) } }} placeholder="Ask about the workspace or graph…" />
-          <Button type="button" size="icon" className="ai-chat-send" aria-label={status === "streaming" ? "Stop response" : "Send message"} disabled={status === "idle" && !draft.trim()} onClick={() => status === "streaming" ? abortRef.current?.abort() : void send(draft)}>{status === "streaming" ? <Square /> : <ArrowUp />}</Button>
+          <Button type="button" size="icon" className="ai-chat-send" aria-label={status === "streaming" ? "Stop response" : "Send message"} disabled={status === "idle" && !draft.trim()} onClick={() => status === "streaming" ? abortRef.current?.abort() : void send(draft)}>{status === "streaming" ? <Square size={16} /> : <ArrowUp size={16} />}</Button>
         </div>
         {error ? <p className="ai-chat-error" role="alert">{error}</p> : null}
     </aside>,
@@ -362,7 +364,7 @@ export function AiChatPanel({
         <DialogHeader><DialogTitle>Chat settings</DialogTitle><DialogDescription>Your OpenRouter API key is stored in this browser's local storage so you don't need to re-enter it. Production deployments can route requests through a backend by configuring the OpenRouter endpoint.</DialogDescription></DialogHeader>
         <FieldGroup>
           <Field><FieldLabel htmlFor="openrouter-key">OpenRouter API key</FieldLabel><div className="ai-chat-key-field"><KeyRound aria-hidden="true" /><Input id="openrouter-key" type="password" autoComplete="off" value={apiKey} onChange={(event) => setApiKey(event.target.value)} /></div></Field>
-          <Field><FieldLabel htmlFor="ai-chat-model">Model</FieldLabel><Select value={model} onValueChange={setModel}><SelectTrigger id="ai-chat-model" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{MODELS.map(([id, label]) => <SelectItem value={id} key={id}>{label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
+          <Field><FieldLabel htmlFor="ai-chat-model">Model</FieldLabel><Select value={model} onValueChange={setModel}><SelectTrigger id="ai-chat-model" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{MODELS.map((id) => <SelectItem value={id} key={id}>{id}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
         </FieldGroup>
         <DialogFooter><Button type="button" onClick={saveSettings}>Save settings</Button></DialogFooter>
       </DialogContent>

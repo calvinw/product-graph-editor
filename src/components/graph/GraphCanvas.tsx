@@ -1,6 +1,5 @@
-import { useCallback } from "react"
 import {
-  Background, BackgroundVariant, ReactFlow, SelectionMode, getNodesBounds, useReactFlow,
+  Background, BackgroundVariant, ReactFlow, SelectionMode,
   type Edge, type Node, type OnEdgesChange, type OnNodesChange,
 } from "@xyflow/react"
 import { ProcessNode, type ProcessNodeData } from "@/components/ProcessNode"
@@ -35,14 +34,6 @@ export function GraphCanvas({
   hydrateBackgroundNode: (id: string) => void | Promise<void>
   toggleExpanded: (id: string) => void
 }) {
-  const { fitBounds, getNodes } = useReactFlow()
-  const zoomToSelection = useCallback(() => {
-    const selectedNodes = getNodes().filter((node) => node.selected)
-    if (!selectedNodes.length) return
-    const bounds = getNodesBounds(selectedNodes)
-    if (bounds.width && bounds.height) void fitBounds(bounds, { padding: 0.15, duration: 300 })
-  }, [fitBounds, getNodes])
-
   return (
     <div className={`graph-viewport${inspectorOpen ? " has-inspector" : ""}`}><ReactFlow
       className="reactflow-canvas"
@@ -69,7 +60,6 @@ export function GraphCanvas({
       panOnDrag={!selectMode}
       selectionOnDrag={selectMode}
       selectionMode={SelectionMode.Partial}
-      onSelectionEnd={zoomToSelection}
       onInit={(instance) => requestAnimationFrame(() => requestAnimationFrame(() => instance.fitView({ padding: 0.4, maxZoom: 0.85 })))}
       proOptions={{ hideAttribution: true }}
     >

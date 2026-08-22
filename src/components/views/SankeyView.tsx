@@ -1,8 +1,8 @@
 import type React from "react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import dagre from "@dagrejs/dagre"
 import {
-  ReactFlow, Background, BackgroundVariant, Handle, Position, SelectionMode, getNodesBounds,
+  ReactFlow, Background, BackgroundVariant, Handle, Position, SelectionMode,
   useNodesState, useEdgesState, type Edge, type Node, type NodeProps, type ReactFlowInstance,
 } from "@xyflow/react"
 import { BarChart3, Component, GripHorizontal, LayoutGrid, Minus, MousePointer2, Plus, Scan, Settings2 } from "lucide-react"
@@ -62,6 +62,18 @@ export function SankeyView({ result, loadContributionGraphs }: {
   const [renderedNodes, setRenderedNodes, onSankeyNodesChange] = useNodesState<Node<SankeyProcessNodeData>>([])
   const [renderedEdges, setRenderedEdges, onSankeyEdgesChange] = useEdgesState<Edge>([])
   useEffect(() => setMaxProcesses(availableProcessCount), [availableProcessCount])
+  useEffect(() => {
+    let fitFrame = 0
+    const onResize = () => {
+      cancelAnimationFrame(fitFrame)
+      fitFrame = requestAnimationFrame(() => instanceRef.current?.fitView({ padding: .45, maxZoom: 0.85, duration: 200 }))
+    }
+    window.addEventListener("resize", onResize)
+    return () => {
+      window.removeEventListener("resize", onResize)
+      cancelAnimationFrame(fitFrame)
+    }
+  }, [])
   const flowNames = Object.keys(result.lci)
   const impactNames = [...Object.entries(result.lcia).filter(([, value]) => value.score !== 0).reduce((unique, [name]) => {
     const key = name
@@ -389,14 +401,6 @@ export function SankeyView({ result, loadContributionGraphs }: {
   }, [selectedProcessId])
 
   const fitSankey = () => instanceRef.current?.fitView({ padding: .45, maxZoom: 0.85, duration: 350 })
-  const zoomToSankeySelection = useCallback(() => {
-    const instance = instanceRef.current
-    if (!instance) return
-    const selectedNodes = instance.getNodes().filter((node) => node.selected)
-    if (!selectedNodes.length) return
-    const bounds = getNodesBounds(selectedNodes)
-    if (bounds.width && bounds.height) void instance.fitBounds(bounds, { padding: 0.15, duration: 300 })
-  }, [])
 
   return <div className="sankey-view">
     {chartPickerOpen ? <div className="sankey-chart-picker">
@@ -442,14 +446,13 @@ export function SankeyView({ result, loadContributionGraphs }: {
         panOnDrag={!selectMode}
         selectionOnDrag={selectMode}
         selectionMode={SelectionMode.Partial}
-        onSelectionEnd={zoomToSankeySelection}
         onlyRenderVisibleElements={false}
         fitView
         fitViewOptions={{ padding: .35, maxZoom: 0.85 }}
         proOptions={{ hideAttribution: true }}
       ><Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#242831" /></ReactFlow> : <div className="sankey-empty"><strong>No contributions for this selection</strong><p>Choose another flow or impact category.</p></div>}
     </div>
-    {totalMagnitude && !impactGraphPending ? <div className="graph-toolbar sankey-toolbar" data-draggable-panel aria-label="Sankey graph tools" style={toolbarPosition ? { left: toolbarPosition.left, top: toolbarPosition.top } : undefined}>
+    {totalMagnitude && !impactGraphPending ? <div className="graph-toolbar sankey-toolbar" data-draggable-panel aria-label="Sankey graph tools" style={toolbarPosition ? { position: "fixed", left: toolbarPosition.left, top: toolbarPosition.top } : undefined}>
       <button type="button" className="toolbar-grip" aria-label="Move Sankey toolbar" onPointerDown={startToolbarDrag}><GripHorizontal size={14} /></button>
       <div className="toolbar-group"><ToolButton label="Chart settings" onClick={() => setChartPickerOpen((open) => !open)}><Settings2 size={18} /></ToolButton></div>
       <div className="toolbar-group"><ToolButton label="Select" pressed={selectMode} onClick={() => setSelectMode((current) => !current)}><MousePointer2 size={18} /></ToolButton></div>
