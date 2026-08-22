@@ -106,3 +106,69 @@ test("each model keeps its own history", async ({ page }) => {
   await expect(historyRows(page)).toHaveCount(1)
   await expect(historyRows(page).first()).toContainText("Copy of Cotton Fiber")
 })
+
+test("Cmd+Z outside a text field steps back a version, and Shift+Cmd+Z forward", async ({ page }) => {
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
+  const editor = page.getByRole("textbox", { name: "Product graph YAML" })
+  const original = await editor.inputValue()
+  await editor.fill(original.replace("Jacket", "Edited jacket"))
+  await page.getByRole("button", { name: "Save", exact: true }).click()
+  await expect(editor).toHaveValue(/Edited jacket/)
+
+  // Move focus out of the textarea: model undo only takes over outside a
+  // text field, so that native per-keystroke undo keeps working inside one.
+  await page.getByRole("radio", { name: "Graph", exact: true }).click()
+  await page.locator(".react-flow").click({ position: { x: 10, y: 10 } })
+  await page.keyboard.press("ControlOrMeta+z")
+
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
+  await expect(editor).toHaveValue(original)
+
+  await page.getByRole("radio", { name: "Graph", exact: true }).click()
+  await page.locator(".react-flow").click({ position: { x: 10, y: 10 } })
+  await page.keyboard.press("ControlOrMeta+Shift+z")
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
+  await expect(editor).toHaveValue(/Edited jacket/)
+})
+
+test("Cmd+Z inside the YAML textarea is left to the browser", async ({ page }) => {
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
+  const editor = page.getByRole("textbox", { name: "Product graph YAML" })
+
+  await editor.click()
+  await editor.press("End")
+  await editor.pressSequentially("# a comment")
+  await expect(editor).toHaveValue(/# a comment/)
+
+  // The browser's own undo steps character by character. What matters is that
+  // model undo did NOT fire: that would swap the entire document for an
+  // earlier version, removing the comment wholesale rather than trimming it.
+  await editor.press("ControlOrMeta+z")
+  await expect(editor).toHaveValue(/# a comme/)
+})
+
+test("leaving a dirty editor is guarded, and discarding records no spurious version", async ({ page }) => {
+  // The plan expected the editor to unmount freely on a view switch, taking
+  // its native undo stack with it. In this app that transition is already
+  // guarded: a dirty draft prompts first, so both outcomes resolve the
+  // dirtiness before the editor unmounts. The unmount capture therefore stays
+  // as a cheap safety net rather than the primary protection it was designed
+  // to be -- and, importantly, it must not add noise on the normal path.
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
+  const editor = page.getByRole("textbox", { name: "Product graph YAML" })
+  const original = await editor.inputValue()
+  await editor.fill(original.replace("Jacket", "Draft only, never saved"))
+
+  await page.getByRole("radio", { name: "Graph", exact: true }).click()
+  const dialog = page.getByRole("alertdialog")
+  await expect(dialog.getByRole("heading", { name: "Unsaved YAML changes" })).toBeVisible()
+  await dialog.getByRole("button", { name: "Discard changes" }).click()
+
+  await openHistory(page)
+  await expect(historyRows(page)).toHaveCount(1)
+  await expect(historyRows(page).first()).toContainText("Opened")
+  await page.keyboard.press("Escape")
+
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
+  await expect(editor).toHaveValue(original)
+})

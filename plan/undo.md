@@ -358,6 +358,24 @@ alone, which is what anyone would expect.
 
 ### The handoff: snapshot when text undo dies
 
+**Correction from implementation (August 22, 2026).** The hole described below
+is already closed by the existing unsaved-changes guard, so this section's
+premise does not hold in this app.
+
+Leaving the Edit view with a dirty draft does not silently unmount the
+textarea: `requestAction` intercepts every view change except one *into* `yaml`
+and opens the unsaved-changes dialog. Both outcomes resolve the dirtiness
+before the editor unmounts — Save records a version, Discard reverts the draft
+— so by the time the unmount fires there is nothing new to capture and dedupe
+correctly records nothing.
+
+The unmount capture is still implemented, as a cheap safety net and because it
+stays correct if that guard is ever relaxed. But it is not the load-bearing
+protection this section assumed, and blur was deliberately **not** used as a
+trigger: a textarea's native undo stack survives losing focus, so capturing on
+blur would add a spurious "unsaved" entry before every Save (clicking Save
+blurs the field). A browser test pins the normal path to zero spurious entries.
+
 Focus-based routing alone would leave a hole, because native text undo is not
 durable. The Edit view is conditionally rendered (`App.tsx:485`), so the
 textarea **unmounts** when you switch to the graph - and its undo stack is

@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest"
 import {
   createMemoryVersionStore,
   createVersion,
+  currentVersionIndex,
   historyKeyFor,
+  redoTarget,
   relativeTime,
   shouldAppend,
   snapshotsEqual,
+  undoTarget,
   TRANSIENT_HISTORY_KEY,
   type DocumentSnapshot,
 } from "@/lib/versionHistory"
@@ -134,6 +137,58 @@ describe("createVersion", () => {
     const a = createVersion(snapshot(), { label: "a", source: "you" })
     const b = createVersion(snapshot(), { label: "b", source: "you" })
     expect(a.id).not.toBe(b.id)
+  })
+})
+
+describe("undoTarget and redoTarget", () => {
+  const a = snapshot({ yamlDraft: "a", appliedYaml: "a" })
+  const b = snapshot({ yamlDraft: "b", appliedYaml: "b" })
+  const c = snapshot({ yamlDraft: "c", appliedYaml: "c" })
+  const history = [
+    createVersion(a, { label: "A", source: "you" }),
+    createVersion(b, { label: "B", source: "you" }),
+    createVersion(c, { label: "C", source: "you" }),
+  ]
+
+  it("steps back one version at a time", () => {
+    expect(undoTarget(history, c)?.label).toBe("B")
+    expect(undoTarget(history, b)?.label).toBe("A")
+  })
+
+  it("stops at the oldest version", () => {
+    expect(undoTarget(history, a)).toBeNull()
+  })
+
+  it("steps forward again, needing no separate redo stack", () => {
+    expect(redoTarget(history, a)?.label).toBe("B")
+    expect(redoTarget(history, b)?.label).toBe("C")
+  })
+
+  it("stops at the newest version", () => {
+    expect(redoTarget(history, c)).toBeNull()
+  })
+
+  it("undoes to the newest recorded state when sitting ahead of the list", () => {
+    // Uncommitted edits match no version; undo should land on the most recent
+    // recorded document. Callers record the uncommitted work first so it is
+    // not lost.
+    const uncommitted = snapshot({ yamlDraft: "uncommitted", appliedYaml: "c" })
+    expect(undoTarget(history, uncommitted)?.label).toBe("C")
+  })
+
+  it("offers no redo while sitting ahead of the list", () => {
+    const uncommitted = snapshot({ yamlDraft: "uncommitted", appliedYaml: "c" })
+    expect(redoTarget(history, uncommitted)).toBeNull()
+  })
+
+  it("handles an empty history", () => {
+    expect(undoTarget([], a)).toBeNull()
+    expect(redoTarget([], a)).toBeNull()
+  })
+
+  it("reports where the document sits", () => {
+    expect(currentVersionIndex(history, b)).toBe(1)
+    expect(currentVersionIndex(history, snapshot({ yamlDraft: "zzz" }))).toBe(-1)
   })
 })
 

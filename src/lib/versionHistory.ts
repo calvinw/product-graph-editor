@@ -107,6 +107,38 @@ export function shouldAppend(history: Version[], snapshot: DocumentSnapshot): bo
 }
 
 /**
+ * Where the live document sits in the version list, or -1 when it matches no
+ * recorded version — meaning there are edits ahead of the whole list.
+ */
+export function currentVersionIndex(versions: Version[], current: DocumentSnapshot): number {
+  return versions.findIndex((version) => snapshotsEqual(version.snapshot, current))
+}
+
+/**
+ * What Cmd+Z should restore.
+ *
+ * With an append-only list there is no undo stack to pop: "undo" is simply
+ * restoring the version before wherever you currently are. Sitting ahead of
+ * the list (uncommitted edits) steps back to the most recent recorded state;
+ * callers should record the uncommitted work first so it stays reachable.
+ */
+export function undoTarget(versions: Version[], current: DocumentSnapshot): Version | null {
+  const index = currentVersionIndex(versions, current)
+  if (index === -1) return versions[versions.length - 1] ?? null
+  return index > 0 ? versions[index - 1] : null
+}
+
+/**
+ * What Shift+Cmd+Z should restore. Redo needs no separate stack and no rules
+ * about what clears it: going forward is just restoring a later version.
+ */
+export function redoTarget(versions: Version[], current: DocumentSnapshot): Version | null {
+  const index = currentVersionIndex(versions, current)
+  if (index === -1) return null
+  return index < versions.length - 1 ? versions[index + 1] : null
+}
+
+/**
  * Compact relative time for history rows. `now` is injectable so this stays a
  * pure function rather than something only testable with fake timers.
  */

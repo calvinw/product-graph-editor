@@ -13,7 +13,8 @@ import {
 import {
   incomingEdgesFor, inputHandleIdFor, populateExpandedConnections, targetExpandedInputRows,
 } from "@/lib/graphNodes"
-import { useProductGraphStore } from "@/state/productGraphStore"
+import { selectDocumentSnapshot, useProductGraphStore } from "@/state/productGraphStore"
+import { redoTarget, undoTarget } from "@/lib/versionHistory"
 
 const initialEdges: Edge[] = []
 const initialNodes: Node<ProcessNodeData>[] = []
@@ -778,6 +779,45 @@ export function useGraphModel({
   }
 
   /**
+   * Record whatever is in the editor right now, if it has moved since the last
+   * version. Called when native text undo can no longer help — focus leaving
+   * the editor, or the editor unmounting — so an editing session's work stays
+   * reachable after the browser's own undo stack is destroyed.
+   *
+   * Labelled distinctly because restoring one of these moves `yamlDraft` only:
+   * `appliedYaml` does not move, so the graph stays put and the visible change
+   * is the editor contents and the dirty flag.
+   */
+  const captureDraftVersion = () => commitVersion({ label: "Edited YAML (unsaved)" })
+
+  /**
+   * Model-level undo and redo.
+   *
+   * Neither needs a stack. Undo restores the version before wherever the
+   * document currently sits; redo restores the one after. Because the list is
+   * append-only and restoring appends, going back and then forward again is
+   * always possible.
+   */
+  const undo = () => {
+    // Capture uncommitted work first, so stepping back cannot discard edits
+    // that were never recorded.
+    captureDraftVersion()
+    const state = useProductGraphStore.getState()
+    const target = undoTarget(state.versions, selectDocumentSnapshot(state))
+    if (!target) return false
+    restoreVersion(target.id)
+    return true
+  }
+
+  const redo = () => {
+    const state = useProductGraphStore.getState()
+    const target = redoTarget(state.versions, selectDocumentSnapshot(state))
+    if (!target) return false
+    restoreVersion(target.id)
+    return true
+  }
+
+  /**
    * Put a recorded version back on screen.
    *
    * The store action restores the document tier without disturbing graph mode
@@ -821,7 +861,7 @@ export function useGraphModel({
     fitView, zoomIn, zoomOut, fit, relayout,
     removeNode, restoreNode, toggleExpanded, setAllExpanded,
     applyGraphSettings, showGraphMode, applyYaml, applyAndCalculateYaml,
-    commitVersion, restoreVersion,
+    commitVersion, restoreVersion, undo, redo, captureDraftVersion,
     commitScenario, scenarioEditCount,
     foregroundImpacts, backgroundImpacts, categoryTotals,
     visibleImpactCategories, toggleImpactCategory, categoryOrder,
