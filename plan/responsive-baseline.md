@@ -32,16 +32,45 @@ Infrastructure failures such as a missing browser executable or shared library a
 | --- | --- | --- |
 | `npm run build` | Pass | Vite reports the existing large-chunk advisory. |
 | `npm run lint` | Pass | Repository-skill implementation scripts use their own tooling contracts and are excluded from the product application lint gate. |
-| `npm run test:visual` | 29 passed, 3 failed | 32 tests, one Chromium worker. The remaining failures match the accepted interaction failures below. |
-| `npm run test:responsive` | 24 passed, 0 skipped | Three viewport projects; shell, model menus, editor actions, graph settings and selection, analysis workflows, global settings, and Sankey pass at phone, tablet, and desktop sizes. |
+| `npm run test:visual` | 37 passed, 0 failed | One Chromium worker. Baselines refreshed 2026-08-22; see "Visual baseline refresh" below. |
+| `npm run test:responsive` | 59 passed, 1 skipped | Three viewport projects; shell, model menus, editor actions, graph settings and selection, analysis workflows, global settings, and Sankey pass at phone, tablet, and desktop sizes. |
 
 The production build contains no `react-grab` or `React Grab` marker; the source-context helper is development-only.
 
 The baseline was refreshed after merging `origin/main` at `48de6be`. The contribution-table keyboard-resize failure is fixed on current `main`. Two stale visual assertions were aligned with the simplified contribution UI: the removed Flow/Impact contribution mode group is no longer exercised, and the Jacket assembly direct score now matches the fixture value of `1.28`.
 
+## Visual baseline refresh (2026-08-22)
+
+All 26 view baselines were re-recorded. Two causes, deliberately taken together:
+
+1. **Inter now loads.** `body` had always asked for `Inter`, but nothing in the
+   repo ever fetched it, so the application silently rendered in the system UI
+   font. Inter is now vendored (`src/fonts/`) and declared by the design-system
+   stylesheet, so glyph metrics shifted a pixel or two throughout. Layout boxes
+   are unchanged; reviewed diffs are text-only.
+2. **Pre-existing drift that had been invisible.** A Playwright test aborts at
+   its first failing assertion, and `dark|light application views` capture many
+   screenshots each. Once the first one failed, every later screenshot in that
+   test stopped being compared. Five dark baselines were consequently still from
+   2026-08-19, predating `aa5108c` (editable copy / renamable title): they showed
+   `Jacket` rather than `Copy of Jacket`, and the pre-edge-tab Assistant button.
+   Refreshing brings them onto the current UI.
+
+Component default styling was added to Toggle, ToggleGroup, and RadioGroupItem in
+the same change. It is deliberately expressed as Tailwind utilities, which live in
+`@layer utilities`, so the unlayered application rules that style these components
+continue to win. Verified: the navbar toggle group shows no box or background
+change across the refreshed baselines.
+
+**Watch out:** the early-abort behaviour means a later screenshot can rot silently
+whenever an earlier one in the same test is failing. When a view test fails, treat
+every subsequent baseline in that test as unverified.
+
 ## Accepted baseline failures
 
 All three failures below are temporarily accepted baseline failures. They may not change or expand during responsive work. Each must be fixed or explicitly quarantined with a follow-up reference by the final cleanup PR.
+
+**Status 2026-08-22:** none of the three reproduce in the current suites (`test:visual` 37/0, `test:responsive` 59 passed / 1 skipped). They are kept here pending confirmation against issues [#37](https://github.com/calvinw/product-graph-editor/issues/37), [#38](https://github.com/calvinw/product-graph-editor/issues/38), and [#39](https://github.com/calvinw/product-graph-editor/issues/39) rather than being deleted on one green run.
 
 | Test | Current failure | Disposition |
 | --- | --- | --- |
