@@ -1,0 +1,14 @@
+/*
+ * Design-system entry for the application build.
+ * Upstream Tailwind layers + vendored fonts + this repo's tokens.
+ * The uploadable variant is design-system.lib.css.
+ */
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "./fonts/inter.css";
+@import "./design-system-tokens.css";
+
+/* The safelist exists only for the distributable stylesheet; without this the
+   application build auto-scans it and ships every declared utility. */
+@source not "./design-system-safelist.txt";

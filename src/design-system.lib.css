@@ -1,0 +1,17 @@
+/*
+ * Design-system entry for the distributable stylesheet (dist-lib/styles.css).
+ *
+ * Identical layers to design-system.css, with two differences:
+ *   - source(none) turns off Tailwind's automatic project scan, so application
+ *     markup never contributes utilities to the shipped stylesheet.
+ *   - the @source lines below declare exactly what does: the ui/ components,
+ *     and the safelist of utilities consumers may write against this system.
+ */
+@import "tailwindcss" source(none);
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "./fonts/inter.css";
+@import "./design-system-tokens.css";
+
+@source "./components/ui";
+@source "./design-system-safelist.txt";
