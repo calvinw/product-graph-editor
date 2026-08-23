@@ -1,0 +1,50 @@
+{
+  "projectId": "e9640fe9-0ce7-4f96-a3f4-21b43dcb8f5e",
+  "shape": "package",
+  "pkg": "product-graph-editor",
+  "globalName": "PrismDS",
+  "buildCmd": "npm run build:lib",
+  "srcDir": "src",
+  "tsconfig": "tsconfig.lib.json",
+  "cssEntry": "dist-lib/styles.css",
+  "componentSrcMap": {
+    "cn": null,
+    "buttonVariants": null,
+    "toggleVariants": null
+  },
+  "guidelinesGlob": [
+    "plan/responsive-ui-plan.md",
+    "plan/responsive-audit.md",
+    "plan/responsive-baseline.md",
+    "docs/*.md"
+  ],
+  "overrides": {
+    "Dialog": {
+      "cardMode": "single",
+      "viewport": "760x560"
+    },
+    "AlertDialog": {
+      "cardMode": "single",
+      "viewport": "720x480"
+    },
+    "Popover": {
+      "cardMode": "single",
+      "viewport": "620x420"
+    },
+    "DropdownMenu": {
+      "cardMode": "single",
+      "viewport": "620x460"
+    },
+    "Tooltip": {
+      "cardMode": "single",
+      "viewport": "560x260"
+    },
+    "Select": {
+      "cardMode": "single",
+      "viewport": "620x460"
+    },
+    "MessageScroller": {
+      "cardMode": "column"
+    }
+  }
+}
