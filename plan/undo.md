@@ -1,6 +1,6 @@
 # Plan: Undo
 
-Status: phases 1-6 delivered on branch `undo` (August 22, 2026), including persistence. Open decisions 2, 4, 5, and 6 remain.
+Status: complete on branch `undo` (August 23, 2026). Every phase delivered, including the proposal diff and version-list persistence. Open decision 2 is resolved (the diff appears in the Edit view); 4, 5, and 6 remain open and are not blocking.
 Date: August 22, 2026
 Basis: `main` at `75f3b7b`
 
@@ -575,9 +575,14 @@ only Playwright.
 
 ## Open decisions
 
-1. Does `propose_yaml_edit` take the whole document or a named section? Whole
-   document is simpler and fine at current sizes.
-2. Does the diff appear in the chat, in the Edit view, or both?
+1. ~~Does `propose_yaml_edit` take the whole document or a named section?~~
+   **Resolved:** whole document, as the plan preferred.
+2. ~~Does the diff appear in the chat, in the Edit view, or both?~~
+   **Resolved: the Edit view.** A proposal already opens the editor and puts
+   the Save button in front of you, so that is where the review belongs — the
+   diff opens by default for an assistant edit and stays collapsed for your
+   own typing, which needs no explaining back to you. The chat keeps the tool
+   result only, so the document is not duplicated into the transcript.
 3. How many versions are kept? 100 is free at 2 KB per document, and the list
    is append-only, so this is a trimming policy rather than a limit.
 4. Should restoring move the view to where the change is, or leave the camera

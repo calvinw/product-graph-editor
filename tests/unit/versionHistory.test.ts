@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   createMemoryVersionStore,
+  createPersistentVersionStore,
   createVersion,
   currentVersionIndex,
   historyKeyFor,
@@ -278,5 +279,101 @@ describe("createMemoryVersionStore", () => {
     store.append("m1", createVersion(v1.snapshot, { label: "Restored v1", source: "you" }))
     expect(store.list("m1").map((version) => version.label)).toEqual(["v1", "v2", "Restored v1"])
     expect(store.get(v2.id)).toBeDefined()
+  })
+})
+
+describe("createPersistentVersionStore", () => {
+  // A minimal localStorage stand-in, since these tests run in node.
+  function withStorage(fn: () => void, storage = new Map<string, string>()) {
+    const original = globalThis.localStorage
+    Object.defineProperty(globalThis, "localStorage", {
+      value: {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => { storage.set(key, value) },
+        removeItem: (key: string) => { storage.delete(key) },
+      },
+      configurable: true,
+    })
+    try { fn() } finally {
+      if (original === undefined) delete (globalThis as { localStorage?: unknown }).localStorage
+      else Object.defineProperty(globalThis, "localStorage", { value: original, configurable: true })
+    }
+  }
+
+  it("reloads history written by a previous store", () => {
+    const storage = new Map<string, string>()
+    withStorage(() => {
+      const first = createPersistentVersionStore(100, "k")
+      first.append("m1", createVersion(snapshot(), { label: "Saved", source: "you" }))
+      // A fresh store stands in for a page reload.
+      const second = createPersistentVersionStore(100, "k")
+      expect(second.list("m1").map((version) => version.label)).toEqual(["Saved"])
+    }, storage)
+  })
+
+  it("reloads lookup by id, so restoring an older version still works", () => {
+    const storage = new Map<string, string>()
+    withStorage(() => {
+      const first = createPersistentVersionStore(100, "k")
+      const version = createVersion(snapshot(), { label: "Saved", source: "you" })
+      first.append("m1", version)
+      expect(createPersistentVersionStore(100, "k").get(version.id)?.label).toBe("Saved")
+    }, storage)
+  })
+
+  it("trims the oldest versions past the limit", () => {
+    withStorage(() => {
+      const store = createPersistentVersionStore(3, "k")
+      for (let index = 0; index < 5; index += 1) {
+        store.append("m1", createVersion(snapshot({ yamlDraft: `v${index}` }), { label: `v${index}`, source: "you" }))
+      }
+      expect(store.list("m1").map((version) => version.label)).toEqual(["v2", "v3", "v4"])
+    })
+  })
+
+  it("starts empty rather than half-restored when the payload is corrupt", () => {
+    const storage = new Map<string, string>([["k", "{not json"]])
+    withStorage(() => {
+      expect(createPersistentVersionStore(100, "k").list("m1")).toEqual([])
+    }, storage)
+  })
+
+  it("ignores a payload written by an older format", () => {
+    const storage = new Map<string, string>([["k", JSON.stringify({ version: 999, models: { m1: [] } })]])
+    withStorage(() => {
+      expect(createPersistentVersionStore(100, "k").list("m1")).toEqual([])
+    }, storage)
+  })
+
+  it("keeps working when storage rejects writes", () => {
+    // Quota exceeded must not break editing; history simply stops persisting.
+    const original = globalThis.localStorage
+    Object.defineProperty(globalThis, "localStorage", {
+      value: {
+        getItem: () => null,
+        setItem: () => { throw new Error("QuotaExceededError") },
+        removeItem: () => {},
+      },
+      configurable: true,
+    })
+    try {
+      const store = createPersistentVersionStore(100, "k")
+      expect(() => store.append("m1", createVersion(snapshot(), { label: "Saved", source: "you" }))).not.toThrow()
+      expect(store.list("m1")).toHaveLength(1)
+    } finally {
+      if (original === undefined) delete (globalThis as { localStorage?: unknown }).localStorage
+      else Object.defineProperty(globalThis, "localStorage", { value: original, configurable: true })
+    }
+  })
+
+  it("clear empties storage as well as memory", () => {
+    const storage = new Map<string, string>()
+    withStorage(() => {
+      const store = createPersistentVersionStore(100, "k")
+      store.append("m1", createVersion(snapshot(), { label: "Saved", source: "you" }))
+      store.clear()
+      expect(store.list("m1")).toEqual([])
+      expect(createPersistentVersionStore(100, "k").list("m1")).toEqual([])
+    }, storage)
   })
 })

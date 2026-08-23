@@ -38,7 +38,7 @@ npm run test:responsive
 npm run test:visual
 ```
 
-The current recorded baseline is 93 unit tests passed, 53 responsive tests passed with 1 deliberate viewport-conditional skip, plus 47 visual tests passed with no failures. All three suites exit zero. There is no accepted-failure allowance any more, so a failing visual test is a regression. Do not update screenshot baselines without visually reviewing the differences.
+The current recorded baseline is 100 unit tests passed, 53 responsive tests passed with 1 deliberate viewport-conditional skip, plus 50 visual tests passed with no failures. All three suites exit zero. There is no accepted-failure allowance any more, so a failing visual test is a regression. Do not update screenshot baselines without visually reviewing the differences.
 
 ## GitHub Pages
 

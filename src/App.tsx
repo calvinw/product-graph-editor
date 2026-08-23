@@ -70,6 +70,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
   const sessionDocuments = useProductGraphStore((state) => state.workspace.sessionDocuments)
   const yamlDraft = useProductGraphStore((state) => state.workspace.yamlDraft)
   const versions = useProductGraphStore((state) => state.versions)
+  const draftAuthor = useProductGraphStore((state) => state.draftAuthor)
   const appliedYaml = useProductGraphStore((state) => state.appliedYaml)
   const appliedRevision = useProductGraphStore((state) => state.appliedRevision)
   const [resultsMarkdown, setResultsMarkdown] = useState("")
@@ -367,7 +368,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
         // saved -- the automatic entry appears only when there is genuinely
         // uncommitted work to protect.
         captureDraftVersion()
-        dispatchModelWorkspace({ type: "edit-draft", yaml })
+        dispatchModelWorkspace({ type: "edit-draft", yaml, author: "assistant" })
         setYamlError("")
         setView("yaml")
       },
@@ -535,6 +536,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           isCalculating={isCalculating}
           activeDocument={activeDocument}
           canSaveAs={canSaveAs}
+          draftAuthor={draftAuthor}
           remountKey={appliedRevision}
           onChange={(yaml) => { dispatchModelWorkspace({ type: "edit-draft", yaml }); setYamlError("") }}
           onSave={saveSessionModel}

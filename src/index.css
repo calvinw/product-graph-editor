@@ -291,6 +291,13 @@ input.current-model-title-input { display: block; width: 100%; min-width: 0; hei
 .history-diff-line.is-context { color: var(--muted-foreground); }
 .history-diff-gap { display: block; padding: 2px 0; color: var(--control-muted); font-style: italic; }
 .history-diff-empty { margin: 6px 0 2px; color: var(--muted-foreground); font-size: 10px; }
+.yaml-pending-diff { grid-row: 2; margin: 12px 18px 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+.yaml-pending-diff > summary { display: flex; align-items: center; gap: 7px; padding: 8px 11px; color: var(--foreground); font-size: 11px; font-weight: 550; cursor: pointer; }
+.yaml-pending-diff > summary svg { flex: none; color: #a78bfa; }
+.yaml-pending-diff > summary:hover { background: var(--control-background-hover); border-radius: 7px; }
+.yaml-pending-diff[open] > summary { border-bottom: 1px solid var(--border); border-radius: 7px 7px 0 0; }
+.yaml-pending-diff .history-diff { max-height: 200px; margin: 0; border: 0; border-radius: 0 0 7px 7px; }
+.yaml-pending-diff .history-diff-stat { margin-left: auto; }
 html[data-theme="light"] .history-diff-stat .is-added, html[data-theme="light"] .history-diff-line.is-added { color: #15803d; }
 html[data-theme="light"] .history-diff-stat .is-removed, html[data-theme="light"] .history-diff-line.is-removed { color: #b91c1c; }
 .ai-chat-sidebar { position: absolute; z-index: 40; inset: 0; min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; overflow: hidden; border-left: 1px solid var(--floating-border); background: var(--floating-background-strong); box-shadow: -16px 0 38px rgba(0,0,0,.16); }
@@ -356,16 +363,16 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
 .reactflow-canvas .react-flow__arrowhead path, .sankey-canvas .react-flow__arrowhead path { fill: var(--graph-edge) !important; stroke: var(--graph-edge) !important; }
 .reactflow-canvas .react-flow__pane { cursor: default; }
 .reactflow-canvas .react-flow__handle { width: 1px; height: 1px; min-width: 0; min-height: 0; border: 0; background: transparent; pointer-events: none; }
-.yaml-editor { position: absolute; z-index: 1; inset: 92px 28px 28px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; border: 1px solid var(--panel-border); border-radius: 12px; overflow: hidden; background: var(--panel-background); box-shadow: var(--panel-shadow); }
+.yaml-editor { position: absolute; z-index: 1; inset: 92px 28px 28px; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; border: 1px solid var(--panel-border); border-radius: 12px; overflow: hidden; background: var(--panel-background); box-shadow: var(--panel-shadow); }
 .yaml-editor-head, .yaml-editor-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 15px; background: var(--panel-header-background); }
-.yaml-editor-head { border-bottom: 1px solid var(--panel-header-border); }.yaml-editor-foot { border-top: 1px solid var(--panel-header-border); }
+.yaml-editor-head { grid-row: 1; border-bottom: 1px solid var(--panel-header-border); }.yaml-editor-foot { grid-row: 4; border-top: 1px solid var(--panel-header-border); }
 .yaml-editor-head > div { display: grid; gap: 3px; }.yaml-editor-head strong { font-size: 12px; }.yaml-editor-head span, .yaml-editor-foot span { color: #737b88; font-size: 10px; }
 .case-study-select { display: flex; align-items: center; gap: 7px; color: #8f96a3; font-size: 10px; }
 .case-study-select [data-slot="select-trigger"] { width: 216px; height: 30px; padding: 0 9px 0 10px; border: 1px solid var(--control-border); border-radius: 7px; outline: none; color: var(--select-foreground); background: var(--select-background); box-shadow: none; font-size: 11px; cursor: pointer; }
 .case-study-select [data-slot="select-trigger"]:hover, .case-study-select [data-slot="select-trigger"]:focus { border-color: var(--control-border-hover); color: var(--foreground); }
 .navigation-model-group { min-width: 0; display: flex; align-items: center; flex: 1 1 220px; gap: 6px; padding-left: 5px; }
 .navigation-model-title { min-width: 0; flex: 1; color: var(--control-foreground); font-size: 11px; }
-.yaml-editor textarea { width: 100%; height: 100%; resize: none; padding: 18px; border: 0; outline: 0; color: var(--editor-foreground); background: var(--editor-background); font: 12px/1.6 "SFMono-Regular", Consolas, "Liberation Mono", monospace; tab-size: 2; }
+.yaml-editor textarea { grid-row: 3; width: 100%; height: 100%; resize: none; padding: 18px; border: 0; outline: 0; color: var(--editor-foreground); background: var(--editor-background); font: 12px/1.6 "SFMono-Regular", Consolas, "Liberation Mono", monospace; tab-size: 2; }
 .yaml-editor-foot .yaml-error { color: #fb7185; }
 .yaml-editor-foot .yaml-dirty { color: #fbbf24; }
 .save-as-form { display: flex; flex-direction: column; gap: 16px; }

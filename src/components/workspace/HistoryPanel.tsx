@@ -2,7 +2,8 @@ import { useState } from "react"
 import { History, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { collapseContext, diffLines, diffStat } from "@/lib/diff"
+import { diffLines, diffStat } from "@/lib/diff"
+import { YamlDiff } from "@/components/workspace/YamlDiff"
 import { relativeTime, snapshotsEqual, type DocumentSnapshot, type Version } from "@/lib/versionHistory"
 
 /**
@@ -18,23 +19,7 @@ import { relativeTime, snapshotsEqual, type DocumentSnapshot, type Version } fro
 function VersionDiff({ previous, version }: { previous: Version | undefined; version: Version }) {
   if (!previous) return <p className="history-diff-empty">First recorded version.</p>
 
-  const lines = diffLines(previous.snapshot.yamlDraft, version.snapshot.yamlDraft)
-  const stat = diffStat(lines)
-  if (!stat.added && !stat.removed) {
-    return <p className="history-diff-empty">No YAML changes; the document metadata changed.</p>
-  }
-
-  return (
-    <pre className="history-diff" aria-label="Changes in this version">
-      {collapseContext(lines).map((line, index) => (
-        line.kind === "gap"
-          ? <span key={index} className="history-diff-gap">{`⋯ ${line.count} unchanged line${line.count === 1 ? "" : "s"}`}</span>
-          : <span key={index} className={`history-diff-line is-${line.kind}`}>
-              {line.kind === "added" ? "+" : line.kind === "removed" ? "-" : " "}{line.text}
-            </span>
-      ))}
-    </pre>
-  )
+  return <YamlDiff before={previous.snapshot.yamlDraft} after={version.snapshot.yamlDraft} />
 }
 
 /**

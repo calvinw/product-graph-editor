@@ -40,7 +40,7 @@ export type ModelWorkspaceState = {
 
 export type ModelWorkspaceAction =
   | { type: "load-document"; document: ModelDocument }
-  | { type: "edit-draft"; yaml: string }
+  | { type: "edit-draft"; yaml: string; author?: "you" | "assistant" }
   | { type: "start-new" }
   | { type: "start-invalid-upload"; title: string; filename: string; yaml: string }
   | { type: "commit-new-session"; document: SessionDocument }

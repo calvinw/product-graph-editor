@@ -178,3 +178,47 @@ test("an assistant edit is recorded, diffed, and can be undone", async ({ page }
   await rows.filter({ hasText: "Opened" }).first().getByRole("button", { name: "Restore" }).click()
   await expect(editor).toHaveValue(/amount: 1\.8/)
 })
+
+test("an assistant proposal shows what it changed before you save it", async ({ page }) => {
+  let step = 0
+  await mockAssistant(page, (last) => {
+    step += 1
+    if (step === 1) return { name: "get_yaml_source", arguments: "{}" }
+    if (step === 2) {
+      const yaml = String(last?.yaml ?? "").replace("amount: 1.8", "amount: 7.7")
+      return { name: "propose_yaml_edit", arguments: JSON.stringify({ yaml, basedOnVersion: last?.version }) }
+    }
+    return null
+  })
+  await openChat(page)
+  await ask(page, "Raise the first CO2 emission")
+
+  // The review comes before the commit: the diff is open on arrival, without
+  // having to save first and go looking in the history panel.
+  const pending = page.locator(".yaml-pending-diff")
+  await expect(pending).toBeVisible()
+  await expect(pending).toHaveAttribute("open", "")
+  await expect(pending).toContainText("Assistant proposed these changes")
+  await expect(pending.locator(".history-diff .is-removed")).toContainText("amount: 1.8")
+  await expect(pending.locator(".history-diff .is-added")).toContainText("amount: 7.7")
+
+  // And it goes away once the change is committed.
+  await page.getByRole("button", { name: "Save", exact: true }).click()
+  await expect(pending).toHaveCount(0)
+})
+
+test("your own edits get the same review, but collapsed", async ({ page }) => {
+  await mockAssistant(page, () => null)
+  await openChat(page)
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
+  const editor = page.getByRole("textbox", { name: "Product graph YAML" })
+  await editor.fill((await editor.inputValue()).replace("amount: 1.8", "amount: 2.2"))
+
+  const pending = page.locator(".yaml-pending-diff")
+  await expect(pending).toBeVisible()
+  await expect(pending).toContainText("Unsaved changes")
+  // Closed by default: your own typing does not need explaining back to you.
+  await expect(pending).not.toHaveAttribute("open", "")
+  await pending.locator("summary").click()
+  await expect(pending.locator(".history-diff .is-added")).toContainText("amount: 2.2")
+})

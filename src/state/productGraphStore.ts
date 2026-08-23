@@ -9,7 +9,7 @@ import {
 } from "@/lib/modelWorkspace"
 import { savePersistedWorkspace } from "@/lib/workspacePersistence"
 import {
-  createMemoryVersionStore,
+  createPersistentVersionStore,
   createVersion,
   historyKeyFor,
   shouldAppend,
@@ -98,6 +98,12 @@ export type ProductGraphState = {
    * history panel re-renders; `versionStore` remains the persistence boundary.
    */
   versions: Version[]
+  /**
+   * Who last wrote the draft. Drives whether the editor's pending-change diff
+   * opens by default: an assistant rewrite is opaque and should show itself,
+   * whereas your own typing does not need explaining back to you.
+   */
+  draftAuthor: "you" | "assistant"
   actions: ProductGraphActions
 }
 
@@ -119,14 +125,16 @@ const initialProductGraphState = {
   scenarioCommitRevision: null,
   scenarioOverrides: {},
   versions: [],
+  draftAuthor: "you" as const,
 }
 
 /**
- * Session-scoped for now. Swapping this for a localStorage or database
- * implementation is the only change needed to make history durable, because
- * every caller goes through the three-method `VersionStore` interface.
+ * Durable across reloads. This is the payoff of putting the version list
+ * behind an interface in Phase 2: swapping the in-memory implementation for
+ * the persistent one is a one-line change, and a database implementation
+ * would be the same.
  */
-const versionStore = createMemoryVersionStore()
+const versionStore = createPersistentVersionStore()
 
 export const useProductGraphStore = create<ProductGraphState>()((set, get) => ({
   ...initialProductGraphState,
@@ -141,12 +149,18 @@ export const useProductGraphStore = create<ProductGraphState>()((set, get) => ({
     setGraphMaxProcesses: (graphMaxProcesses) => set({ graphMaxProcesses: Math.max(1, graphMaxProcesses) }),
     dispatchWorkspace: (action) => set((state) => {
       const workspace = modelWorkspaceReducer(state.workspace, action)
+      // Any action other than an assistant-authored draft edit means the
+      // pending change is the user's again -- including saving, discarding, or
+      // loading another document.
+      const draftAuthor = action.type === "edit-draft" && action.author === "assistant" ? "assistant" as const : "you" as const
       // History is per model, so switching documents must swap the visible
       // list. Recomputed from the store rather than tracked separately, so
       // there is only ever one source of truth.
       const key = historyKeyFor(workspace.activeDocument)
       const versions = versionStore.list(key)
-      return versions === state.versions ? { workspace } : { workspace, versions }
+      return versions === state.versions
+        ? { workspace, draftAuthor }
+        : { workspace, versions, draftAuthor }
     }),
     applySource: (appliedYaml) => {
       const appliedRevision = get().appliedRevision + 1

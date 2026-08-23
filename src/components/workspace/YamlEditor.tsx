@@ -1,5 +1,6 @@
-import { CopyPlus, Save as SaveIcon } from "lucide-react"
+import { CopyPlus, Save as SaveIcon, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { YamlDiff, YamlDiffStat } from "@/components/workspace/YamlDiff"
 import type { ActiveDocument } from "@/lib/modelWorkspace"
 
 /**
@@ -22,6 +23,7 @@ export function YamlEditor({
   isCalculating,
   activeDocument,
   canSaveAs,
+  draftAuthor,
   remountKey,
   onChange,
   onSave,
@@ -34,6 +36,8 @@ export function YamlEditor({
   isCalculating: boolean
   activeDocument: ActiveDocument | null
   canSaveAs: boolean
+  /** Who wrote the pending change; an assistant rewrite shows its diff up front. */
+  draftAuthor: "you" | "assistant"
   /**
    * Changing this remounts the textarea, which is the only way to clear a
    * plain textarea's native undo stack. After model undo replaces the contents
@@ -54,6 +58,23 @@ export function YamlEditor({
           <span>{isTransient ? "Start writing YAML, or upload an existing file from the File menu." : "Edit the current session model."}</span>
         </div>
       </div>
+      {/*
+        An assistant rewrite arrives as a wall of new YAML. Without this you
+        would have to save it first and then open the history panel to find
+        out what it changed, which is exactly backwards -- the review has to
+        come before the commit. Open by default for an assistant edit, closed
+        for your own typing, which needs no explaining back to you.
+      */}
+      {isDirty && !isTransient ? (
+        <details className="yaml-pending-diff" open={draftAuthor === "assistant"}>
+          <summary>
+            {draftAuthor === "assistant" ? <Sparkles size={12} aria-hidden="true" /> : null}
+            <span>{draftAuthor === "assistant" ? "Assistant proposed these changes" : "Unsaved changes"}</span>
+            <YamlDiffStat before={activeDocument?.committedYaml ?? ""} after={yamlDraft} />
+          </summary>
+          <YamlDiff before={activeDocument?.committedYaml ?? ""} after={yamlDraft} />
+        </details>
+      ) : null}
       <textarea
         key={remountKey}
         value={yamlDraft}

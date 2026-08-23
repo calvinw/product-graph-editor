@@ -256,3 +256,23 @@ test("a fresh browser still opens the default model", async ({ page, context }) 
   await page.getByRole("button", { name: "Explore PRISM" }).click()
   await expect(page.locator('[aria-label="Current model: Copy of Jacket"]:visible')).toBeVisible()
 })
+
+test("version history survives a reload", async ({ page }) => {
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
+  const editor = page.getByRole("textbox", { name: "Product graph YAML" })
+  await editor.fill((await editor.inputValue()).replace("amount: 1.8", "amount: 5.5"))
+  await page.getByRole("button", { name: "Save", exact: true }).click()
+
+  await openHistory(page)
+  const before = await historyRows(page).count()
+  expect(before).toBeGreaterThan(1)
+
+  await page.reload()
+  await page.getByRole("button", { name: "Explore PRISM" }).click()
+  await openHistory(page)
+  // The earlier versions are still there, and still restorable.
+  await expect(historyRows(page).filter({ hasText: "Saved" })).not.toHaveCount(0)
+  await historyRows(page).filter({ hasText: "Opened" }).first().getByRole("button", { name: "Restore" }).click()
+  await page.getByRole("radio", { name: "Edit", exact: true }).click()
+  await expect(page.getByRole("textbox", { name: "Product graph YAML" })).toHaveValue(/amount: 1\.8/)
+})

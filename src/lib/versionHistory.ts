@@ -59,6 +59,82 @@ export function createMemoryVersionStore(): VersionStore {
   }
 }
 
+const VERSION_STORAGE_KEY = "product-graph-editor:versions"
+const VERSION_STORAGE_VERSION = 1
+/**
+ * Versions kept per model. At roughly 2 KB a document this is ~200 KB against
+ * a 5 MB localStorage budget, so the cap is a trimming policy rather than a
+ * limit imposed by space.
+ */
+export const VERSION_LIMIT_PER_MODEL = 100
+
+type VersionEnvelope = { version: number; models: Record<string, Version[]> }
+
+/**
+ * The same append-only store, mirrored to localStorage so history survives a
+ * reload.
+ *
+ * Writes are best-effort: a full or unavailable storage degrades to
+ * memory-only rather than breaking the app, because losing history is a far
+ * smaller harm than losing the ability to edit.
+ */
+export function createPersistentVersionStore(
+  limit = VERSION_LIMIT_PER_MODEL,
+  storageKey = VERSION_STORAGE_KEY,
+): VersionStore {
+  const byModel = new Map<string, Version[]>()
+  const byId = new Map<string, Version>()
+
+  const index = (versions: Version[]) => versions.forEach((version) => byId.set(version.id, version))
+
+  try {
+    const raw = localStorage.getItem(storageKey)
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<VersionEnvelope>
+      if (parsed.version === VERSION_STORAGE_VERSION && parsed.models) {
+        for (const [modelId, versions] of Object.entries(parsed.models)) {
+          if (!Array.isArray(versions)) continue
+          byModel.set(modelId, versions)
+          index(versions)
+        }
+      }
+    }
+  } catch {
+    // A corrupt or unreadable payload starts an empty history rather than
+    // failing: partial history is worse than none.
+  }
+
+  const persist = () => {
+    try {
+      const envelope: VersionEnvelope = {
+        version: VERSION_STORAGE_VERSION,
+        models: Object.fromEntries(byModel),
+      }
+      localStorage.setItem(storageKey, JSON.stringify(envelope))
+    } catch {
+      // Quota exceeded or storage unavailable; keep working in memory.
+    }
+  }
+
+  return {
+    list: (modelId) => byModel.get(modelId) ?? [],
+    get: (versionId) => byId.get(versionId),
+    append: (modelId, version) => {
+      const next = [...(byModel.get(modelId) ?? []), version]
+      // Trim the oldest, which is what a person is least likely to want back.
+      const trimmed = next.length > limit ? next.slice(next.length - limit) : next
+      byModel.set(modelId, trimmed)
+      byId.set(version.id, version)
+      persist()
+    },
+    clear: () => {
+      byModel.clear()
+      byId.clear()
+      try { localStorage.removeItem(storageKey) } catch { /* Optional. */ }
+    },
+  }
+}
+
 /**
  * History is kept per model, so switching models shows that model's own
  * history rather than one global list.
