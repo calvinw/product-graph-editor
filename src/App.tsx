@@ -78,7 +78,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
   const showReferenceAmounts = useProductGraphStore((state) => state.showReferenceAmounts)
   const [graphSettingsOpen, setGraphSettingsOpen] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
-  const { position: graphToolbarPosition, startDrag: startGraphToolbarDrag } = useDraggablePosition("product-graph-editor:graph-toolbar-position")
+  const { position: graphToolbarPosition, startDrag: startGraphToolbarDrag, panelRef: graphToolbarRef } = useDraggablePosition("product-graph-editor:graph-toolbar-position")
   const graphMaxProcesses = useProductGraphStore((state) => state.graphMaxProcesses)
   const graphOrientation = useProductGraphStore((state) => state.graphOrientation)
   const graphConnectionStyle = useProductGraphStore((state) => state.graphConnectionStyle)
@@ -434,7 +434,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           hydrateBackgroundNode={hydrateBackgroundNode} toggleExpanded={toggleExpanded}
           selectMode={selectMode}
         />
-        <div className="graph-toolbar" data-draggable-panel aria-label="Graph tools" style={graphToolbarPosition ? { position: "fixed", left: graphToolbarPosition.left, top: graphToolbarPosition.top } : undefined}>
+        <div ref={graphToolbarRef} className="graph-toolbar" data-draggable-panel aria-label="Graph tools" style={graphToolbarPosition ? { position: "fixed", left: graphToolbarPosition.left, top: graphToolbarPosition.top } : undefined}>
           <button type="button" className="toolbar-grip" aria-label="Move graph toolbar" onPointerDown={startGraphToolbarDrag}><GripHorizontal size={14} /></button>
           <div className="toolbar-group">
             <Popover modal open={graphSettingsOpen} onOpenChange={setGraphSettingsOpen}>
