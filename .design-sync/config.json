@@ -1,5 +1,5 @@
 {
-  "projectId": "e9640fe9-0ce7-4f96-a3f4-21b43dcb8f5e",
+  "projectId": "2de7427d-fac8-44b9-9b61-507fe54b1d0c",
   "shape": "package",
   "pkg": "product-graph-editor",
   "globalName": "PrismDS",
@@ -12,6 +12,7 @@
     "buttonVariants": null,
     "toggleVariants": null
   },
+  "readmeHeader": ".design-sync/conventions.md",
   "guidelinesGlob": [
     "plan/responsive-ui-plan.md",
     "plan/responsive-audit.md",
