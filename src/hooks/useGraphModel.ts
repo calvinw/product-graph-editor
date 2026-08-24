@@ -3,7 +3,8 @@ import { Position, useEdgesState, useNodesInitialized, useNodesState, useReactFl
 import type { ProcessNodeData } from "@/components/ProcessNode"
 import { useDisplaySettings } from "@/lib/displaySettings"
 import { chemicalFlowLabel } from "@/lib/flowLabels"
-import { getBackgroundActivityDetails } from "@/lib/lcaApi"
+import { getBackgroundActivityDetails, lcaResultToMarkdown } from "@/lib/lcaApi"
+import { resultCache } from "@/lib/resultCache"
 import { layoutNodes, resolveNodeOverlaps } from "@/lib/layout"
 import { buildGraphFromYaml, buildGraphStructure, decorateAmounts, nodeScopeColors } from "@/lib/yamlGraph"
 import {
@@ -13,7 +14,8 @@ import {
 import {
   incomingEdgesFor, inputHandleIdFor, populateExpandedConnections, targetExpandedInputRows,
 } from "@/lib/graphNodes"
-import { useProductGraphStore } from "@/state/productGraphStore"
+import { selectDocumentSnapshot, useProductGraphStore } from "@/state/productGraphStore"
+import { redoTarget, undoTarget } from "@/lib/versionHistory"
 
 const initialEdges: Edge[] = []
 const initialNodes: Node<ProcessNodeData>[] = []
@@ -66,6 +68,7 @@ export function useGraphModel({
   const {
     applySource, applyScenarioSource, setGraphMode, setGraphMaxProcesses, setReferenceAmountsVisible,
     requestViewChange: setView, setScenarioOverride, dispatchWorkspace,
+    commitVersion, restoreVersion: restoreVersionInStore, completeCalculation,
   } = useProductGraphStore((state) => state.actions)
 
   const foldDirectionRef = useRef<"upstream" | "downstream">("upstream")
@@ -776,6 +779,92 @@ export function useGraphModel({
     void calculateSource(source, revision, openGraphWhenReady)
   }
 
+  /**
+   * Record whatever is in the editor right now, if it has moved since the last
+   * version. Called when native text undo can no longer help — focus leaving
+   * the editor, or the editor unmounting — so an editing session's work stays
+   * reachable after the browser's own undo stack is destroyed.
+   *
+   * Labelled distinctly because restoring one of these moves `yamlDraft` only:
+   * `appliedYaml` does not move, so the graph stays put and the visible change
+   * is the editor contents and the dirty flag.
+   */
+  const captureDraftVersion = () => commitVersion({ label: "Edited YAML (unsaved)" })
+
+  /**
+   * Model-level undo and redo.
+   *
+   * Neither needs a stack. Undo restores the version before wherever the
+   * document currently sits; redo restores the one after. Because the list is
+   * append-only and restoring appends, going back and then forward again is
+   * always possible.
+   */
+  const undo = () => {
+    // Capture uncommitted work first, so stepping back cannot discard edits
+    // that were never recorded.
+    captureDraftVersion()
+    const state = useProductGraphStore.getState()
+    const target = undoTarget(state.versions, selectDocumentSnapshot(state))
+    if (!target) return false
+    restoreVersion(target.id)
+    return true
+  }
+
+  const redo = () => {
+    const state = useProductGraphStore.getState()
+    const target = redoTarget(state.versions, selectDocumentSnapshot(state))
+    if (!target) return false
+    restoreVersion(target.id)
+    return true
+  }
+
+  /**
+   * Put a recorded version back on screen.
+   *
+   * The store action restores the document tier without disturbing graph mode
+   * or the selection; this rebuilds the graph from the restored YAML and
+   * recalculates, which the store cannot do on its own.
+   *
+   * Node positions are re-laid-out rather than preserved: a restored document
+   * may have different processes entirely, so carrying over the current
+   * positions would leave new nodes stacked at the origin.
+   */
+  const restoreVersion = (versionId: string) => {
+    const revision = restoreVersionInStore(versionId)
+    if (revision === null) return null
+    const source = useProductGraphStore.getState().appliedYaml
+    markRevision(revision)
+    try {
+      const parsed = buildGraphFromYaml(source, "structure", undefined, graphDecimalPlaces)
+      foldDirectionRef.current = "upstream"
+      setEdges(parsed.edges)
+      setNodes(layoutNodes(parsed.nodes.map((node) => ({
+        ...node,
+        data: { ...node.data, canFold: parsed.edges.some((edge) => edge.target === node.id) },
+      })), parsed.edges, { orientation: graphOrientation }))
+      setYamlError("")
+      requestAnimationFrame(() => requestAnimationFrame(() => fitView({ padding: 0.4, maxZoom: 0.85, duration: 350 })))
+    } catch (error) {
+      // A recorded version parsed when it was written, so this should not
+      // happen; surface it rather than leaving a half-restored graph.
+      setYamlError(error instanceof Error ? error.message : "Could not rebuild the restored version.")
+      return revision
+    }
+    if (!source.trim()) return revision
+
+    // Instant undo: a document calculated earlier in the session has its
+    // scores restored without a round trip. The same YAML deterministically
+    // produces the same result, so this is exact rather than an approximation.
+    const cached = resultCache.get(source)
+    if (cached) {
+      completeCalculation(cached, revision)
+      onResultsMarkdown(lcaResultToMarkdown(cached, graphDecimalPlaces, showAllDecimalPlaces))
+    } else {
+      void calculateSource(source, revision)
+    }
+    return revision
+  }
+
   return {
     nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange,
     nodesRef, edgesRef, foldDirectionRef,
@@ -784,6 +873,7 @@ export function useGraphModel({
     fitView, zoomIn, zoomOut, fit, relayout,
     removeNode, restoreNode, toggleExpanded, setAllExpanded,
     applyGraphSettings, showGraphMode, applyYaml, applyAndCalculateYaml,
+    commitVersion, restoreVersion, undo, redo, captureDraftVersion,
     commitScenario, scenarioEditCount,
     foregroundImpacts, backgroundImpacts, categoryTotals,
     visibleImpactCategories, toggleImpactCategory, categoryOrder,

@@ -29,10 +29,11 @@ Do not add tablet-landscape or large-desktop projects unless the testing contrac
 
 - Build: passes, with Vite's existing large-chunk advisory
 - Lint: passes
-- Responsive: 24 passed, 0 skipped
-- Visual: 29 passed, 3 accepted failures
+- Unit: 100 passed
+- Responsive: 59 passed, 1 skipped
+- Visual: 56 passed, 0 failures
 
-The visual suite currently exits nonzero because of the three accepted failures recorded in `plan/responsive-baseline.md` and tracked by GitHub issues #37, #38, and #39. Responsive work must not introduce a new failure or change or expand an accepted failure. Responsive workflows have no remaining skips.
+All three suites exit zero. The three accepted visual failures previously recorded in `plan/responsive-baseline.md` and tracked by GitHub issues #37, #38, and #39 are all fixed and closed, so there is no accepted-failure allowance any more — a failing visual test is a regression. The one responsive skip is deliberate and viewport-conditional: the assistant split-pane test does not apply at phone width, where the chat uses the full contained width.
 
 ## Working rules
 
@@ -56,6 +57,7 @@ Run each command separately so the known visual failures do not prevent the resp
 ```bash
 npm run build
 npm run lint
+npm run test:unit
 npm run test:responsive
 npm run test:visual
 ```

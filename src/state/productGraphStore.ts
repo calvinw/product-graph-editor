@@ -7,6 +7,16 @@ import {
   type ModelWorkspaceAction,
   type ModelWorkspaceState,
 } from "@/lib/modelWorkspace"
+import { savePersistedWorkspace } from "@/lib/workspacePersistence"
+import {
+  createPersistentVersionStore,
+  createVersion,
+  historyKeyFor,
+  shouldAppend,
+  type DocumentSnapshot,
+  type Version,
+  type VersionSource,
+} from "@/lib/versionHistory"
 
 export type ProductGraphView = "graph" | "yaml" | "inventory" | "impact" | "process" | "contribution" | "sankey" | "results" | "realtime"
 export type GraphMode = "scaled" | "structure"
@@ -34,6 +44,17 @@ type ProductGraphActions = {
   dispatchWorkspace: (action: ModelWorkspaceAction) => void
   applySource: (yaml: string) => number
   applyScenarioSource: (yaml: string) => number
+  /**
+   * Record the document as it stands right now, if it has moved since the
+   * last version. Returns the version written, or null when deduped.
+   */
+  commitVersion: (options: { label: string; source?: VersionSource }) => Version | null
+  /**
+   * Put a recorded snapshot back. Appends rather than truncating, so nothing
+   * ahead of the restore point is lost. Returns the new applied revision, or
+   * null if the version is unknown.
+   */
+  restoreVersion: (versionId: string) => number | null
   startCalculation: () => void
   clearCalculationError: () => void
   completeCalculation: (result: LcaResult, revision: number) => void
@@ -45,7 +66,17 @@ type ProductGraphActions = {
   reset: () => void
 }
 
-export type ProductGraphState = ModelWorkspaceState & {
+export type ProductGraphState = {
+  /**
+   * The document tier, nested rather than spread so there is a single object
+   * to snapshot for undo. `modelWorkspaceReducer` owns everything in here.
+   *
+   * `appliedYaml` is deliberately NOT in this slice: it is written by
+   * applySource/applyScenarioSource alongside the revision and calculation
+   * fields, not by the reducer. A version snapshot is therefore this slice
+   * plus `appliedYaml` -- see `selectDocumentSnapshot`.
+   */
+  workspace: ModelWorkspaceState
   activeView: ProductGraphView
   selectedNode: SelectedGraphNode | null
   graphMode: GraphMode
@@ -62,11 +93,22 @@ export type ProductGraphState = ModelWorkspaceState & {
   /** Revision of an in-flight scenario commit, whose scaling vector is still valid. */
   scenarioCommitRevision: number | null
   scenarioOverrides: ScenarioOverrides
+  /**
+   * The active model's version list, newest last. Mirrored into state so the
+   * history panel re-renders; `versionStore` remains the persistence boundary.
+   */
+  versions: Version[]
+  /**
+   * Who last wrote the draft. Drives whether the editor's pending-change diff
+   * opens by default: an assistant rewrite is opaque and should show itself,
+   * whereas your own typing does not need explaining back to you.
+   */
+  draftAuthor: "you" | "assistant"
   actions: ProductGraphActions
 }
 
 const initialProductGraphState = {
-  ...initialModelWorkspace,
+  workspace: initialModelWorkspace,
   activeView: "graph" as const,
   selectedNode: null,
   graphMode: "structure" as const,
@@ -82,7 +124,17 @@ const initialProductGraphState = {
   calculatedRevision: null,
   scenarioCommitRevision: null,
   scenarioOverrides: {},
+  versions: [],
+  draftAuthor: "you" as const,
 }
+
+/**
+ * Durable across reloads. This is the payoff of putting the version list
+ * behind an interface in Phase 2: swapping the in-memory implementation for
+ * the persistent one is a one-line change, and a database implementation
+ * would be the same.
+ */
+const versionStore = createPersistentVersionStore()
 
 export const useProductGraphStore = create<ProductGraphState>()((set, get) => ({
   ...initialProductGraphState,
@@ -95,7 +147,21 @@ export const useProductGraphStore = create<ProductGraphState>()((set, get) => ({
     setGraphConnectionStyle: (graphConnectionStyle) => set({ graphConnectionStyle }),
     setReferenceAmountsVisible: (showReferenceAmounts) => set({ showReferenceAmounts }),
     setGraphMaxProcesses: (graphMaxProcesses) => set({ graphMaxProcesses: Math.max(1, graphMaxProcesses) }),
-    dispatchWorkspace: (action) => set((state) => modelWorkspaceReducer(state, action)),
+    dispatchWorkspace: (action) => set((state) => {
+      const workspace = modelWorkspaceReducer(state.workspace, action)
+      // Any action other than an assistant-authored draft edit means the
+      // pending change is the user's again -- including saving, discarding, or
+      // loading another document.
+      const draftAuthor = action.type === "edit-draft" && action.author === "assistant" ? "assistant" as const : "you" as const
+      // History is per model, so switching documents must swap the visible
+      // list. Recomputed from the store rather than tracked separately, so
+      // there is only ever one source of truth.
+      const key = historyKeyFor(workspace.activeDocument)
+      const versions = versionStore.list(key)
+      return versions === state.versions
+        ? { workspace, draftAuthor }
+        : { workspace, versions, draftAuthor }
+    }),
     applySource: (appliedYaml) => {
       const appliedRevision = get().appliedRevision + 1
       set({
@@ -130,6 +196,54 @@ export const useProductGraphStore = create<ProductGraphState>()((set, get) => ({
       set({ appliedYaml, appliedRevision, scenarioCommitRevision: appliedRevision, calculationError: "" })
       return appliedRevision
     },
+    commitVersion: ({ label, source = "you" }) => {
+      const state = get()
+      const key = historyKeyFor(state.workspace.activeDocument)
+      const history = versionStore.list(key)
+      const snapshot: DocumentSnapshot = { ...state.workspace, appliedYaml: state.appliedYaml }
+      if (!shouldAppend(history, snapshot)) return null
+      const version = createVersion(snapshot, { label, source })
+      versionStore.append(key, version)
+      set({ versions: versionStore.list(key) })
+      return version
+    },
+    restoreVersion: (versionId) => {
+      const version = versionStore.get(versionId)
+      if (!version) return null
+      const { snapshot } = version
+      const appliedRevision = get().appliedRevision + 1
+      // Deliberately not applySource: that resets graphMode, clears the
+      // selection, and nulls lcaResult, so undoing through it would eject you
+      // from scaled mode and blank your scores. Mode and selection are simply
+      // left untouched here.
+      //
+      // scenarioCommitRevision is also deliberately NOT set, unlike
+      // applyScenarioSource. That flag means "the previous result is still
+      // valid for this revision", which is true for a background-amount drag
+      // but false when restoring an arbitrary document. The result is
+      // recalculated instead; caching it by content hash for instant undo is
+      // a later, optional phase.
+      set({
+        workspace: {
+          activeDocument: snapshot.activeDocument,
+          sessionDocuments: snapshot.sessionDocuments,
+          yamlDraft: snapshot.yamlDraft,
+        },
+        appliedYaml: snapshot.appliedYaml,
+        appliedRevision,
+        calculationError: "",
+        scenarioOverrides: {},
+      })
+      // Restoring appends rather than truncating, so whatever was ahead of
+      // this point stays reachable. Dedupe still applies: restoring the state
+      // you are already in records nothing.
+      const key = historyKeyFor(snapshot.activeDocument)
+      if (shouldAppend(versionStore.list(key), snapshot)) {
+        versionStore.append(key, createVersion(snapshot, { label: `Restored ${version.label}`, source: "you" }))
+      }
+      set({ versions: versionStore.list(key) })
+      return appliedRevision
+    },
     startCalculation: () => set({ calculationStatus: "calculating", calculationError: "" }),
     clearCalculationError: () => set({ calculationError: "" }),
     completeCalculation: (lcaResult, calculatedRevision) => set({
@@ -155,16 +269,46 @@ export const useProductGraphStore = create<ProductGraphState>()((set, get) => ({
       scenarioOverrides: { ...state.scenarioOverrides, [linkId]: amount },
     })),
     resetScenario: () => set({ scenarioOverrides: {} }),
-    reset: () => set(initialProductGraphState),
+    reset: () => {
+      // The version store lives outside zustand state, so resetting the state
+      // alone would leave recorded history behind -- and document ids can
+      // repeat after a reset, which would let a new document inherit the
+      // previous one's versions.
+      versionStore.clear()
+      set(initialProductGraphState)
+    },
   },
 }))
+
+/**
+ * Persist the document tier whenever it changes, so session models survive a
+ * reload. Subscribed here rather than written from each action, so there is
+ * one place doing it and no action can forget.
+ */
+useProductGraphStore.subscribe((state, previous) => {
+  if (state.workspace === previous.workspace && state.appliedYaml === previous.appliedYaml) return
+  savePersistedWorkspace({ ...state.workspace, appliedYaml: state.appliedYaml })
+})
 
 export const selectHasCurrentResults = (state: ProductGraphState) => (
   state.lcaResult !== null && state.calculatedRevision === state.appliedRevision
 )
 
 export const selectHasUncommittedWorkspace = (state: ProductGraphState) => (
-  state.yamlDraft !== (state.activeDocument?.committedYaml ?? "") ||
-  state.activeDocument?.kind === "new" ||
-  state.activeDocument?.kind === "invalid-upload"
+  state.workspace.yamlDraft !== (state.workspace.activeDocument?.committedYaml ?? "") ||
+  state.workspace.activeDocument?.kind === "new" ||
+  state.workspace.activeDocument?.kind === "invalid-upload"
 )
+
+/**
+ * Everything a version snapshot must capture: the reducer-owned document tier
+ * plus `appliedYaml`, which lives outside it. Undo restores exactly this and
+ * nothing else -- view, selection, zoom, and calculated results are excluded
+ * deliberately, because results are derived and the rest is not document state.
+ */
+export type { DocumentSnapshot }
+
+export const selectDocumentSnapshot = (state: ProductGraphState): DocumentSnapshot => ({
+  ...state.workspace,
+  appliedYaml: state.appliedYaml,
+})

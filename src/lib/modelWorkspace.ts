@@ -40,12 +40,13 @@ export type ModelWorkspaceState = {
 
 export type ModelWorkspaceAction =
   | { type: "load-document"; document: ModelDocument }
-  | { type: "edit-draft"; yaml: string }
+  | { type: "edit-draft"; yaml: string; author?: "you" | "assistant" }
   | { type: "start-new" }
   | { type: "start-invalid-upload"; title: string; filename: string; yaml: string }
   | { type: "commit-new-session"; document: SessionDocument }
   | { type: "commit-active-session"; yaml: string }
   | { type: "rename-active"; title: string }
+  | { type: "restore-persisted"; workspace: ModelWorkspaceState }
   | { type: "delete-session"; id: string }
   | { type: "discard" }
 
@@ -113,6 +114,12 @@ export function modelWorkspaceReducer(
         yamlDraft: action.yaml,
       }
     }
+    case "restore-persisted":
+      return {
+        activeDocument: action.workspace.activeDocument,
+        sessionDocuments: action.workspace.sessionDocuments,
+        yamlDraft: action.workspace.yamlDraft,
+      }
     case "rename-active": {
       if (state.activeDocument?.kind !== "session") return state
       const document = { ...state.activeDocument, title: action.title, filename: safeYamlFilename(action.title) }

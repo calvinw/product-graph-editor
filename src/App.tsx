@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
   ReactFlowProvider,
@@ -9,8 +9,8 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import prismLogoRound from "./assets/prism-logo-round.png"
 import {
-  BarChart3, Check, ChevronLeft, CopyPlus, GripHorizontal, Scan, LayoutGrid, ChevronDown,
-  ChevronsDownUp, ChevronsUpDown, Minus, Moon, MousePointer2, Plus, Save as SaveIcon, Settings2, Sun, X,
+  BarChart3, Check, ChevronLeft, GripHorizontal, Scan, LayoutGrid, ChevronDown,
+  ChevronsDownUp, ChevronsUpDown, Minus, Moon, MousePointer2, Plus, Settings2, Sun, X,
 } from "lucide-react"
 import { parse } from "yaml"
 import { Button } from "@/components/ui/button"
@@ -37,6 +37,8 @@ import { InventoryView } from "@/components/views/InventoryView"
 import { ProcessResultsView } from "@/components/views/ProcessResultsView"
 import { SankeyView } from "@/components/views/SankeyView"
 import { FileMenu } from "@/components/workspace/FileMenu"
+import { HistoryPanel } from "@/components/workspace/HistoryPanel"
+import { YamlEditor } from "@/components/workspace/YamlEditor"
 import { SaveAsDialog } from "@/components/workspace/SaveAsDialog"
 import { UnsavedChangesDialog } from "@/components/workspace/UnsavedChangesDialog"
 import { useCalculation } from "@/hooks/useCalculation"
@@ -64,9 +66,11 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
   const { decimalPlaces, showAllDecimalPlaces, theme } = useDisplaySettings()
   const selected = useProductGraphStore((state) => state.selectedNode)
   const view = useProductGraphStore((state) => state.activeView)
-  const activeDocument = useProductGraphStore((state) => state.activeDocument)
-  const sessionDocuments = useProductGraphStore((state) => state.sessionDocuments)
-  const yamlDraft = useProductGraphStore((state) => state.yamlDraft)
+  const activeDocument = useProductGraphStore((state) => state.workspace.activeDocument)
+  const sessionDocuments = useProductGraphStore((state) => state.workspace.sessionDocuments)
+  const yamlDraft = useProductGraphStore((state) => state.workspace.yamlDraft)
+  const versions = useProductGraphStore((state) => state.versions)
+  const draftAuthor = useProductGraphStore((state) => state.draftAuthor)
   const appliedYaml = useProductGraphStore((state) => state.appliedYaml)
   const appliedRevision = useProductGraphStore((state) => state.appliedRevision)
   const [resultsMarkdown, setResultsMarkdown] = useState("")
@@ -114,7 +118,8 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     fitView, zoomIn, zoomOut, fit, relayout,
     toggleExpanded, setAllExpanded,
     applyGraphSettings, showGraphMode, applyYaml, applyAndCalculateYaml,
-    hydrateBackgroundNode, commitScenario, scenarioEditCount,
+    hydrateBackgroundNode, commitScenario, scenarioEditCount, restoreVersion,
+    undo, redo, captureDraftVersion,
     categoryTotals, visibleImpactCategories, toggleImpactCategory, categoryOrder,
   } = useGraphModel({
     resetCalculationState, markRevision, calculateSource,
@@ -188,6 +193,27 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     })
     return () => cancelAnimationFrame(frame)
   }, [active, fitView, inspectorOpen, selected, view])
+  // Two undo scopes exist and must not fight. The browser gives text inputs
+  // per-keystroke undo for free; model undo steps between recorded versions.
+  // Focus decides which one Cmd+Z drives, which also leaves the chat
+  // composer's native undo alone -- what anyone would expect.
+  useEffect(() => {
+    if (!active) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      const isUndoChord = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z"
+      if (!isUndoChord) return
+      const target = event.target
+      const isTextField = target instanceof HTMLElement
+        && (target.tagName === "TEXTAREA" || target.tagName === "INPUT" || target.isContentEditable)
+      if (isTextField) return
+      event.preventDefault()
+      if (event.shiftKey) redo()
+      else undo()
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  })
+
   const cumulativeCategories = (() => {
     try {
       const source = parse(appliedYaml) as {
@@ -233,6 +259,14 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     ?? (templateState === "unavailable" ? "Templates unavailable" : "Loading templates…")
   useEffect(() => onTitleChange(currentModelTitle), [currentModelTitle, onTitleChange])
 
+
+  // Built from already-selected fields rather than a store selector: zustand
+  // v5 runs selectors through useSyncExternalStore, so one returning a fresh
+  // object on every call risks an infinite re-render.
+  const documentSnapshot = useMemo(
+    () => ({ activeDocument, sessionDocuments, yamlDraft, appliedYaml }),
+    [activeDocument, sessionDocuments, yamlDraft, appliedYaml],
+  )
 
   const connectionCount = edges.length
   // Multi-select is otherwise invisible unless you happen to notice the node
@@ -330,6 +364,17 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
         else downloadTextFile(resultsMarkdown, `${base}-lca-results.md`, "text/markdown")
       },
       deleteSessionModel: (id) => dispatchModelWorkspace({ type: "delete-session", id }),
+      proposeYamlEdit: (yaml) => {
+        // Record what is in the editor before the proposal overwrites it, so
+        // there is always a restore point immediately in front of an opaque
+        // change. Dedupe means this adds nothing when the draft was already
+        // saved -- the automatic entry appears only when there is genuinely
+        // uncommitted work to protect.
+        captureDraftVersion()
+        dispatchModelWorkspace({ type: "edit-draft", yaml, author: "assistant" })
+        setYamlError("")
+        setView("yaml")
+      },
     },
   }
 
@@ -352,6 +397,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           onUpload={() => requestAction({ kind: "upload" })}
           onDownload={downloadCurrentYaml}
         />
+        <HistoryPanel versions={versions} current={documentSnapshot} onRestore={restoreVersion} />
         <input ref={navbarUploadRef} className="navbar-file-input" type="file" accept=".yaml,.yml,text/yaml" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; loadYamlFile(file) }} />
         <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && requestView(next as "graph" | "yaml")} className="desktop-primary-nav" aria-label="Primary views">
           <ToggleGroupItem value="yaml">Edit</ToggleGroupItem>
@@ -485,18 +531,20 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
         <div className="graph-mode-toolbar" aria-label="Graph display mode">
           <Button title={!hasCurrentResults ? "Scaled amounts will appear when the LCA calculation finishes" : undefined} variant="ghost" className={`graph-action ${graphMode === "scaled" ? "is-active" : ""}`} aria-pressed={graphMode === "scaled"} disabled={!hasCurrentResults} onClick={() => showGraphMode("scaled")}><Scan size={16} />Scaled Graph</Button>
           <Button variant="ghost" className={`graph-action ${graphMode === "structure" ? "is-active" : ""}`} aria-pressed={graphMode === "structure"} onClick={() => showGraphMode("structure")}><LayoutGrid size={16} />Structure Graph</Button>
-        </div></> : view === "yaml" ? <div className="yaml-editor">
-          <div className="yaml-editor-head">
-            <div><strong>Product graph YAML</strong><span>{isTransient ? "Start writing YAML, or upload an existing file from the File menu." : "Edit the current session model."}</span></div>
-          </div>
-          <textarea value={yamlDraft} onChange={(event) => { dispatchModelWorkspace({ type: "edit-draft", yaml: event.target.value }); setYamlError("") }} spellCheck={false} aria-label="Product graph YAML" />
-          <div className="yaml-editor-foot">
-            <span className={yamlError ? "yaml-error" : isDirty ? "yaml-dirty" : ""}>{yamlError || (!yamlDraft.trim() ? "Start writing YAML, or upload a file from the File menu." : isDirty ? activeDocument?.kind === "session" ? "Unsaved changes. Save to update this session model." : "Unsaved draft. Save As to create a session model." : isCalculating ? "Calculating the saved YAML…" : "Saved in this browser session.")}</span>
-            {activeDocument?.kind === "session" && isDirty ? <Button size="sm" onClick={saveSessionModel}><SaveIcon data-icon="inline-start" />Save</Button>
-              : isTransient ? <Button size="sm" disabled={!canSaveAs} onClick={openSaveAsDialog}><CopyPlus data-icon="inline-start" />Save As...</Button>
-                : null}
-          </div>
-        </div> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} loadContributionGraphs={loadContributionGraphs} /> : view === "realtime" ? <RealtimeView result={lcaResult} isCurrent={hasCurrentResults} error={resultsError} overrides={scenarioOverrides} onOverride={setScenarioOverride} onReset={resetScenario} onCommit={commitScenario} committing={calculationInProgress} /> : <div className="results-panel">
+        </div></> : view === "yaml" ? <YamlEditor
+          yamlDraft={yamlDraft}
+          yamlError={yamlError}
+          isDirty={isDirty}
+          isTransient={isTransient}
+          isCalculating={isCalculating}
+          activeDocument={activeDocument}
+          canSaveAs={canSaveAs}
+          draftAuthor={draftAuthor}
+          remountKey={appliedRevision}
+          onChange={(yaml) => { dispatchModelWorkspace({ type: "edit-draft", yaml }); setYamlError("") }}
+          onSave={saveSessionModel}
+          onSaveAs={openSaveAsDialog}
+        /> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} loadContributionGraphs={loadContributionGraphs} /> : view === "realtime" ? <RealtimeView result={lcaResult} isCurrent={hasCurrentResults} error={resultsError} overrides={scenarioOverrides} onOverride={setScenarioOverride} onReset={resetScenario} onCommit={commitScenario} committing={calculationInProgress} /> : <div className="results-panel">
           <div className="results-panel-head">
             <div><strong>LCA Results</strong>{isCalculating ? <span className="calculation-message">Calculating…</span> : null}</div>
           </div>

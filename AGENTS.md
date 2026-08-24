@@ -25,13 +25,22 @@ Run the verification suites separately:
 ```bash
 npm run build
 npm run lint
+npm run test:unit
 npm run test:responsive
 npm run test:visual
 ```
 
 The recorded baseline is:
 
-- responsive: 24 passed, 0 skipped
-- visual: 29 passed, 3 accepted failures
+- unit: 100 passed
+- responsive: 59 passed, 1 skipped
+- visual: 56 passed, 0 failures
 
-The visual suite currently exits nonzero because of those accepted failures. Compare them with `plan/responsive-baseline.md`; no previously passing visual test may fail, and no accepted failure may change or expand. Never update screenshots without inspecting the actual, expected, and diff images.
+All three suites exit zero. The single responsive skip is deliberate and
+viewport-conditional: the assistant split-pane test does not apply at phone
+width, where the chat uses the full contained width.
+
+The three formerly accepted visual failures (issues #37, #38, #39) are all
+fixed and closed, so there is no longer an accepted-failure allowance: a
+failing visual test is now simply a regression. Never update screenshots
+without inspecting the actual, expected, and diff images.

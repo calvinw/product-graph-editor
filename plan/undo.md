@@ -1,6 +1,6 @@
 # Plan: Undo
 
-Status: not started
+Status: complete on branch `undo` (August 23, 2026). Every phase delivered, including the proposal diff and version-list persistence. Open decision 2 is resolved (the diff appears in the Edit view); 4, 5, and 6 remain open and are not blocking.
 Date: August 22, 2026
 Basis: `main` at `75f3b7b`
 
@@ -358,6 +358,38 @@ alone, which is what anyone would expect.
 
 ### The handoff: snapshot when text undo dies
 
+**Correction from implementation (August 22, 2026).** The hole described below
+is already closed by the existing unsaved-changes guard, so this section's
+premise does not hold in this app.
+
+Leaving the Edit view with a dirty draft does not silently unmount the
+textarea: `requestAction` intercepts every view change except one *into* `yaml`
+and opens the unsaved-changes dialog. Both outcomes resolve the dirtiness
+before the editor unmounts — Save records a version, Discard reverts the draft
+— so by the time the unmount fires there is nothing new to capture and dedupe
+correctly records nothing.
+
+Blur was deliberately **not** used as a trigger either: a textarea's native
+undo stack survives losing focus, so capturing on blur would add a spurious
+"unsaved" entry before every Save, because clicking Save blurs the field.
+
+The unmount capture was then **removed entirely** during Phase 5. Two reasons,
+the second decisive:
+
+1. It was nearly always a no-op, for the reason above.
+2. It fought the "proposals are not versions" rule. When a proposal writes the
+   draft and opens the editor, the editor mounts holding content that is
+   deliberately not a version — and React StrictMode double-invokes effects in
+   development (mount → cleanup → mount), so the "unmount" cleanup fired
+   immediately and recorded the proposal as `Edited YAML (unsaved)`. Even
+   without StrictMode, a later genuine unmount would record it.
+
+Nothing is lost by removing it. The two cases it was meant to cover are both
+already handled: leaving a dirty editor is intercepted by the unsaved-changes
+guard, and uncommitted work in front of an assistant proposal is captured by
+the pre-proposal snapshot (trigger 2), which is where that protection belongs.
+A browser test pins the normal path to zero spurious entries.
+
 Focus-based routing alone would leave a hole, because native text undo is not
 durable. The Edit view is conditionally rendered (`App.tsx:485`), so the
 textarea **unmounts** when you switch to the graph - and its undo stack is
@@ -543,9 +575,14 @@ only Playwright.
 
 ## Open decisions
 
-1. Does `propose_yaml_edit` take the whole document or a named section? Whole
-   document is simpler and fine at current sizes.
-2. Does the diff appear in the chat, in the Edit view, or both?
+1. ~~Does `propose_yaml_edit` take the whole document or a named section?~~
+   **Resolved:** whole document, as the plan preferred.
+2. ~~Does the diff appear in the chat, in the Edit view, or both?~~
+   **Resolved: the Edit view.** A proposal already opens the editor and puts
+   the Save button in front of you, so that is where the review belongs — the
+   diff opens by default for an assistant edit and stays collapsed for your
+   own typing, which needs no explaining back to you. The chat keeps the tool
+   result only, so the document is not duplicated into the transcript.
 3. How many versions are kept? 100 is free at 2 KB per document, and the list
    is append-only, so this is a trimming policy rather than a limit.
 4. Should restoring move the view to where the change is, or leave the camera
@@ -567,12 +604,14 @@ npm run test:responsive
 npm run test:visual
 ```
 
-The baselines recorded in `AGENTS.md`, `CLAUDE.md`, `TODOs.md`, and
-`responsive-baseline.md` (24 responsive, 29 visual with 3 accepted failures) do
-not match the suite. Measured on `0abf734`: 53 responsive passed with 1
-viewport-conditional skip, and 31 visual passed with no failures. Re-measure and
-update those documents before Phase 1 so later phases are not compared against a
-baseline that describes nothing.
+**Done (August 22, 2026).** The stale baselines were re-measured at `0612d95`
+and corrected in `AGENTS.md`, `CLAUDE.md`, `TODOs.md`, `README.md`, and
+`responsive-baseline.md`. `README.md` also carried the stale numbers and was not
+in the original list. The current baseline is **53 responsive passed with 1
+deliberate viewport-conditional skip, and 31 visual passed with no failures**;
+both suites exit zero. All three formerly accepted visual failures (#37, #38,
+#39) are fixed and closed, so there is no accepted-failure allowance and a
+failing visual test is now a regression.
 
 Never update screenshot baselines without visually reviewing actual, expected,
 and diff images.
