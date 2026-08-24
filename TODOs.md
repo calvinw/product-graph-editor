@@ -30,8 +30,8 @@ Do not add tablet-landscape or large-desktop projects unless the testing contrac
 - Build: passes, with Vite's existing large-chunk advisory
 - Lint: passes
 - Unit: 100 passed
-- Responsive: 53 passed, 1 skipped
-- Visual: 50 passed, 0 failures
+- Responsive: 59 passed, 1 skipped
+- Visual: 56 passed, 0 failures
 
 All three suites exit zero. The three accepted visual failures previously recorded in `plan/responsive-baseline.md` and tracked by GitHub issues #37, #38, and #39 are all fixed and closed, so there is no accepted-failure allowance any more — a failing visual test is a regression. The one responsive skip is deliberate and viewport-conditional: the assistant split-pane test does not apply at phone width, where the chat uses the full contained width.
 
