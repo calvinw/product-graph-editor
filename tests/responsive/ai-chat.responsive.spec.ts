@@ -1,5 +1,5 @@
 import { expect, test, type Page, type Route } from "@playwright/test"
-import { mockLcaApi, pageMetrics } from "./helpers"
+import { expectInsideViewport, mockLcaApi, pageMetrics } from "./helpers"
 
 function sse(route: Route, chunks: unknown[]) {
   return route.fulfill({
@@ -58,6 +58,42 @@ async function configureChat(page: Page) {
   await page.getByRole("button", { name: "Save settings" }).click()
 }
 
+async function mockRemoteMcp(page: Page) {
+  await page.route("https://lca.mathplosion.com/mcp", async (route) => {
+    const corsHeaders = {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Mcp-Session-Id, Mcp-Protocol-Version",
+      "Access-Control-Expose-Headers": "Mcp-Session-Id",
+    }
+    if (route.request().method() === "OPTIONS") {
+      await route.fulfill({ status: 204, headers: corsHeaders })
+      return
+    }
+    if (route.request().method() === "DELETE") {
+      await route.fulfill({ status: 204, headers: corsHeaders })
+      return
+    }
+    const body = route.request().postDataJSON() as { id?: number; method: string }
+    if (body.method === "notifications/initialized") {
+      await route.fulfill({ status: 202, headers: corsHeaders })
+      return
+    }
+    const result = body.method === "initialize"
+      ? { protocolVersion: "2025-06-18", capabilities: {}, serverInfo: { name: "LCA", version: "test" } }
+      : body.method === "tools/list"
+        ? { tools: [
+          { name: "read_remote_summary", description: "Read a remote summary", inputSchema: { type: "object", properties: {} }, annotations: { readOnlyHint: true } },
+          { name: "change_remote_state", description: "Change remote state", inputSchema: { type: "object", properties: {} } },
+        ] }
+        : { content: [{ type: "text", text: "Remote mutation completed." }] }
+    await route.fulfill({
+      json: { jsonrpc: "2.0", id: body.id, result },
+      headers: { ...corsHeaders, ...(body.method === "initialize" ? { "Mcp-Session-Id": "browser-session" } : {}) },
+    })
+  })
+}
+
 test.beforeEach(async ({ page }) => {
   await mockLcaApi(page)
   await mockNavigationAssistant(page)
@@ -94,6 +130,55 @@ test("chat settings persist the API key across reload", async ({ page }) => {
   await page.getByRole("button", { name: "AI assistant" }).click()
   await page.getByRole("button", { name: "Chat settings" }).click()
   await expect(page.getByLabel("OpenRouter API key")).toHaveValue("test-key")
+})
+
+test("assistant connects, displays, confirms, and calls a remote MCP tool", async ({ page }) => {
+  await mockRemoteMcp(page)
+  await configureChat(page)
+  await page.unroute("https://openrouter.ai/api/v1/chat/completions")
+  await page.route("https://openrouter.ai/api/v1/chat/completions", async (route) => {
+    const body = route.request().postDataJSON() as {
+      messages: Array<{ role: string; content: string | null }>
+      tools: Array<{ function: { name: string; description: string } }>
+    }
+    const toolResult = [...body.messages].reverse().find((message) => message.role === "tool")
+    if (toolResult) {
+      const output = JSON.parse(toolResult.content ?? "{}") as { status?: string }
+      const content = output.status === "rejected" ? "The remote change was rejected." : "The remote change completed."
+      await sse(route, [{ choices: [{ delta: { content } }] }])
+      return
+    }
+    const remote = body.tools.find((tool) => tool.function.description.includes("Change remote state"))
+    expect(remote).toBeDefined()
+    await sse(route, [{ choices: [{ delta: { tool_calls: [{ index: 0, id: "remote-call", function: { name: remote?.function.name, arguments: "{}" } }] } }] }])
+  })
+
+  await page.getByRole("button", { name: "Chat settings" }).click()
+  await page.getByRole("button", { name: "LCA engine" }).click()
+  const settings = page.getByRole("dialog", { name: "Chat settings" })
+  await expect(settings.getByText("Connected via HTTP · 2 tools")).toBeVisible()
+  await settings.getByText("Discovered tools").click()
+  await expect(settings.getByText("change_remote_state")).toBeVisible()
+  await expectInsideViewport(settings, page)
+  const metrics = await pageMetrics(page)
+  expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth)
+  await settings.getByRole("button", { name: "Save settings" }).click()
+
+  const prompt = page.getByRole("textbox", { name: "Message", exact: true })
+  await prompt.fill("Change the remote state")
+  await prompt.press("Enter")
+  const confirmation = page.getByRole("alertdialog", { name: "Confirm assistant action" })
+  await expect(confirmation).toContainText("change_remote_state")
+  await expect(confirmation).toContainText("LCA engine")
+  await confirmation.getByRole("button", { name: "Reject" }).click()
+  await expect(page.getByText("The remote change was rejected.")).toBeVisible()
+
+  await prompt.fill("Change the remote state again")
+  await prompt.press("Enter")
+  await expect(confirmation).toBeVisible()
+  await confirmation.getByRole("button", { name: "Confirm" }).click()
+  await expect(page.getByText(/mcp__.*change_remote_state · complete/).last()).toBeVisible()
+  await expect(page.getByText("The remote change completed.")).toBeVisible()
 })
 
 test("assistant reads bounded workspace and graph summaries", async ({ page }) => {

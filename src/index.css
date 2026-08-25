@@ -322,6 +322,18 @@ html[data-theme="light"] .history-diff-stat .is-removed, html[data-theme="light"
 .ai-chat-composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; margin: 0 14px 14px; padding: 8px; border: 1px solid var(--control-border); border-radius: 10px; background: var(--editor-background); }.ai-chat-composer:focus-within { border-color: var(--ring); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 22%, transparent); }.ai-chat-composer textarea { width: 100%; min-height: 22px; max-height: 40vh; resize: none; overflow-y: auto; padding: 7px 5px; border: 0; outline: 0; color: var(--editor-foreground); background: transparent; font: inherit; font-size: 12px; line-height: 1.45; }.ai-chat-composer textarea::placeholder { color: var(--muted-foreground); }
 .ai-chat-send { border-radius: 999px; }
 .ai-chat-error { margin: 8px 16px 12px; color: var(--destructive); font-size: 11px; }.ai-chat-key-field { position: relative; }.ai-chat-key-field > svg { position: absolute; z-index: 1; top: 8px; left: 9px; width: 14px; height: 14px; color: var(--muted-foreground); }.ai-chat-key-field input { padding-left: 30px; }
+.ai-chat-mcp-settings { padding-top: 4px; }
+.ai-chat-mcp-server-list { gap: 10px; }
+.ai-chat-mcp-server { display: flex; flex-direction: column; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); }
+.ai-chat-mcp-server-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ai-chat-mcp-server-heading [data-slot="field"] { width: auto; }
+.ai-chat-mcp-status, .ai-chat-mcp-error, .ai-chat-mcp-empty { margin: 0; color: var(--muted-foreground); font-size: 11px; line-height: 1.45; }
+.ai-chat-mcp-status[data-status="connected"] { color: var(--foreground); font-weight: 600; }
+.ai-chat-mcp-error { color: var(--destructive); overflow-wrap: anywhere; }
+.ai-chat-mcp-tools { color: var(--muted-foreground); font-size: 11px; }
+.ai-chat-mcp-tools summary { width: fit-content; cursor: pointer; }
+.ai-chat-mcp-tools ul { max-height: 120px; margin: 8px 0 0; overflow-y: auto; padding-left: 20px; font-family: var(--font-mono, monospace); overflow-wrap: anywhere; }
+.ai-chat-mcp-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .global-settings-title { display: flex; align-items: center; justify-content: space-between; padding: 3px 3px 10px; border-bottom: 1px solid var(--section-border); font-size: 11px; font-weight: 650; }.global-settings-title > div { display: flex; align-items: center; gap: 7px; }.global-settings-title > button { display: grid; place-items: center; width: 25px; height: 25px; padding: 0; border: 0; border-radius: 6px; color: var(--control-muted); background: transparent; cursor: pointer; }.global-settings-title > button:hover { color: var(--foreground); background: var(--control-active-background); }
 .global-setting-field { padding: 12px 3px 4px; }.global-setting-field > span { display: block; color: var(--label-foreground); font-size: 9px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }.global-setting-field > p { margin: 4px 0 9px; color: var(--help-foreground); font-size: 10px; line-height: 1.4; }.global-setting-field .number-stepper input { width: 100%; height: 34px; border: 1px solid var(--control-border); border-radius: 7px; outline: none; color: var(--control-foreground); background: var(--control-background); text-align: center; appearance: textfield; }.global-setting-field .number-stepper input::-webkit-inner-spin-button { appearance: none; }
 .all-decimals-toggle { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; color: #c6cbd4; font-size: 11px; cursor: pointer; }.all-decimals-toggle [data-slot="checkbox"] { margin: 0; }.global-setting-field .number-stepper button:disabled, .global-setting-field .number-stepper input:disabled { cursor: not-allowed; opacity: .45; }
@@ -867,5 +879,4 @@ html[data-theme="light"] .scenario-panel { background: #fff; box-shadow: 0 18px 
    shape and the numbers are not constrained by the activity name's width. */
 .pg-node-impacts { position: absolute; z-index: 3; top: calc(100% + 7px); left: 2px; display: flex; gap: 16px; width: max-content; pointer-events: none; font-size: 22px; line-height: 1.1; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em; text-shadow: 0 2px 10px rgba(0,0,0,.75); }
 html[data-theme="light"] .pg-node-impacts { text-shadow: 0 2px 10px rgba(255,255,255,.9); }
-
 
