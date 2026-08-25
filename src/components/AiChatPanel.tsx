@@ -20,8 +20,14 @@ import {
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createOpenRouterTransport, type ModelMessage } from "@/ai/chatTransport"
 import {
-  appToolDefinitions, confirmationSummary, confirmedToolNames, executeAppTool, listViews, type AppToolRuntime, type ViewToolCall,
+  formatRemoteToolResult, mergeToolDefinitions, parseMcpToolArguments, remoteConfirmationSummary,
+  requiresToolConfirmation,
+} from "@/ai/mcpRegistry"
+import {
+  appToolDefinitions, confirmationSummary, executeAppTool, listViews, type AppToolRuntime, type ViewToolCall,
 } from "@/ai/viewTools"
+import { McpServerSettings } from "@/components/McpServerSettings"
+import { useMcpServers } from "@/hooks/useMcpServers"
 
 type MessageSegment =
   | { kind: "text"; id: string; content: string }
@@ -168,6 +174,8 @@ export function AiChatPanel({
   const latestRuntimeRef = useRef(runtime)
   latestRuntimeRef.current = runtime
   const transport = useMemo(() => createOpenRouterTransport({ apiKey, endpoint: ENDPOINT }), [apiKey])
+  const mcp = useMcpServers()
+  const toolDefinitions = useMemo(() => mergeToolDefinitions(appToolDefinitions, mcp.registry), [mcp.registry])
 
   const requestToolConfirmation = useCallback((summary: string) => new Promise<boolean>((resolve) => {
     setConfirmation({ summary, resolve })
@@ -272,7 +280,7 @@ export function AiChatPanel({
         const result = await transport.stream({
           model,
           messages: apiMessages,
-          tools: appToolDefinitions,
+          tools: toolDefinitions,
           signal: controller.signal,
           onDelta: (content) => upsertTextSegment(assistantId, segmentId, content),
         })
@@ -286,21 +294,34 @@ export function AiChatPanel({
           try {
             const typedCall = call as ViewToolCall
             const before = latestRuntimeRef.current
-            if (confirmedToolNames.has(call.function.name)) {
-              const accepted = await requestToolConfirmation(confirmationSummary(typedCall, before))
+            const remoteTool = mcp.registry.get(call.function.name)
+            const execute = async (currentRuntime: AppToolRuntime) => {
+              if (!remoteTool) return executeAppTool(typedCall, currentRuntime)
+              const result = await mcp.callTool(call.function.name, parseMcpToolArguments(call.function.arguments))
+              const formatted = formatRemoteToolResult(result)
+              failed = formatted.error
+              return formatted.output
+            }
+            if (requiresToolConfirmation(call.function.name, mcp.registry)) {
+              const summary = remoteTool
+                ? remoteConfirmationSummary(call.function.name, mcp.registry)
+                : confirmationSummary(typedCall, before)
+              const accepted = await requestToolConfirmation(summary)
               if (!accepted) {
                 output = { status: "rejected", reason: "Rejected by user." }
+              } else if (remoteTool) {
+                output = await execute(before)
               } else {
                 const latest = latestRuntimeRef.current
                 if (latest.workspace.appliedRevision !== before.workspace.appliedRevision || latest.workspace.yamlDraft !== before.workspace.yamlDraft) {
                   failed = true
                   output = { status: "error", code: "STALE_CONFIRMATION", message: "Application state changed after this action was proposed." }
                 } else {
-                  output = await executeAppTool(typedCall, latest)
+                  output = await execute(latest)
                 }
               }
             } else {
-              output = await executeAppTool(typedCall, before)
+              output = await execute(before)
             }
           } catch (toolError) {
             failed = true
@@ -326,7 +347,7 @@ export function AiChatPanel({
       setStatus("idle")
       requestAnimationFrame(() => promptRef.current?.focus())
     }
-  }, [appendToolSegments, messages, model, requestToolConfirmation, runtime, setStreaming, status, transport, upsertTextSegment])
+  }, [appendToolSegments, mcp, messages, model, requestToolConfirmation, runtime, setStreaming, status, toolDefinitions, transport, upsertTextSegment])
 
   const saveSettings = () => {
     try {
@@ -391,12 +412,20 @@ export function AiChatPanel({
     {panel}
 
     <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-      <DialogContent>
+      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-2xl">
         <DialogHeader><DialogTitle>Chat settings</DialogTitle><DialogDescription>Your OpenRouter API key is stored in this browser's local storage so you don't need to re-enter it. Production deployments can route requests through a backend by configuring the OpenRouter endpoint.</DialogDescription></DialogHeader>
         <FieldGroup>
           <Field><FieldLabel htmlFor="openrouter-key">OpenRouter API key</FieldLabel><div className="ai-chat-key-field"><KeyRound aria-hidden="true" /><Input id="openrouter-key" type="password" autoComplete="off" value={apiKey} onChange={(event) => setApiKey(event.target.value)} /></div></Field>
           <Field><FieldLabel htmlFor="ai-chat-model">Model</FieldLabel><Select value={model} onValueChange={setModel}><SelectTrigger id="ai-chat-model" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{MODELS.map((id) => <SelectItem value={id} key={id}>{id}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
         </FieldGroup>
+        <McpServerSettings
+          servers={mcp.servers}
+          statuses={mcp.statuses}
+          addServer={mcp.addServer}
+          updateServer={mcp.updateServer}
+          removeServer={mcp.removeServer}
+          reconnect={mcp.reconnect}
+        />
         <DialogFooter><Button type="button" onClick={saveSettings}>Save settings</Button></DialogFooter>
       </DialogContent>
     </Dialog>

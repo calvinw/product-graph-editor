@@ -21,6 +21,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/lca-api/, ""),
       },
+      "/lca-mcp": {
+        target: "https://lca.mathplosion.com",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/lca-mcp/, "/mcp"),
+      },
     },
   },
 })
