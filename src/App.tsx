@@ -475,8 +475,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
         {view === "graph" ? <><GraphCanvas
           nodes={nodes} edges={edges}
           onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
-          // Either right-rail panel shrinks the canvas, so neither covers the graph.
-          inspectorOpen={inspectorOpen || (graphMode === "scaled" && scenarioEditCount > 0)} theme={theme}
+          inspectorOpen={inspectorOpen} theme={theme}
           setSelected={setSelected} clearNodeSelection={clearNodeSelection}
           hydrateBackgroundNode={hydrateBackgroundNode} toggleExpanded={toggleExpanded}
           selectMode={selectMode}
@@ -555,12 +554,8 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
               : <div className="results-placeholder"><div className="results-empty-icon"><BarChart3 size={22} /></div><strong>No LCA results yet</strong><p>Save a valid model to analyze its product graph.</p></div>}
           </div>
         </div>}
-        {/* Scenario scores describe the scaled graph; in structure mode there
-            are no amounts for them to relate to, so the panel is hidden. The
-            edits themselves are kept, and reappear on returning to Scaled. */}
-        {view === "graph" && graphMode === "scaled" && scenarioEditCount > 0 ? <ScenarioPanel
+        {view === "graph" && scenarioEditCount > 0 ? <ScenarioPanel
           editCount={scenarioEditCount}
-          stacked={inspectorOpen}
           categoryTotals={categoryTotals}
           calculating={calculationInProgress}
           onReset={resetScenario}

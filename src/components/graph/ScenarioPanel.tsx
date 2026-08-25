@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react"
-import { ArrowRight } from "lucide-react"
+import { useRef, useState } from "react"
+import { ArrowRight, GripHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useDisplaySettings } from "@/lib/displaySettings"
 import { impactCategoryDisplayName } from "@/lib/lcaApi"
@@ -9,40 +9,15 @@ import { impactColor, type CategoryPreview } from "@/lib/realtimeScore"
  * Impact of the pending scenario, shown only while edits are outstanding.
  *
  * These scores belong to the scenario rather than to any one node, which is
- * why they are their own panel rather than part of the property editor.
- *
- * It docks in the same right-hand rail as the property editor and shares its
- * chrome, sitting above it when both are open. It used to float over the graph
- * and be draggable to get out of the way; docking removes that need, since the
- * canvas shrinks to make room exactly as it does for the property editor.
+ * why they live here and not in the property editor. The panel can be dragged
+ * by its header, since it sits over the graph and would otherwise cover the
+ * part of it a person is working on.
  */
-const RAIL_WIDTH_STORAGE = "product-graph-editor:rail-width"
-const RAIL_DEFAULT = 286
-const RAIL_MIN = 240
-
-function storedRailWidth() {
-  try {
-    const value = Number(localStorage.getItem(RAIL_WIDTH_STORAGE))
-    return Number.isFinite(value) && value >= RAIL_MIN ? value : RAIL_DEFAULT
-  } catch { return RAIL_DEFAULT }
-}
-
-/**
- * The rail width is shared with the property editor stacked beneath, because
- * two docked panels of different widths would read as a mistake. Published as
- * a CSS variable so the canvas inset follows without a re-render.
- */
-function applyRailWidth(width: number) {
-  document.documentElement.style.setProperty("--rail-width", `${Math.round(width)}px`)
-}
-
 export function ScenarioPanel({
-  editCount, stacked, categoryTotals, calculating, onReset, onCommit,
+  editCount, categoryTotals, calculating, onReset, onCommit,
   categoryOrder, visibleCategories, onToggleCategory,
 }: {
   editCount: number
-  /** True when the property editor is also open and the rail must be shared. */
-  stacked: boolean
   categoryTotals: CategoryPreview[]
   calculating: boolean
   onReset: () => void
@@ -52,71 +27,42 @@ export function ScenarioPanel({
   onToggleCategory: (label: string) => void
 }) {
   const { formatNumber } = useDisplaySettings()
-  const panelRef = useRef<HTMLElement | null>(null)
-
-  useEffect(() => { applyRailWidth(storedRailWidth()) }, [])
-
-  const startResize = (event: React.PointerEvent<HTMLButtonElement>) => {
-    event.preventDefault()
-    const startX = event.clientX
-    const startWidth = panelRef.current?.offsetWidth ?? RAIL_DEFAULT
-    let next = startWidth
-    const resize = (moveEvent: PointerEvent) => {
-      // Leave enough canvas that the graph stays usable no matter how wide
-      // the rail is dragged.
-      const maximum = Math.max(RAIL_MIN, window.innerWidth - 320)
-      next = Math.min(maximum, Math.max(RAIL_MIN, startWidth + startX - moveEvent.clientX))
-      applyRailWidth(next)
-    }
-    const finish = () => {
-      window.removeEventListener("pointermove", resize)
-      window.removeEventListener("pointerup", finish)
-      document.body.classList.remove("is-resizing-rail")
-      try { localStorage.setItem(RAIL_WIDTH_STORAGE, String(Math.round(next))) } catch { /* Optional preference. */ }
-    }
-    document.body.classList.add("is-resizing-rail")
-    window.addEventListener("pointermove", resize)
-    window.addEventListener("pointerup", finish, { once: true })
-  }
-
-  const resizeByKeyboard = (event: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
-    event.preventDefault()
-    const current = panelRef.current?.offsetWidth ?? RAIL_DEFAULT
-    const maximum = Math.max(RAIL_MIN, window.innerWidth - 320)
-    const next = Math.min(maximum, Math.max(RAIL_MIN, current + (event.key === "ArrowLeft" ? 20 : -20)))
-    applyRailWidth(next)
-    try { localStorage.setItem(RAIL_WIDTH_STORAGE, String(Math.round(next))) } catch { /* Optional preference. */ }
-  }
-
-  // The property editor sits below this panel in the same rail, so it needs to
-  // know how tall this one is. Published as a CSS variable and kept current
-  // with a ResizeObserver, because the height changes with the number of
-  // impact categories rather than being fixed.
-  useEffect(() => {
-    const panel = panelRef.current
-    if (!panel) return
-    const root = document.documentElement
-    const publish = () => root.style.setProperty("--scenario-panel-height", `${panel.offsetHeight + 12}px`)
-    publish()
-    const observer = new ResizeObserver(publish)
-    observer.observe(panel)
-    return () => {
-      observer.disconnect()
-      root.style.removeProperty("--scenario-panel-height")
-    }
-  }, [])
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const drag = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null)
 
   return (
-    <aside ref={panelRef} className={`scenario-panel${stacked ? " is-stacked" : ""}`} role="status" aria-label="Scenario impact">
-      <button
-        type="button"
-        className="rail-resize-handle"
-        aria-label="Resize scenario and property panels"
-        onPointerDown={startResize}
-        onKeyDown={resizeByKeyboard}
-      />
-      <header>
+    <aside
+      className="scenario-panel"
+      role="status"
+      aria-label="Scenario impact"
+      style={{ transform: `translateX(-50%) translate(${offset.x}px, ${offset.y}px)` }}
+    >
+      <header
+        onPointerDown={(event) => {
+          if ((event.target as HTMLElement).closest("button")) return
+          event.preventDefault()
+          drag.current = {
+            pointerId: event.pointerId,
+            startX: event.clientX, startY: event.clientY,
+            originX: offset.x, originY: offset.y,
+          }
+          event.currentTarget.setPointerCapture(event.pointerId)
+        }}
+        onPointerMove={(event) => {
+          if (drag.current?.pointerId !== event.pointerId) return
+          setOffset({
+            x: drag.current.originX + event.clientX - drag.current.startX,
+            y: drag.current.originY + event.clientY - drag.current.startY,
+          })
+        }}
+        onPointerUp={(event) => {
+          if (drag.current?.pointerId !== event.pointerId) return
+          drag.current = null
+          event.currentTarget.releasePointerCapture(event.pointerId)
+        }}
+        onPointerCancel={() => { drag.current = null }}
+      >
+        <GripHorizontal size={14} className="scenario-panel-grip" aria-hidden />
         <strong>Scenario</strong>
         <span>{editCount} input{editCount === 1 ? "" : "s"} changed</span>
       </header>
