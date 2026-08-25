@@ -356,7 +356,7 @@ html[data-theme="light"] .history-diff-stat .is-removed, html[data-theme="light"
 @media (prefers-reduced-motion: reduce) { .calculation-message, .welcome-connections path { animation: none; }.inspector, .welcome-explore, .welcome-explore svg { transition: none; } }
 h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
 .graph-viewport { position: absolute; inset: 0; z-index: 1; }
-.graph-viewport.has-inspector { right: 322px; }
+.graph-viewport.has-inspector { right: calc(var(--rail-width, 286px) + 36px); }
 .reactflow-canvas { position: absolute; inset: 0; z-index: 1; }
 .reactflow-canvas .react-flow__edge-path, .sankey-canvas .react-flow__edge-path { stroke: var(--graph-edge) !important; stroke-linecap: round; }
 .reactflow-canvas marker path, .sankey-canvas marker path,
@@ -598,7 +598,7 @@ html[data-theme="light"] .pg-node-head, html[data-theme="light"] .pg-flow-sectio
 }
 .pg-node-toggle:hover { color: #fff; border-color: var(--node-color); background: color-mix(in srgb, var(--node-color) 20%, transparent); }
 .graph-meta { position: absolute; z-index: 2; right: 20px; bottom: 18px; color: #5e646e; font-size: 10px; }
-.inspector { position: absolute; z-index: 4; top: 76px; right: 18px; bottom: 18px; width: 286px; min-width: 0; padding: 22px; overflow-y: auto; border: 1px solid #2b2f36; border-radius: 12px; opacity: 0; background: rgba(16,18,22,.96); box-shadow: 0 18px 48px rgba(0,0,0,.38); backdrop-filter: blur(12px); pointer-events: none; visibility: hidden; transform: translateX(calc(100% + 36px)); transition: opacity .2s ease, transform .25s cubic-bezier(.22, 1, .36, 1), visibility .25s; }
+.inspector { position: absolute; z-index: 4; top: calc(76px + var(--scenario-panel-height, 0px)); right: 18px; bottom: 18px; width: var(--rail-width, 286px); min-width: 0; padding: 22px; overflow-y: auto; border: 1px solid #2b2f36; border-radius: 12px; opacity: 0; background: rgba(16,18,22,.96); box-shadow: 0 18px 48px rgba(0,0,0,.38); backdrop-filter: blur(12px); pointer-events: none; visibility: hidden; transform: translateX(calc(100% + 36px)); transition: opacity .2s ease, transform .25s cubic-bezier(.22, 1, .36, 1), visibility .25s, top .2s ease; }
 .inspector.is-open { opacity: 1; pointer-events: auto; visibility: visible; transform: translateX(0); }
 .inspector-head { display: flex; align-items: center; justify-content: space-between; height: 30px; margin-bottom: 27px; color: #737985; font-size: 9px; font-weight: 750; letter-spacing: .14em; }
 .reference-amounts-toggle { width: 100%; margin-top: 18px; }
@@ -716,6 +716,10 @@ html[data-theme="light"] .process-flow-table .empty-row td { color: #6b7280; }
   html[data-theme="light"] .global-settings-trigger:hover, html[data-theme="light"] .global-settings-trigger.is-active { border-color: rgba(71,85,105,.24); color: #172033; background: rgba(226,232,240,.9); }
   .canvas-head { display: none; }
   .graph-toolbar { top: 168px; }
+  /* The topbar floats over the workspace at this width (22px -> 86px), so the
+     right-rail panels must clear it. 86 + 18 keeps the same 18px gap they
+     already use on their right and bottom edges. */
+  .inspector { top: calc(104px + var(--scenario-panel-height, 0px)); }
   .yaml-editor, .results-empty, .results-panel { inset: 108px 28px 28px; }
   .inventory-view, .impact-view, .process-results-view, .contribution-view, .sankey-view { inset: 108px 28px 28px; border-radius: 12px; }
   .sankey-toolbar, .sankey-chart-picker { top: 18px; }
@@ -816,8 +820,24 @@ html[data-theme="light"] .scenario-bar { background: #ffffff; box-shadow: 0 14px
 .property-was { color: #6d747f; font-style: normal; font-size: 10px; text-decoration: line-through; }
 
 /* Scenario impact panel — present only while edits are pending */
-.scenario-panel { position: absolute; z-index: 6; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(560px, calc(100% - 56px)); border: 1px solid #38bdf8; border-radius: 12px; background: var(--panel-background, rgba(16,18,22,.97)); box-shadow: 0 18px 48px rgba(0,0,0,.42); overflow: hidden; }
-.scenario-panel > header { display: flex; align-items: center; gap: 10px; cursor: move; touch-action: none; user-select: none; padding: 11px 15px; border-bottom: 1px solid var(--panel-header-border, #2b2f36); background: var(--panel-header-background, rgba(56,189,248,.08)); }
+/* Fills the rail exactly as the property editor does. When both are open it
+   yields the lower half so the property editor can stack beneath it. */
+.scenario-panel { position: absolute; z-index: 6; top: 76px; right: 18px; bottom: 18px; width: var(--rail-width, 286px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #38bdf8; border-radius: 12px; background: rgba(16,18,22,.96); box-shadow: 0 18px 48px rgba(0,0,0,.38); backdrop-filter: blur(12px); }
+.scenario-panel.is-stacked { bottom: auto; max-height: 46vh; }
+/* Declared after the base rule on purpose: the base sits later in this file
+   than the shared min-width block, so an override placed there would lose the
+   cascade at equal specificity. */
+@media (min-width: 901px) { .scenario-panel { top: 104px; } }
+/* Mirrors the chat panel's handle: a hit area wider than the visible grip, so
+   the edge is easy to grab without a conspicuous bar sitting on the panel. */
+.rail-resize-handle { position: absolute; z-index: 2; inset: 0 auto 0 -6px; display: grid; place-items: center; width: 12px; height: 100%; padding: 0; border: 0; color: transparent; background: transparent; cursor: ew-resize; touch-action: none; }
+.rail-resize-handle::before { width: 2px; height: 42px; border-radius: 999px; background: var(--muted-foreground); opacity: .45; content: ""; }
+.rail-resize-handle:hover::before, .rail-resize-handle:focus-visible::before { background: #38bdf8; opacity: 1; }
+.rail-resize-handle:hover, .rail-resize-handle:focus-visible { outline: none; }
+.is-resizing-rail, .is-resizing-rail * { cursor: ew-resize !important; user-select: none !important; }
+.scenario-panel > header, .scenario-panel > footer { flex: none; }
+.scenario-panel-scores { flex: 1 1 auto; overflow-y: auto; align-content: start; }
+.scenario-panel > header { display: flex; align-items: center; gap: 10px; padding: 11px 15px; border-bottom: 1px solid var(--panel-header-border, #2b2f36); background: var(--panel-header-background, rgba(56,189,248,.08)); }
 .scenario-panel > header strong { color: #38bdf8; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
 .scenario-panel > header span { color: #737b88; font-size: 11px; }
 .scenario-panel-scores { display: grid; gap: 8px; padding: 13px 15px; }
@@ -830,8 +850,8 @@ html[data-theme="light"] .scenario-bar { background: #ffffff; box-shadow: 0 14px
 .scenario-score-delta { min-width: 54px; text-align: right; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .scenario-score-delta.is-down { color: #4ade80; }
 .scenario-score-delta.is-up { color: #fbbf24; }
-.scenario-panel > footer { display: flex; align-items: center; gap: 10px; padding: 10px 11px 10px 15px; border-top: 1px solid var(--panel-header-border, #2b2f36); }
-.scenario-panel > footer span { flex: 1; color: #6d747f; font-size: 10px; line-height: 1.45; }
+.scenario-panel > footer { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; padding: 10px 15px; border-top: 1px solid var(--panel-header-border, #2b2f36); }
+.scenario-panel > footer span { flex: 1 0 100%; color: #6d747f; font-size: 10px; line-height: 1.45; }
 html[data-theme="light"] .scenario-panel { background: #fff; box-shadow: 0 18px 48px rgba(41,51,68,.2); }
 
 .scenario-panel-grip { color: #4b525d; flex: none; }
