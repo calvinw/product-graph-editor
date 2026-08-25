@@ -4,12 +4,7 @@ Give the in-app assistant the same capability the FIT Retail Index chat app has:
 connect to a remote MCP server from the browser, list its tools, and let the model
 call them alongside our own registered tools.
 
-Status: implemented and verified on August 25, 2026.
-
-Delivered with the proposal's recommended defaults: multiple persisted servers,
-blank initial configuration with LCA and Dolt presets, explicit transport override,
-no custom authentication headers, and confirmation unless a tool explicitly sets
-`annotations.readOnlyHint: true`. The engine CORS change is deployed.
+Status: proposal, not started. Written for review.
 
 ---
 
@@ -76,7 +71,7 @@ It shares nothing with this work beyond the URL being a sensible default.
 
 I probed both servers before writing this, because browser MCP lives or dies on CORS.
 
-**`https://lca.mathplosion.com/mcp` — browser access is now enabled.**
+**`https://lca.mathplosion.com/mcp` — blocked from the browser today.**
 
 ```
 POST /mcp  (initialize)          → 200, mcp-session-id: 819cc5a6…
@@ -88,8 +83,10 @@ OPTIONS /mcp  w/ mcp-session-id  → 400 "Disallowed CORS headers"
                                                   Content-Language, Content-Type
 ```
 
-The original probe below records the pre-implementation failure. The deployed server now
-allows and exposes the required session/protocol headers and accepts browser preflights.
+Three facts that compose into a hard block: the session id is required on every call
+after `initialize`; JS cannot *read* it because `Access-Control-Expose-Headers` is absent;
+and JS cannot *send* it because the preflight rejects `mcp-session-id`. There is no `/sse`
+endpoint on that host (both `/sse` and `/mcp/sse` return 404).
 
 **`https://bus-mgmt-databases.mcp.mathplosion.com/…/sse` — works from the browser.**
 
@@ -107,11 +104,13 @@ currently works cross-origin against this fleet.
 Consequences for us:
 
 - Building the client is safe — the SSE-legacy path is proven to work in a browser today.
-- The LCA server-side change described in section 3a is deployed and verified.
+- Wiring the LCA server to the app requires a server-side change, not an app change. See
+  section 3a: the fix is four lines in `calvinw/life-cycle-assessment-mcp`, written and
+  verified.
 - Local development needs nothing from anyone. `vite.config.ts` already proxies
   `/lca-api` → `https://lca.mathplosion.com`; adding a `/lca-mcp` → `…/mcp` entry makes the
   request same-origin, so CORS does not apply at all in `npm run dev`. Only the deployed
-  GitHub Pages build uses the deployed CORS policy directly.
+  GitHub Pages build depends on the server change.
 
 ### 3a. The engine-side fix
 
@@ -152,9 +151,9 @@ Starlette app: the current config fails all four browser checks with the same
 with the "unapproved origin is refused" guarantee unchanged in both. Two matching tests were
 added to the repo's existing `tests/test_cors.py`.
 
-The engine change was completed and deployed before the app-side implementation. A live
-browser-origin verification on August 24 confirmed preflight, initialization, exposed
-`Mcp-Session-Id`, `tools/list`, and session deletion.
+The change is written but has not been sent anywhere — it sits uncommitted in a throwaway clone,
+and Elena has read-only access to that repo, so it lands as a PR from a fork rather than a direct
+push. See decisions 8.1 and 8.2, which are what that PR is waiting on.
 
 ---
 
@@ -205,10 +204,8 @@ New:
 | `src/ai/mcpClient.ts` | `McpClient` class: transport detection, both transports, `connect()`, `listTools()`, `callTool()`, `disconnect()`. Port of the reference, typed, no `console.log` noise. |
 | `src/ai/mcpRegistry.ts` | Pure functions: name prefix/unprefix, merging remote definitions into `appToolDefinitions`, `requiresConfirmation`, result flattening and truncation. |
 | `src/hooks/useMcpServers.ts` | Connection lifecycle, localStorage persistence, debounced reconnect, `{status, error, tools, callTool}`. |
-| `src/components/McpServerSettings.tsx` | Multi-server settings fields, presets, status, discovered tools, and reconnect/remove actions. |
-| `tests/unit/mcpClient.test.ts` | Vitest against stubbed Streamable HTTP and legacy SSE transports. |
-| `tests/unit/mcpRegistry.test.ts` | Vitest for registration, confirmation, flattening, and truncation. |
-| `tests/unit/mcpServers.test.ts` | Vitest for persisted configuration parsing and migration defaults. |
+| `src/ai/mcpClient.test.ts` | Vitest against a stubbed `fetch`. |
+| `src/ai/mcpRegistry.test.ts` | Vitest, pure. |
 
 Edited:
 
@@ -216,9 +213,6 @@ Edited:
   route unknown-but-registered names to the MCP dispatcher next to `executeAppTool`
   (lines 299/303); swap the confirmation predicate (line 289); add the settings section.
 - `src/index.css` — one small block for the settings rows and status badge.
-- `vite.config.ts` — a development-only `/lca-mcp` same-origin proxy.
-- `tests/responsive/ai-chat.responsive.spec.ts` — connection, discovery, rejection,
-  confirmation, dispatch, viewport containment, and overflow coverage.
 - `configs/mcp-servers.conf` — a comment noting the app now has its own, separate MCP
   configuration, so nobody assumes editing this file changes app behaviour.
 
@@ -229,18 +223,18 @@ rather than modifying it.
 
 ## 6. Phases
 
-**Phase 1 — client and registry, no UI. Complete.** Write `mcpClient.ts` and `mcpRegistry.ts` with
+**Phase 1 — client and registry, no UI.** Write `mcpClient.ts` and `mcpRegistry.ts` with
 their tests. Verify end-to-end from a scratch script against the Dolt SSE server (proven
 reachable above): connect, list tools, call one, print the result. Nothing in the app
 changes yet, so this phase cannot regress anything.
 
-**Phase 2 — connection lifecycle and settings UI. Complete.** `useMcpServers.ts` plus a "Remote tools"
+**Phase 2 — connection lifecycle and settings UI.** `useMcpServers.ts` plus a "Remote tools"
 section in the chat settings dialog: URL field, status badge (`idle / connecting / connected
 / error`), the error text when there is one, the discovered tool count and names, and a
 reconnect button. Tools are discovered and displayed but not yet offered to the model, so
 the assistant's behaviour is still unchanged.
 
-**Phase 3 — wire into the tool loop. Complete.** Merge definitions into the `tools:` argument, dispatch
+**Phase 3 — wire into the tool loop.** Merge definitions into the `tools:` argument, dispatch
 prefixed calls to the client, apply the confirmation policy and the output cap. This is where
 behaviour changes and where the manual smoke test matters.
 
@@ -251,13 +245,10 @@ real review.
 
 ## 7. Verification
 
-Final verification was run separately as required:
-
-- `npm run build` — passed (existing large-chunk advisory only)
-- `npm run lint` — passed
-- `npm run test:unit` — 115 passed
-- `npm run test:responsive` — 62 passed, 1 deliberate phone-only skip
-- `npm run test:visual` — 56 passed, 0 failures
+Per phase: `npm run build`, `npm run lint`, `npm test` (vitest). Phase 3 additionally
+`npm run test:responsive` and `npm run test:visual`, compared against
+`plan/responsive-baseline.md` — 24 responsive passing, 29 visual with the 3 accepted
+failures unchanged.
 
 Manual, Phase 3, at 375×812 / 768×1024 / 1440×900:
 
@@ -276,34 +267,83 @@ overflow; the dialog is an existing, already-covered surface.
 
 ---
 
-## 8. Decisions — resolved
+## 8. Open decisions
 
-The review decisions were resolved as follows:
+### Blocking — the engine PR is written and waiting on these two
 
-- Engine CORS: completed and deployed; the live browser handshake was verified.
-- Deployed origin: covered by the engine's allow-list.
-- Vite proxy: added as `/lca-mcp` for local development.
-- Server shape: a persisted list, with one client and isolated tool prefix per entry.
-- Default URL: blank; LCA and Dolt are explicit one-click presets.
-- Authentication headers: deferred.
-- Missing `readOnlyHint`: confirmation required.
+**8.1 — Open the PR against `calvinw/life-cycle-assessment-mcp`?**
 
-Decision record:
+The change from section 3a is made and verified, but it is sitting uncommitted in a throwaway
+clone at `/tmp/lca-mcp`. It has not been forked, pushed, committed, or sent anywhere.
 
-1. The engine CORS change was deployed and verified against the live endpoint.
-2. The deployed editor and local development origins are allowed.
-3. The `/lca-mcp` Vite proxy is included for local development.
-4. The app supports a list of servers rather than a single connection.
-5. The initial list is blank; LCA and Dolt are explicit presets.
-6. Custom browser authentication headers are deferred until a server requires them.
-7. A missing `readOnlyHint` requires user confirmation.
+Elena has `READ` permission on that repo (checked via `gh repo view --json viewerPermission`),
+so landing it means forking to her account, pushing a branch, and opening a PR against `main`.
+That is outward-facing and public, so it needs an explicit yes.
+
+The PR would contain exactly two files:
+
+- `sse_server.py` — the four-line CORS change plus the comment explaining why the header is
+  needed in both directions.
+- `tests/test_cors.py` — two added tests, one per direction, following the existing file's
+  patterns.
+
+Caveat to state in the PR body: the repo's own suite could not be run here. `tests/test_cors.py`
+imports `sse_server` → `lca_server` → `lca_core`, which pulls in brightway25 and scipy, and this
+machine has no `uv`. The config itself was verified independently (section 3a), but the two new
+tests have not been executed against the real app object and should be run once by someone with
+the environment.
+
+Timing: sending it alongside Phase 1 means it is merged and redeployed by the time Phase 3
+needs it. Merging is only half of it — the server also has to be redeployed via
+`scripts/deploy_lca_server.sh` before the deployed editor sees any change.
+
+**8.2 — Which origin should be allowed?**
+
+`allow_origins` in `sse_server.py` currently lists `https://calvinw.github.io` and
+`http://localhost:5173`. Our `.github/workflows/deploy.yml` publishes to GitHub Pages for
+whichever account owns the repo, so:
+
+- Deploying under **calvinw** → the existing entry already covers it, nothing to add.
+- Deploying under **your account** → the deployed app's origin is a different `*.github.io`
+  and needs its own entry, which should go into the same PR rather than a follow-up.
+
+Tell me which, and I will size the PR accordingly. This does not affect local development
+either way — the Vite proxy in 8.3 makes dev same-origin.
+
+### Non-blocking — decide before the phase that needs them
+
+**8.3 — Add the `/lca-mcp` Vite proxy?** Recommended regardless of 8.1, and independent of it.
+Five lines in `vite.config.ts` alongside the existing `/lca-api` entry; makes `npm run dev`
+same-origin so CORS never applies locally. Needed before Phase 3's manual testing.
+
+**8.4 — One server or a list?** The reference supports one. I would ship a list from the start —
+the data shape is `{id, url, enabled}[]` either way, one client per entry, and we already have
+two endpoints that plausibly matter (LCA, Dolt). Going single-server now means a refactor later
+rather than a new row. Costs maybe 30 extra lines. Needed before Phase 2.
+
+**8.5 — Default URL.** Seed the Dolt SSE endpoint (works today, demonstrable immediately), seed
+the LCA endpoint (relevant to this app, but browser-blocked until 8.1 lands), or ship blank. I
+lean blank with both offered as one-click presets, so nothing connects to a third party without
+an explicit act. Needed before Phase 2.
+
+**8.6 — Custom auth headers in v1?** `configs/mcp-servers.conf` supports `X-Goog-Api-Key:$VAR`,
+but a browser has no env vars — a key would sit in localStorage next to the OpenRouter key, and
+any custom header forces a preflight that these servers currently reject. I would defer it until
+a server needs it.
+
+**8.7 — Confirmation default if a server omits `readOnlyHint`.** My proposal confirms. The
+alternative — a per-server "trust this server" toggle — is friendlier but is a security decision
+I would rather you make explicitly than have me pick. Needed before Phase 3.
 
 ---
 
 ## 9. Risks
 
-- **CORS.** Retired for the deployed LCA endpoint. Other user-supplied servers can still reject
-  browser requests; the UI reports a CORS-aware connection diagnostic.
+- **CORS.** Was the main risk; section 3a retires most of it. The residual risk is scheduling:
+  the deployed GitHub Pages build stays unable to reach the LCA server until that PR is merged
+  *and* the server is redeployed (`scripts/deploy_lca_server.sh`). Local development is
+  unaffected once the Vite proxy is in (decision 8.3). The deployed origin has to be on the
+  server's allow-list too — decision 8.2.
 - **Prompt size.** 31 local tools plus an unknown number of remote ones all ship in every
   request. A server exposing 40 tools would roughly double our tool payload on every round.
   If that bites, the fix is a per-server tool allowlist in settings — noted, not planned.

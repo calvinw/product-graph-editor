@@ -1,8 +1,8 @@
 # Responsive Work Baseline
 
-**Recorded:** August 25, 2026
-**Pre-change application baseline:** `396cbe3`
-**Branch:** `main`
+**Recorded:** August 22, 2026
+**Application baseline:** `0612d95`
+**Branch:** `undo`
 **Viewport used by existing visual suite:** 1440 × 900
 **Theme coverage:** dark and light
 
@@ -32,13 +32,13 @@ Infrastructure failures such as a missing browser executable or shared library a
 | --- | --- | --- |
 | `npm run build` | Pass | Vite reports the existing large-chunk advisory. |
 | `npm run lint` | Pass | Repository-skill implementation scripts use their own tooling contracts and are excluded from the product application lint gate. |
-| `npm run test:unit` | 115 passed | Includes the browser-MCP client, registry, result-limit, and persisted-config pure coverage. |
+| `npm run test:unit` | 100 passed | Vitest, added August 22, 2026. Pure functions only (`tests/unit`); no DOM, no browser. |
 | `npm run test:visual` | 56 passed, 0 failed | 56 tests, one Chromium worker. Exits zero. |
-| `npm run test:responsive` | 62 passed, 1 skipped | 63 tests across three viewport projects. Includes remote MCP connection, settings containment, rejection/confirmation, and dispatch. Exits zero. The skip is deliberate and viewport-conditional (see below). |
+| `npm run test:responsive` | 59 passed, 1 skipped | 60 tests across three viewport projects. Exits zero. The skip is deliberate and viewport-conditional (see below). |
 
 The production build contains no `react-grab` or `React Grab` marker; the source-context helper is development-only.
 
-Re-measured on August 25, 2026 after the browser-MCP implementation. The
+Re-measured on August 22, 2026 at `0612d95`, before starting the undo work. The
 previously recorded numbers (24 responsive, 29 visual with 3 accepted failures)
 had drifted badly out of date: the suites have grown, and all three accepted
 failures were fixed in the August 20–21 issue passes. The visual suite also no
