@@ -1,0 +1,1243 @@
+# Product Graph Editor — Agent Tooling and Responsive Design Implementation Plan
+
+**Status:** Implemented; retained as the responsive architecture and workflow reference. Consult `responsive-baseline.md` for current verification counts and accepted failures.
+**Repository:** `calvinw/product-graph-editor`
+**Intended implementation environment:** any capable coding agent running inside the project Codespace
+**Original implementation baseline:** `48de6be` (verified against `origin/main` on August 10, 2026)
+**Merged to:** `main` on August 16, 2026
+**Purpose:** Add agent-oriented React/shadcn development tooling and then use it to improve responsive behavior without destabilizing the existing desktop application.
+
+---
+
+## 1. Goals
+
+This project has two related goals:
+
+1. Improve the development environment for coding agents working on the React + Tailwind + shadcn application.
+2. Use that improved environment to make the Product Graph Editor work well on desktop, tablet, and phone layouts.
+
+The target development loop is:
+
+```text
+Any coding agent
+        |
+        +-- shadcn Skill
+        |      understands shadcn conventions
+        |
+        +-- shadcn MCP (optional)
+        |      searches/discovers components and registries
+        |
+        +-- shadcn CLI
+        |      deterministic component/project operations
+        |
+        +-- React Grab (optional)
+        |      maps rendered UI elements back to React source
+        |
+        +-- Chrome DevTools MCP (optional)
+        |      inspects DOM, CSS, console, network, viewport behavior
+        |
+        +-- Playwright
+               exercises workflows and verifies desktop/tablet/mobile
+```
+
+The shadcn CLI remains the deterministic project tool. The MCP server is an agent-facing discovery layer rather than a replacement for the CLI.
+
+## Agent portability contract
+
+The implementation must not depend on a particular model, coding-agent product, IDE, or MCP client.
+
+Repository-owned, required foundations:
+
+- source code and project documentation
+- the project-specific Agent Skill in `.agents/skills/product-graph-editor-ui-development`
+- shadcn CLI commands that any agent can run in the shell
+- Playwright tests and npm scripts that run without an agent integration
+- a written audit and baseline-failure ledger
+
+Optional accelerators:
+
+- shadcn MCP
+- Chrome DevTools MCP
+- React Grab
+- Playwright CLI skills
+- client-specific generated agent definitions
+
+Every instruction that mentions an optional accelerator must have a shell, source-inspection, or standard Playwright fallback. Failure to configure an optional integration must not block the responsive implementation.
+
+## Tool references
+
+The commands in this plan were checked on August 9, 2026. Re-check the primary documentation before installing a `@latest` tool:
+
+- [shadcn Skills](https://ui.shadcn.com/docs/skills)
+- [shadcn MCP](https://ui.shadcn.com/docs/mcp)
+- [React Grab](https://www.react-grab.com/)
+- [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp)
+- [Playwright CLI](https://playwright.dev/agent-cli/introduction)
+- [Playwright Test agents](https://playwright.dev/docs/test-agents)
+
+---
+
+# 2. Original `main` Baseline
+
+The application baseline was initially inspected at `3d11438` on August 8, 2026. The implementation branch was synchronized with `origin/main` at `48de6be` on August 10, incorporating the contribution-analysis simplification and Sankey path-highlighting updates before responsive UI work.
+
+The implementation branch was created from `3d11438` and now contains a merge of `48de6be`. Re-check `origin/main` before each responsive UI phase and preserve unrelated local files when synchronizing.
+
+Verified baseline:
+
+- React 19
+- Vite
+- Tailwind CSS 4
+- shadcn 4
+- Radix-based shadcn components
+- React Flow / XYFlow
+- `components.json`
+- `src/components/ui/`
+- existing Playwright visual tests
+- repository-owned `.agents/skills/` infrastructure
+- existing Codespace bootstrap scripts
+- existing `configs/mcp-servers.conf`
+- existing dark/light semantic CSS variables
+
+Run:
+
+```bash
+git status --short
+npm install
+npx playwright install --with-deps chromium
+npm run build
+npm run lint
+npm run test:visual
+```
+
+The original baseline was refreshed on August 10 after merging `origin/main`. At that point, `npm run build` and `npm run lint` passed and the visual suite reported 20 passing and 5 failing tests. Those historical numbers have since improved; the exact current results and dispositions are recorded in `plan/responsive-baseline.md`.
+
+Re-run and record the baseline after a clean dependency install. If Rollup reports a missing platform-specific optional package, repair the dependency installation before interpreting build or Playwright results.
+
+Maintain `plan/responsive-baseline.md` with every pre-existing failure by full test title, command, and disposition:
+
+- **fix now** — repair before responsive implementation
+- **quarantine with an issue/reference** — skip explicitly and retain an owner/reason
+- **accepted baseline** — temporarily allowed, but the exact failure must not expand or change
+
+Responsive work must introduce no failures beyond that ledger. By the final cleanup PR, all accepted-baseline failures must either be fixed or explicitly quarantined with a follow-up reference.
+
+Do not begin responsive refactoring until the current baseline is understood.
+
+---
+
+# 3. Development Strategy
+
+Do **not** attempt one large responsive rewrite.
+
+Work in this order:
+
+1. Agent tooling
+2. Responsive test harness
+3. Application shell/navigation
+4. Main graph experience
+5. YAML editor
+6. Analysis/result views
+7. Sankey view
+8. Cleanup and documentation
+
+Each phase should remain independently reviewable.
+
+Preserve the existing desktop appearance wherever practical.
+
+---
+
+# 4. Phase 1 — shadcn Skill
+
+## Objective
+
+Give coding agents current shadcn-specific instructions so they stop guessing component APIs or recreating primitives that shadcn already provides.
+
+## Action
+
+Install the official shadcn skill using the current supported mechanism.
+
+Expected command:
+
+```bash
+npx skills add shadcn/ui
+```
+
+Before relying on the command, confirm the currently installed CLI syntax.
+
+Install it for Claude Code, Codex, and OpenCode. Keep `.agents/skills/` as the canonical project copy and use `.claude/skills/` symlinks for Claude compatibility. Inspect and commit only repository-scoped generated files; never commit user-home configuration. The project-specific Agent Skill remains the portable application-specific layer.
+
+Verify shadcn can correctly understand the repository:
+
+```bash
+npx shadcn@latest info
+```
+
+## Important distinction
+
+Use the upstream and repository-owned skills for different purposes:
+
+```text
+Official shadcn Skill
+    -> generic knowledge of shadcn
+
+.agents/skills/product-graph-editor-ui-development/
+    -> knowledge and rules specific to this application
+```
+
+Do not copy the entire official shadcn skill into the local project skill.
+
+---
+
+# 5. Phase 2 — Product Graph Editor Project Skill
+
+Maintain:
+
+```text
+.agents/
+└── skills/
+    └── product-graph-editor-ui-development/
+        └── SKILL.md
+```
+
+The skill should tell agents how this particular UI should be developed.
+
+Recommended content:
+
+```markdown
+---
+name: product-graph-editor-ui-development
+description: UI development and responsive-design rules for the Product Graph Editor.
+---
+
+# Product Graph Editor UI Development
+
+## Stack
+
+- React
+- Vite
+- Tailwind CSS
+- shadcn/ui
+- Radix
+- React Flow / XYFlow
+
+## Component rules
+
+1. Inspect existing `src/components/ui` components before adding anything.
+2. Prefer an existing shadcn component over a custom primitive.
+3. Use the shadcn CLI for deterministic component operations.
+4. Use shadcn MCP when available, or shadcn CLI discovery commands otherwise.
+5. Do not replace React Flow.
+6. Preserve existing graph/LCA behavior.
+7. Preserve semantic HTML for LCA result tables.
+8. Prefer existing design tokens and CSS variables over hard-coded colors.
+9. Do not introduce another component library.
+10. Avoid large unrelated refactors while making responsive changes.
+
+## Responsive targets
+
+Verify at least:
+
+- 375 × 812 — phone
+- 768 × 1024 — tablet portrait
+- 1440 × 900 — desktop
+
+## Responsive philosophy
+
+Do not merely shrink the desktop interface.
+
+At narrow widths:
+
+- side inspectors should become Sheet/Drawer interfaces
+- navigation may wrap, scroll, or collapse
+- dense settings may move into menus or drawers
+- graph canvases should retain maximum available space
+- tables may scroll horizontally inside their own containers
+- dialogs and popovers must remain inside the viewport
+- touch targets must remain usable
+
+## Verification
+
+Before declaring responsive UI work complete:
+
+1. Run build.
+2. Run lint.
+3. Run Playwright tests.
+4. Exercise the affected workflow at all supported viewport sizes.
+5. Check browser console errors.
+6. Check page-level horizontal overflow.
+7. Verify keyboard interaction.
+8. Verify light and dark themes where relevant.
+```
+
+Then refresh Claude's compatibility link and validate discovery:
+
+```bash
+scripts/setup-agent-skills.sh
+```
+
+---
+
+# 6. Phase 3 — shadcn MCP
+
+## Objective
+
+Allow coding agents with MCP support to search/discover shadcn components and registries.
+
+The MCP complements the CLI. It is optional: an agent without MCP must use `shadcn search`, `shadcn view`, `shadcn docs`, and the component documentation instead.
+
+Use MCP for questions such as:
+
+```text
+What shadcn component should replace the desktop inspector on phones?
+
+Search for a suitable responsive Drawer or Sheet.
+
+Find an existing primitive for these toolbar overflow actions.
+```
+
+Use the CLI for operations such as:
+
+```bash
+npx shadcn@latest info
+npx shadcn@latest docs sheet
+npx shadcn@latest add sheet
+```
+
+## Portable server definition
+
+The shadcn MCP server is a local command/stdio MCP. Its client-neutral definition is:
+
+Expected command:
+
+```bash
+npx shadcn@latest mcp
+```
+
+Equivalent JSON-shaped MCP clients use:
+
+```json
+{
+  "mcpServers": {
+    "shadcn": {
+      "command": "npx",
+      "args": ["shadcn@latest", "mcp"]
+    }
+  }
+}
+```
+
+Other clients should translate the same `command` and `args` into their supported project or user configuration. Do not make any one client's generated configuration the source of truth.
+
+## Existing MCP installer
+
+The repository's current `configs/mcp-servers.conf` and `install-mcps.sh` support remote URL/HTTP/SSE servers only. They do not support local stdio commands.
+
+Do not put shadcn or Chrome DevTools MCP entries into `configs/mcp-servers.conf`.
+
+Document the client-neutral stdio definitions in a repository-owned `docs/agent-tooling.md`. Client-specific configuration is optional local setup and must not be required by build, lint, tests, or responsive implementation.
+
+If the shared `ai-agentic-tools` project later gains a local-command MCP manifest, migrate the definitions there as separate infrastructure work.
+
+---
+
+# 7. Phase 4 — React Grab
+
+## Objective
+
+Allow a human to point to a rendered UI element and give the coding agent precise source context.
+
+Install React Grab using its current supported setup.
+
+Expected starting command:
+
+```bash
+npx grab@latest init
+```
+
+Verify exactly what files the installer changes before accepting them.
+
+Requirements:
+
+- development-only behavior
+- no production runtime dependency unless required
+- production build must not expose React Grab functionality
+- `npm run build` must still pass
+
+Typical workflow:
+
+```text
+1. Run the application.
+2. Select a rendered element using React Grab.
+3. Ask the agent:
+   "Make this responsive below 768px."
+4. Agent receives source/component context.
+```
+
+React Grab is especially useful while substantial UI still lives in or flows through large components such as `App.tsx`.
+
+---
+
+# 8. Phase 5 — Chrome DevTools for Agents
+
+## Objective
+
+Allow agents with a compatible browser integration to inspect the real running application instead of reasoning solely from source code.
+
+Capabilities should include:
+
+- DOM inspection
+- computed CSS
+- responsive viewport emulation
+- console errors
+- network requests
+- screenshots
+- layout/overflow diagnosis
+- performance inspection where useful
+
+The client-neutral local stdio server command is:
+
+```bash
+npx -y chrome-devtools-mcp@latest
+```
+
+Record that definition in `docs/agent-tooling.md`. An agent may configure it in any compatible MCP client, but client-specific configuration is optional and local.
+
+Fallback when Chrome DevTools MCP is unavailable:
+
+1. use Playwright CLI or a temporary Playwright test to reproduce the workflow
+2. inspect DOM state with locators and `page.evaluate`
+3. capture console errors, screenshots, and traces with Playwright
+4. inspect source and computed layout values through browser evaluation
+
+Chrome DevTools MCP must not be a prerequisite for the audit or implementation.
+
+---
+
+# 9. Phase 6 — Agent-Neutral Browser Tooling
+
+## Important
+
+The repository already has `@playwright/test` 1.62 and a visual suite. This is the required browser-testing foundation.
+
+Do **not** reinstall or replace Playwright unnecessarily.
+
+Keep the existing visual-regression suite.
+
+Keep executable Playwright tests as the source of truth so every agent can run the same checks.
+
+Playwright CLI is an optional, client-neutral shell interface for interactive exploration. Its current supported global installation is:
+
+```bash
+npm install -g @playwright/cli
+playwright-cli install --skills
+```
+
+The CLI skill installation is optional. Agents that do not consume its skill format can use `playwright-cli --help`, standard Playwright tests, or temporary diagnostic specs.
+
+Playwright Test can also generate client-specific planner/generator/healer definitions with:
+
+```bash
+npx playwright init-agents --loop=<supported-client>
+```
+
+Do not run that command as part of the shared foundation. Generated definitions are client-specific and are unnecessary for the responsive test harness. A contributor may generate them locally for their active client.
+
+## Codespace browser reproducibility
+
+Do not rely on a pre-existing browser cache. PR 2 must ensure a fresh Codespace can run the required suite by either baking the matching Playwright Chromium runtime and Linux dependencies into the image or running:
+
+```bash
+npx playwright install --with-deps chromium
+```
+
+as an explicit setup step. Setup failures must remain visible; do not hide a failed browser installation behind a blanket `|| true`.
+
+The purpose is to let the agent do:
+
+```text
+open app
+resize viewport
+click Graph
+open settings
+select a node
+open inspector
+switch to Results
+navigate to Impact Analysis
+verify controls
+check overflow
+```
+
+instead of merely inspecting screenshots. Any useful discovery must be converted into a normal repository-owned Playwright assertion or documented audit finding.
+
+---
+
+# 10. Phase 7 — Responsive Playwright Harness
+
+The current desktop visual tests should remain useful.
+
+Do not immediately multiply every visual screenshot test across every viewport.
+
+Instead add a focused responsive suite.
+
+Suggested layout:
+
+```text
+tests/
+├── visual/
+│   └── existing visual regression tests
+│
+└── responsive/
+    ├── shell.responsive.spec.ts
+    ├── graph.responsive.spec.ts
+    ├── editor.responsive.spec.ts
+    ├── analysis.responsive.spec.ts
+    └── sankey.responsive.spec.ts
+```
+
+## Test discovery and npm scripts
+
+The existing `playwright.config.ts` sets `testDir: "./tests/visual"`. Tests placed in `tests/responsive/` will not be discovered by that configuration.
+
+Keep the desktop visual suite isolated and add `playwright.responsive.config.ts` with:
+
+- `testDir: "./tests/responsive"`
+- the same base URL, web server, fixture environment, reduced-motion setting, trace policy, and deterministic browser settings as the visual config
+- named projects for the required viewport matrix
+- no screenshot baselines unless a specific responsive regression genuinely benefits from one
+
+Avoid copying shared web-server and browser settings indefinitely. Extract a small shared Playwright configuration helper if that keeps both configs clear.
+
+Add explicit scripts to `package.json`:
+
+```json
+{
+  "test:responsive": "tsc -p tsconfig.visual.json && playwright test --config=playwright.responsive.config.ts"
+}
+```
+
+Run visual and responsive suites as separate CI jobs or commands while accepted baseline failures remain. Do not join them with `&&`, because a known visual failure would prevent the responsive suite from running. Add a combined `test:all` script only after the visual suite is green or the quarantine mechanism makes its exit status reliable.
+
+Add `playwright.responsive.config.ts` to `tsconfig.visual.json` so both configurations and all tests are type-checked. Verify test discovery with:
+
+```bash
+npm run test:responsive -- --list
+```
+
+Use representative viewports:
+
+```text
+phone:              375 × 812
+tablet portrait:    768 × 1024
+desktop:           1440 × 900
+```
+
+## Initial responsive assertions
+
+Create tests for:
+
+```text
+- no page-level horizontal overflow
+- navigation remains reachable
+- product selector remains usable
+- graph canvas remains visible
+- graph toolbar controls remain reachable
+- selected-node details remain accessible
+- YAML editor actions remain reachable
+- Calculate remains reachable
+- dialogs stay within viewport
+- popovers stay within viewport
+- result tables scroll inside their own containers
+- keyboard navigation continues working
+```
+
+Prefer behavioral assertions over an explosion of pixel snapshots.
+
+Each viewport project does not need to execute every scenario. Use the smallest matrix that covers each surface while ensuring the shell and primary navigation smoke tests run at all three target sizes.
+
+---
+
+# 11. Responsive UI Audit — Before Refactoring
+
+Before changing responsive behavior, use Playwright plus any available browser inspection tooling to audit:
+
+```text
+375 × 812
+768 × 1024
+1440 × 900
+```
+
+Document problems before fixing them.
+
+Check specifically for:
+
+- horizontal overflow
+- navigation collisions
+- clipped product selector
+- inaccessible buttons
+- overlapping floating controls
+- off-screen popovers
+- inspector consuming too much graph width
+- tiny graph canvas
+- excessive fixed pixel widths
+- fixed desktop insets
+- table overflow
+- toolbar overflow
+- touch-target sizing
+- modal overflow
+- editor footer/header collisions
+
+Do not change code during the first audit pass.
+
+Produce a prioritized findings list.
+
+---
+
+# 12. Responsive Phase A — Application Shell
+
+The desktop shell should remain substantially intact.
+
+At smaller widths:
+
+## Header
+
+Hide or reduce secondary information before shrinking primary controls.
+
+Possible order:
+
+```text
+large desktop:
+brand + graph title + settings
+
+tablet:
+brand + shortened graph title + settings
+
+phone:
+brand + compact title + overflow/settings
+```
+
+## Product selector and navigation
+
+Do not force all controls onto one row.
+
+Recommended narrow layout:
+
+```text
+┌────────────────────────────┐
+│ Header                     │
+├────────────────────────────┤
+│ LCA File [selector      ▾] │
+├────────────────────────────┤
+│ Graph Editor Results ... → │
+├────────────────────────────┤
+│                            │
+│ CONTENT                    │
+│                            │
+└────────────────────────────┘
+```
+
+Navigation may use:
+
+- horizontal scrolling
+- responsive wrapping
+- selective overflow menu
+
+Do not hide major application views without an alternate accessible route.
+
+---
+
+# 13. Responsive Phase B — Main Graph
+
+The graph is the core application experience and receives highest priority.
+
+## Desktop
+
+Keep the current right-side inspector approach if it works well.
+
+## Tablet/phone
+
+Do not reserve a fixed ~300px right column for the selected-node inspector.
+
+Use a responsive pattern such as:
+
+```text
+node selected
+     |
+     +-- desktop -> side inspector
+     |
+     +-- tablet -> shadcn Sheet
+     |
+     +-- phone  -> shadcn Drawer or Sheet
+```
+
+The graph canvas should use nearly the full available width on a phone.
+
+Compare shadcn `Sheet` and `Drawer` using MCP when available, or `shadcn docs`/`shadcn view` otherwise. Use the CLI to add the selected component if it is not already in `src/components/ui`.
+
+---
+
+# 14. Responsive Phase C — Graph Toolbar
+
+Current graph operations may include controls such as:
+
+- settings
+- selection
+- expand all
+- collapse all
+- auto layout
+- fit graph
+- zoom in
+- zoom out
+- graph display mode
+
+Do not display every operation permanently on small phones.
+
+Recommended pattern:
+
+```text
+Desktop:
+[Settings] [Select] [Expand] [Collapse] [Layout] [Fit] [+] [-]
+
+Phone:
+[Settings] [Fit] [+] [-] [...]
+```
+
+The overflow menu can contain:
+
+```text
+Auto layout
+Expand all
+Collapse all
+Scaled graph
+Structure graph
+other low-frequency commands
+```
+
+Use shadcn `DropdownMenu` if appropriate.
+
+---
+
+# 15. Responsive Phase D — Graph Search
+
+Desktop floating search may keep its current compact width.
+
+At phone widths prefer:
+
+```text
+left: 12px
+right: 12px
+width: auto
+```
+
+or a search button that expands into an overlay.
+
+Ensure search does not collide with graph toolbar controls.
+
+---
+
+# 16. Responsive Phase E — YAML Editor
+
+Desktop can retain the current pane layout.
+
+At narrow widths:
+
+```text
+┌──────────────────────────┐
+│ Product graph YAML       │
+│ description              │
+│                          │
+│ [Paste] [Upload]         │
+├──────────────────────────┤
+│                          │
+│ YAML editor              │
+│                          │
+├──────────────────────────┤
+│ status/error             │
+│                          │
+│ [Calculate            ]  │
+└──────────────────────────┘
+```
+
+Changes to consider:
+
+- reduced outer inset
+- wrapping header controls
+- stacked footer
+- full-width Calculate button on phone
+- smaller editor padding
+- preserved monospace editing experience
+- sufficient vertical editor area
+
+---
+
+# 17. Responsive Phase F — Analysis Views
+
+Views may include:
+
+- Inventory
+- Impact Analysis
+- Process Results
+- Contribution
+- standard Results
+
+Do not blindly convert data tables into cards.
+
+LCA tables are naturally tabular and should generally remain tables.
+
+Preferred behavior:
+
+```text
+outer view: no page-level horizontal overflow
+
+table container:
+overflow-x: auto
+```
+
+Consider:
+
+- sticky table headers
+- sticky first column where genuinely useful
+- smaller responsive padding
+- settings moved into Sheet/Drawer on phone
+- wrapping or stacking analysis controls
+
+Desktop control bars can stay horizontal.
+
+Phone controls may become:
+
+```text
+[Analysis settings]
+
+      ↓
+
+Sheet / Drawer
+
+Mode
+Category
+Threshold
+Display options
+```
+
+---
+
+# 18. Responsive Phase G — Sankey View
+
+Treat Sankey similarly to the main graph.
+
+Prioritize the graph viewport.
+
+On phone:
+
+```text
+┌──────────────────────────┐
+│                          │
+│ Sankey / React Flow      │
+│                          │
+│                          │
+│ [Settings] [Fit] [...]   │
+└──────────────────────────┘
+```
+
+Move dense picker/settings UI into a responsive Sheet/Drawer where appropriate.
+
+Selection details should not permanently reduce the graph width on narrow screens.
+
+---
+
+# 19. Tailwind Migration Policy
+
+Do **not** make "rewrite all CSS as Tailwind" part of this project.
+
+The application already has significant custom styling and semantic theme variables.
+
+Instead:
+
+- retain existing CSS where it is working
+- use Tailwind for new responsive layouts where convenient
+- migrate styles only when touching the relevant component
+- preserve semantic CSS variables
+- avoid large visual churn
+
+Example:
+
+```tsx
+<div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-4">
+```
+
+is useful.
+
+Converting hundreds of unrelated existing CSS declarations is not.
+
+---
+
+# 20. Component Extraction Strategy
+
+Responsive work will be easier if large visual regions are gradually extracted from `App.tsx`.
+
+Do not start with a giant rewrite.
+
+Extract only when a component is being actively worked on.
+
+A reasonable target structure is:
+
+```text
+src/
+├── components/
+│   ├── app/
+│   │   ├── AppHeader.tsx
+│   │   ├── AppNavigation.tsx
+│   │   └── ProductGraphSelector.tsx
+│   │
+│   ├── graph/
+│   │   ├── GraphCanvas.tsx
+│   │   ├── GraphToolbar.tsx
+│   │   ├── GraphSearch.tsx
+│   │   ├── GraphInspector.tsx
+│   │   └── GraphSettings.tsx
+│   │
+│   ├── analysis/
+│   │   ├── InventoryView.tsx
+│   │   ├── ImpactAnalysisView.tsx
+│   │   ├── ProcessResultsView.tsx
+│   │   ├── ContributionView.tsx
+│   │   └── SankeyView.tsx
+│   │
+│   └── ui/
+│       └── shadcn components
+```
+
+Benefits:
+
+- easier responsive styling
+- smaller agent context
+- better React Grab source targeting
+- reduced conflict inside `App.tsx`
+- easier testing
+
+Do not change business logic merely to achieve this structure.
+
+---
+
+# 21. shadcn Working Rules for the Agent
+
+When making UI changes:
+
+1. Inspect `src/components/ui` first.
+2. Use `npx shadcn@latest info` when repository configuration is uncertain.
+3. Use shadcn MCP for discovery when available; otherwise use CLI search/docs/view commands.
+4. Use the shadcn CLI for actual deterministic component operations.
+5. Read component docs before using unfamiliar APIs.
+6. Preview CLI changes where supported.
+7. Inspect all generated file changes.
+8. Do not overwrite customized components blindly.
+9. Prefer existing project conventions to stock examples.
+10. Do not add an additional UI framework.
+
+---
+
+# 22. Browser Tooling Working Rules
+
+When investigating a responsive issue:
+
+```text
+1. Reproduce it in the actual browser.
+2. Use Chrome DevTools MCP when available, or Playwright evaluation/traces, to inspect layout and computed CSS.
+3. Use React Grab when available if identifying the source component is ambiguous; otherwise search the rendered text, roles, and class names in source.
+4. Fix the smallest appropriate surface.
+5. Exercise the workflow with standard Playwright tests.
+6. Re-test the supported viewport set.
+```
+
+Do not infer a responsive fix solely from static source if the browser can demonstrate the actual layout.
+
+---
+
+# 23. Responsive Definition of Done
+
+A responsive change is not complete until relevant items below pass.
+
+```text
+□ 375 × 812 tested
+□ 768 × 1024 tested
+□ 1440 × 900 tested
+
+□ no page-level horizontal overflow
+□ controls remain reachable
+□ no accidental text clipping
+□ dialogs remain in viewport
+□ popovers remain in viewport
+□ graph remains usable
+□ selected-node details remain accessible
+□ tables scroll within their own container
+□ touch controls are reasonable
+□ keyboard navigation still works
+□ dark theme checked
+□ light theme checked where affected
+□ browser console has no new errors
+□ npm run build passes
+□ npm run lint passes
+□ no unrecorded regression from `plan/responsive-baseline.md`
+□ all baseline failures are fixed or explicitly quarantined by final cleanup
+□ new responsive tests pass
+```
+
+---
+
+# 24. Suggested Pull Request Sequence
+
+## PR 1 — Agent Foundations
+
+Scope:
+
+- official shadcn Skill
+- project-specific Product Graph Editor skill
+- agent-neutral tooling documentation, including optional stdio MCP definitions
+- React Grab setup
+- documentation
+
+No responsive UI changes.
+
+---
+
+## PR 2 — Browser and Test Tooling
+
+Scope:
+
+- optional Chrome DevTools MCP instructions
+- optional Playwright CLI and skills instructions
+- reproducible Playwright Chromium setup for a fresh Codespace
+- responsive Playwright projects/helpers
+- initial responsive smoke tests
+
+No major UI redesign.
+
+---
+
+## PR 3 — Responsive Shell
+
+Scope:
+
+- header
+- product selector
+- primary/result navigation
+- application spacing
+
+Preserve desktop layout.
+
+---
+
+## PR 4 — Responsive Graph
+
+Scope:
+
+- graph viewport
+- graph search
+- toolbar
+- inspector
+- responsive Sheet/Drawer
+- graph settings
+- phone/tablet interaction
+
+This is the highest-priority UI PR.
+
+---
+
+## PR 5 — Responsive YAML Editor
+
+Scope:
+
+- editor header
+- paste/upload actions
+- textarea sizing
+- editor footer
+- status/error area
+- Calculate action
+
+---
+
+## PR 6 — Responsive Analysis Views
+
+Scope:
+
+- Results
+- Inventory
+- Impact
+- Process Results
+- Contribution
+
+Preserve semantic tables.
+
+---
+
+## PR 7 — Responsive Sankey + Cleanup
+
+Scope:
+
+- Sankey controls
+- Sankey settings
+- selection details
+- final responsive cleanup
+- documentation updates
+
+---
+
+# 25. First Task for Any Coding Agent in the Codespace
+
+Give the coding agent this instruction before allowing it to modify the responsive UI:
+
+```text
+Read plan/responsive-ui-plan.md and inspect the current repository.
+
+First verify the current stack, existing shadcn setup, existing Skillshare setup,
+MCP installer, Playwright configuration, and current UI structure.
+
+Do not modify responsive UI yet.
+
+Implement only the agent-tooling foundation and responsive test harness described
+in Phases 1–7 where they can be completed safely and without changing production
+application behavior.
+
+Keep the result agent-neutral. Do not require Codex, Claude, a particular IDE,
+or any client-specific MCP configuration. Treat MCP, React Grab, Chrome DevTools,
+and Playwright CLI skills as optional accelerators with documented fallbacks.
+
+For every external tool, verify its currently supported installation/configuration
+syntax rather than blindly following commands in the plan.
+
+Do not replace the existing Playwright suite.
+
+Do not replace the existing shadcn setup.
+
+Do not introduce another component library.
+
+After the repository-owned tooling foundation is working, use standard Playwright
+plus any available optional browser tooling to perform the responsive audit
+described in Phase 11.
+
+Produce the responsive audit as a markdown document before changing application
+layout.
+
+Stop after the audit and report:
+- tooling installed/configured
+- files changed
+- commands run
+- test results
+- responsive problems found
+- proposed order of UI changes
+```
+
+This deliberately separates **tool installation/audit** from **UI modification**.
+
+---
+
+# 26. Second Task for Any Coding Agent
+
+After reviewing the audit:
+
+```text
+Implement the responsive work from plan/responsive-ui-plan.md one surface
+at a time.
+
+Start with the application shell and main graph.
+
+Preserve desktop behavior and appearance where practical.
+
+For tablet/phone layouts, prioritize the graph viewport. Do not keep a fixed
+desktop side inspector if it materially reduces graph space; use an appropriate
+shadcn Sheet or Drawer instead.
+
+Use shadcn MCP for component discovery when available; otherwise use shadcn CLI
+search/docs/view commands. Use the shadcn CLI for deterministic component
+operations.
+
+Use any available browser inspection tooling to diagnose layout issues and
+standard Playwright tests to verify each affected workflow.
+
+Do not perform unrelated refactors.
+
+After each surface:
+- run build
+- run lint
+- run relevant Playwright tests
+- verify responsive target viewports
+- summarize the changes before proceeding
+```
+
+---
+
+# 27. Key Architectural Decisions
+
+The following decisions should remain stable unless the implementation reveals a strong technical reason to change them.
+
+### CLI vs MCP
+
+Always support the CLI path. Use MCP as an optional accelerator when the active agent supports it.
+
+```text
+shadcn Skill -> teaches conventions
+shadcn MCP   -> optional component/registry discovery
+shadcn CLI   -> deterministic project operations
+```
+
+MCP is not a replacement for the CLI.
+
+### Graphs
+
+Keep React Flow / XYFlow.
+
+Do not replace the graph engine as part of responsive work.
+
+### Tables
+
+Keep real tables for LCA data.
+
+Use contained horizontal scrolling instead of automatically replacing them with cards.
+
+### Desktop
+
+Do not redesign desktop merely for the sake of redesign.
+
+Responsive work should mostly add alternate behavior at narrower breakpoints.
+
+### CSS
+
+Do not perform a wholesale CSS-to-Tailwind rewrite.
+
+### Testing
+
+Use the browser and Playwright as part of implementation, not merely as a final verification step.
+
+---
+
+# 28. Final Target
+
+The desired end state is:
+
+```text
+                Product Graph Editor
+                         |
+            React + Tailwind + shadcn
+                         |
+       +-----------------+-----------------+
+       |                 |                 |
+ shadcn Skill    shadcn MCP (opt.)    shadcn CLI
+       |                 |                 |
+       +-----------------+-----------------+
+                         |
+                   Coding Agent
+                         |
+       +-----------------+-----------------+
+       |                 |                 |
+ React Grab (opt.)  DevTools (opt.)     Playwright
+       |                 |                 |
+       +-----------------+-----------------+
+                         |
+             Responsive implementation
+                         |
+        +----------------+----------------+
+        |                |                |
+      Phone            Tablet          Desktop
+     375px             768px+          1440px+
+```
+
+The result should be an application that is easier for coding agents to understand, easier for them to verify, and substantially more usable across device sizes without sacrificing the existing desktop experience.

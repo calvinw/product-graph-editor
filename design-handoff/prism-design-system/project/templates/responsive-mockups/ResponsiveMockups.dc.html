@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<!-- @template name="Responsive Mockups" description="The PRISM LCA workspace, fully responsive — live viewport resizer with 375 / 768 / 1024 / 1440 presets." -->
+<helmet>
+<script src="./ds-base.js"></script>
+<style>*{box-sizing:border-box}html,body{margin:0;height:100%;background:#07080a;overflow:hidden}</style>
+</helmet>
+<div style="display:flex;flex-direction:column;height:100vh;font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:#f4f4f5;background:#07080a">
+<header style="display:flex;align-items:center;flex-wrap:wrap;gap:10px 18px;padding:11px 16px;border-bottom:1px solid #191c21;background:#0b0d10">
+<div style="display:flex;align-items:center;gap:9px;flex:none"><span style="width:9px;height:9px;border-radius:50%;background:linear-gradient(140deg,#a78bfa,#38bdf8)"></span><strong style="font-size:12px;font-weight:650;letter-spacing:-.01em">PRISM responsive</strong></div>
+<div style="display:flex;align-items:center;gap:4px;flex:none;padding:3px;border-radius:9px;background:#101318">
+<sc-for list="{{ presets }}" as="p" hint-placeholder-count="5"><button type="button" onClick="{{ p.pick }}" style="{{ p.style }}">{{ p.label }}</button></sc-for>
+</div>
+<div style="display:flex;align-items:center;gap:7px;flex:none;color:#656c77;font-size:10px;font-variant-numeric:tabular-nums"><span style="padding:3px 7px;border-radius:6px;color:#c8cdd6;background:#14181e;font-variant-numeric:tabular-nums">{{ widthLabel }}</span><span>{{ zoomLabel }}</span><sc-if value="{{ isMobile }}"><span style="padding:3px 7px;border-radius:6px;color:#fbbf24;background:rgba(255,255,255,.04);font-size:9px;font-weight:700;letter-spacing:.04em;white-space:nowrap">≤620 mobile</span></sc-if><sc-if value="{{ isTablet }}"><span style="padding:3px 7px;border-radius:6px;color:#38bdf8;background:rgba(255,255,255,.04);font-size:9px;font-weight:700;letter-spacing:.04em;white-space:nowrap">621–900 tablet</span></sc-if><sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ true }}"><span style="padding:3px 7px;border-radius:6px;color:#4ade80;background:rgba(255,255,255,.04);font-size:9px;font-weight:700;letter-spacing:.04em;white-space:nowrap">≥901 desktop</span></sc-if></div>
+<div style="display:flex;align-items:center;gap:4px;margin-left:auto;flex:none;padding:3px;border-radius:9px;background:#101318">
+<sc-if value="{{ isDark }}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{ pickDark }}" style="flex:none;height:26px;padding:0 11px;border:0;border-radius:7px;font:inherit;font-size:11px;white-space:nowrap;cursor:pointer;color:#f4f4f5;background:#22262e;box-shadow:0 1px 4px rgba(0,0,0,.3)">Dark</button><button type="button" onClick="{{ pickLight }}" style="flex:none;height:26px;padding:0 11px;border:0;border-radius:7px;font:inherit;font-size:11px;white-space:nowrap;cursor:pointer;color:#747b86;background:transparent">Light</button></sc-if><sc-if value="{{ isLight }}"><button type="button" onClick="{{ pickDark }}" style="flex:none;height:26px;padding:0 11px;border:0;border-radius:7px;font:inherit;font-size:11px;white-space:nowrap;cursor:pointer;color:#747b86;background:transparent">Dark</button><button type="button" onClick="{{ pickLight }}" style="flex:none;height:26px;padding:0 11px;border:0;border-radius:7px;font:inherit;font-size:11px;white-space:nowrap;cursor:pointer;color:#f4f4f5;background:#22262e;box-shadow:0 1px 4px rgba(0,0,0,.3)">Light</button></sc-if>
+</div>
+</header>
+<div style="display:flex;align-items:center;gap:6px;padding:8px 16px;border-bottom:1px solid #191c21;background:#0b0d10;overflow-x:auto;scrollbar-width:thin">
+<span style="flex:none;margin-right:4px;color:#565d67;font-size:9px;font-weight:750;letter-spacing:.09em;text-transform:uppercase">Surface</span>
+<sc-for list="{{ surfaces }}" as="s" hint-placeholder-count="10"><button type="button" onClick="{{ s.pick }}" style="{{ s.style }}">{{ s.label }}</button></sc-for>
+</div>
+<main id="rm-stage" ref="{{ stageRef }}" style="position:relative;min-height:0;flex:1;display:flex;align-items:stretch;justify-content:center;overflow:hidden;padding:18px;background-color:#07080a;background-image:radial-gradient(#15181d 1px,transparent 1px);background-size:24px 24px">
+<div ref="{{ scalerRef }}" style="position:relative;flex:none;width:100%;height:100%">
+<div ref="{{ boxRef }}" style="width:100%;height:100%;overflow:hidden;border-radius:12px;transform-origin:top left;outline:1px solid #23262c;background:#090b0e;box-shadow:0 30px 70px rgba(0,0,0,.5)"><iframe ref="{{ frameRef }}" src="./prism-app.html" title="PRISM workspace" onLoad="{{ frameLoaded }}" style="display:block;width:100%;height:100%;border:0"></iframe></div>
+<div onPointerDown="{{ startDrag }}" title="Drag to resize the viewport" style="position:absolute;top:0;bottom:0;right:-14px;z-index:3;display:grid;place-items:center;width:22px;cursor:ew-resize;touch-action:none;background:transparent"><span style="width:3px;height:34px;border-radius:999px;background:#4b5260"></span></div>
+</div>
+</main>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900}}">
+const PRESETS = [
+  { key: "fluid", label: "Fluid", w: 0 },
+  { key: "375", label: "375", w: 375 },
+  { key: "768", label: "768", w: 768 },
+  { key: "1024", label: "1024", w: 1024 },
+  { key: "1440", label: "1440", w: 1440 },
+];
+const SURFACES = [
+  ["welcome", "Welcome"], ["graph", "Graph"], ["yaml", "YAML editor"], ["results", "LCA results"],
+  ["inventory", "Inventory"], ["impact", "Impact"], ["process", "Process"], ["contribution", "Contribution"],
+  ["sankey", "Sankey"], ["realtime", "Realtime"], ["chat", "Assistant"],
+];
+
+class Component extends DCLogic {
+  state = { preset: "375", width: 375, theme: "dark", surface: "graph", stage: { w: 1200, h: 700 } };
+  stageRef = React.createRef();
+  frameRef = React.createRef();
+  scalerRef = React.createRef();
+  boxRef = React.createRef();
+
+  /* The frame geometry is live (drag + panel resize), but it is applied to the
+     element rather than interpolated into the template: a holed style attribute
+     cannot paint until the logic class lands, so the frame would flash. */
+  syncFrame() {
+    const scaler = this.scalerRef.current, box = this.boxRef.current;
+    if (!scaler || !box) return;
+    const w = this.frameWidth, k = this.scale, dark = this.state.theme === "dark";
+    const scaled = k < 0.999;
+    scaler.style.width = Math.round(w * k) + "px";
+    box.style.width = w + "px";
+    box.style.height = scaled ? Math.round(this.state.stage.h / k) + "px" : "100%";
+    box.style.transform = scaled ? "scale(" + k + ")" : "none";
+    box.style.outlineColor = dark ? "#23262c" : "#c3cad4";
+    box.style.background = dark ? "#090b0e" : "#eef1f5";
+  }
+  componentDidUpdate() { this.syncFrame(); }
+
+  componentDidMount() {
+    const el = this.stageRef.current || document.getElementById("rm-stage");
+    if (el) {
+      this._stage = el;
+      const measure = () => {
+        const w = el.clientWidth - 36, h = el.clientHeight - 36;
+        if (w > 0 && (w !== this.state.stage.w || h !== this.state.stage.h)) this.setState({ stage: { w, h } });
+      };
+      this._ro = new ResizeObserver(measure);
+      this._ro.observe(el);
+      this._onWin = measure;
+      window.addEventListener("resize", measure);
+      measure();
+      requestAnimationFrame(() => { measure(); this.syncFrame(); });
+    }
+    this.syncFrame();
+    this._move = (e) => {
+      if (!this._drag) return;
+      const next = Math.round(Math.max(320, Math.min(2200, this._drag.w + (e.clientX - this._drag.x) * 2 / this._drag.k)));
+      this.setState({ width: next, preset: "custom" });
+    };
+    this._up = () => { this._drag = null; };
+    window.addEventListener("pointermove", this._move);
+    window.addEventListener("pointerup", this._up);
+  }
+  componentWillUnmount() {
+    if (this._ro) this._ro.disconnect();
+    if (this._onWin) window.removeEventListener("resize", this._onWin);
+    window.removeEventListener("pointermove", this._move);
+    window.removeEventListener("pointerup", this._up);
+  }
+
+  seg(active) {
+    return {
+      flex: "none", height: "26px", padding: "0 11px", border: 0, borderRadius: "7px",
+      font: "inherit", fontSize: "11px", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", cursor: "pointer",
+      color: active ? "#f4f4f5" : "#747b86",
+      background: active ? "#22262e" : "transparent",
+      boxShadow: active ? "0 1px 4px rgba(0,0,0,.3)" : "none",
+    };
+  }
+  chip(active) {
+    return {
+      flex: "none", minHeight: "28px", padding: "0 11px", borderRadius: "999px",
+      border: "1px solid " + (active ? "#3d4450" : "#22262c"),
+      color: active ? "#f4f4f5" : "#8c939e",
+      background: active ? "#1c2027" : "#0e1116",
+      font: "inherit", fontSize: "11px", whiteSpace: "nowrap", cursor: "pointer",
+    };
+  }
+
+  /* The frame boots on its own default view, so push the current surface and
+     theme into it on every load — otherwise the chips desync from the frame. */
+  syncSurface() {
+    const key = this.state.surface;
+    this.post({ type: "prism-set-theme", theme: this.state.theme });
+    if (key === "chat") {
+      this.post({ type: "prism-set-view", view: "graph" });
+      this.post({ type: "prism-set-chat", open: true });
+    } else {
+      this.post({ type: "prism-set-chat", open: false });
+      this.post({ type: "prism-set-view", view: key });
+    }
+  }
+
+  post(msg) {
+    const f = this.frameRef.current;
+    if (f && f.contentWindow) f.contentWindow.postMessage(msg, "*");
+  }
+
+  // Frame width in CSS px: fluid tracks the stage, otherwise the chosen value.
+  get frameWidth() {
+    if (this.state.preset === "fluid") return Math.max(320, this.state.stage.w);
+    return this.state.width;
+  }
+  get scale() {
+    return Math.min(1, this.state.stage.w / this.frameWidth);
+  }
+
+
+  renderVals() {
+    const w = this.frameWidth, k = this.scale;
+    const dark = this.state.theme === "dark";
+
+    return {
+      stageRef: this.stageRef,
+      frameRef: this.frameRef,
+
+      presets: PRESETS.map((p) => ({
+        label: p.label,
+        style: this.seg(this.state.preset === p.key),
+        pick: () => {
+          if (p.key === "fluid") this.setState({ preset: "fluid" });
+          else this.setState({ preset: p.key, width: p.w });
+        },
+      })),
+      surfaces: SURFACES.map(([key, label]) => ({
+        label,
+        style: this.chip(this.state.surface === key),
+        pick: () => {
+          this.setState({ surface: key });
+          if (key === "chat") { this.post({ type: "prism-set-view", view: "graph" }); this.post({ type: "prism-set-chat", open: true }); }
+          else { this.post({ type: "prism-set-chat", open: false }); this.post({ type: "prism-set-view", view: key }); }
+        },
+      })),
+
+      widthLabel: Math.round(w) + "px",
+      zoomLabel: k < 0.999 ? Math.round(k * 100) + "%" : "100%",
+      isMobile: w <= 620 || null,
+      isTablet: (w > 620 && w <= 900) || null,
+      isDesktop: w > 900 || null,
+
+      isDark: dark || null,
+      isLight: !dark || null,
+      pickDark: () => { this.setState({ theme: "dark" }); this.post({ type: "prism-set-theme", theme: "dark" }); },
+      pickLight: () => { this.setState({ theme: "light" }); this.post({ type: "prism-set-theme", theme: "light" }); },
+
+      frameLoaded: () => this.syncSurface(),
+
+      scalerRef: this.scalerRef,
+      boxRef: this.boxRef,
+      startDrag: (e) => {
+        this._drag = { x: e.clientX, w: this.frameWidth, k: this.scale };
+        this.setState({ preset: "custom", width: this.frameWidth });
+      },
+    };
+  }
+}
+
+</script>
+</body>
+</html>

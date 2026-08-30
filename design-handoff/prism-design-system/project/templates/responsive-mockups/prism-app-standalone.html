@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PRISM — Life Cycle Assessment</title>
+<link rel="stylesheet" href="../../fonts/fonts.css">
+<link rel="stylesheet" href="prism-app.css">
+</head>
+<body>
+<template id="__bundler_thumbnail" data-bg-color="#090b0e">
+<svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg"><rect width="1200" height="800" fill="#090b0e"/><g transform="translate(600 400)"><path d="M0 -150 L130 75 L-130 75 Z" fill="none" stroke="#a78bfa" stroke-width="14" stroke-linejoin="round"/><path d="M-30 -60 L60 -60" stroke="#38bdf8" stroke-width="12" stroke-linecap="round"/><path d="M-30 -20 L95 -20" stroke="#4ade80" stroke-width="12" stroke-linecap="round"/><path d="M-30 20 L130 20" stroke="#e879f9" stroke-width="12" stroke-linecap="round"/></g></svg>
+</template>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 7h-9M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+<symbol id="i-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></symbol>
+<symbol id="i-pointer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></symbol>
+<symbol id="i-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></symbol>
+<symbol id="i-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m7 20 5-5 5 5M7 4l5 5 5-5"/></symbol>
+<symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></symbol>
+<symbol id="i-scan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M12 5v14"/></symbol>
+<symbol id="i-minus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></symbol>
+<symbol id="i-grip" viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="9" r="1.4"/><circle cx="12" cy="9" r="1.4"/><circle cx="17" cy="9" r="1.4"/><circle cx="7" cy="15" r="1.4"/><circle cx="12" cy="15" r="1.4"/><circle cx="17" cy="15" r="1.4"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3v18h18M18 17V9M13 17V5M8 17v-3"/></symbol>
+<symbol id="i-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14m-7-7 7 7-7 7"/></symbol>
+<symbol id="i-factory" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M17 18h1M12 18h1M7 18h1"/></symbol>
+<symbol id="i-save" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7M7 3v4a1 1 0 0 0 1 1h7"/></symbol>
+<symbol id="i-copy-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 12v6M12 15h6"/><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+<symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+<symbol id="i-reset" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+<symbol id="i-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></symbol>
+<symbol id="i-leaf" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></symbol>
+<symbol id="i-workflow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+<symbol id="i-file-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h5M12 11v6M9 14h6"/></symbol>
+</defs></svg>
+
+<main class="app-shell theme-dark" id="shell">
+<!-- ============ welcome ============ -->
+<section class="welcome-page" id="welcome" aria-labelledby="welcome-title">
+  <canvas class="welcome-shader" id="welcome-shader" aria-hidden="true"></canvas>
+  <div class="welcome-aurora" aria-hidden="true"></div>
+  <div class="welcome-panel">
+    <div class="welcome-panel-glow" aria-hidden="true"></div>
+    <div class="welcome-copy">
+      <div>
+        <div class="welcome-brand-mark" aria-hidden="true"><img src="prism-logo-round.png" alt=""></div>
+        <h1 id="welcome-title">Welcome to the Future of LCA</h1>
+        <p>A precision-engineered workspace for product graph modeling and life-cycle assessment. Uncover environmental impacts with uncompromising detail.</p>
+        <button class="welcome-explore" type="button" id="explore">Explore PRISM <svg width="14" height="14"><use href="#i-arrow-right"/></svg></button>
+      </div>
+      <dl class="welcome-context">
+        <div><dt>Current context</dt><dd>Global Supply Chain</dd></div>
+        <div><dt>Status</dt><dd class="is-ready"><span></span>Ready</dd></div>
+      </dl>
+    </div>
+    <div class="welcome-graph" aria-label="Product graph preview">
+      <svg class="welcome-connections" viewBox="0 0 580 716" preserveAspectRatio="none" aria-hidden="true">
+        <defs><linearGradient id="welcome-line-gradient" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#38bdf8" stop-opacity=".4"/><stop offset="50%" stop-color="#a78bfa" stop-opacity=".85"/><stop offset="100%" stop-color="#38bdf8" stop-opacity=".4"/></linearGradient></defs>
+        <path d="M 210 205 C 345 205, 270 315, 405 315"/>
+        <path d="M 405 315 C 350 430, 390 455, 310 525"/>
+      </svg>
+      <article class="welcome-node is-raw"><header><i></i><span>Raw Material Extraction</span></header><div><span>Mass</span><strong>120.5 kg</strong></div></article>
+      <article class="welcome-node is-processing"><header><svg width="14" height="14"><use href="#i-factory"/></svg><span>Primary Processing</span></header><div><span>Energy</span><strong>45.2 kWh</strong></div></article>
+      <article class="welcome-node is-transport"><header><i></i><span>Transport to Facility</span></header><div><span>Distance</span><strong>450 km</strong></div></article>
+    </div>
+  </div>
+</section>
+
+<div class="app-main-pane">
+  <!-- ============ topbar ============ -->
+  <header class="topbar" id="topbar" hidden>
+    <div class="brand">
+      <button class="brand-home" type="button" id="brand-home" aria-label="Open PRISM welcome page"><span class="brand-mark"><img src="prism-logo-round.png" alt="" aria-hidden="true"></span></button>
+      <span class="brand-product-name"><span>PRISM</span><span class="brand-product-descriptor"> Life Cycle Assessment</span></span>
+      <span class="brand-separator">·</span>
+      <h1 class="brand-study-title" id="study-title">Copy of Jacket</h1>
+    </div>
+    <div class="navbar-portal-target">
+      <div class="desktop-navbar" aria-label="Application navigation">
+        <button class="navbar-model-title" type="button" id="navbar-model-title">Copy of Jacket</button>
+        <button class="navbar-menu-trigger" type="button" data-menu="file">File<svg width="10" height="10"><use href="#i-chevron-down"/></svg></button>
+        <div class="desktop-primary-nav" aria-label="Primary views">
+          <button type="button" data-view="yaml">Edit</button>
+          <button type="button" data-view="graph">Graph</button>
+        </div>
+        <button class="navbar-menu-trigger" type="button" data-menu="results" aria-label="Results">Results<svg width="10" height="10"><use href="#i-chevron-down"/></svg></button>
+        <span class="calculation-message navbar-status" id="navbar-status" role="status" hidden>Calculating…</span>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="nav-toggle" type="button" id="nav-toggle" aria-label="Open navigation"><svg width="16" height="16"><use href="#i-menu"/></svg><span>Views</span></button>
+      <button class="global-settings-trigger" type="button" id="settings-trigger" aria-label="Global settings"><svg width="16" height="16"><use href="#i-settings"/></svg><span>Settings</span></button>
+    </div>
+  </header>
+
+  <!-- global settings popover -->
+  <div class="popover global-settings-panel" id="settings-panel" hidden>
+    <div class="popover-title"><div><svg width="15" height="15"><use href="#i-settings"/></svg><span>Global settings</span></div><button type="button" id="settings-close" aria-label="Close global settings"><svg width="15" height="15"><use href="#i-x"/></svg></button></div>
+    <div class="global-setting-field">
+      <span>Decimal places</span><p>Applied to numerical results across the workspace.</p>
+      <label class="all-decimals-toggle"><span class="checkbox" id="all-decimals" data-state="off" role="checkbox" aria-checked="false" tabindex="0"><svg width="10" height="10"><use href="#i-check"/></svg></span><span>Show all decimal places</span></label>
+      <div class="number-stepper" id="decimals-stepper"><button type="button" data-step="-1" aria-label="Decrease decimal places">−</button><span id="decimals-value">3</span><button type="button" data-step="1" aria-label="Increase decimal places">+</button></div>
+    </div>
+    <div class="global-setting-field">
+      <span>Appearance</span><p>Choose the workspace color theme.</p>
+      <div class="theme-options" aria-label="Appearance"><button type="button" data-theme-set="dark" data-state="on"><svg width="14" height="14"><use href="#i-moon"/></svg>Dark</button><button type="button" data-theme-set="light" data-state="off"><svg width="14" height="14"><use href="#i-sun"/></svg>Light</button></div>
+    </div>
+  </div>
+
+  <!-- menus -->
+  <div class="menu model-menu-content" id="menu-file" hidden>
+    <div class="menu-label">Model</div>
+    <button class="menu-item" type="button"><svg width="13" height="13"><use href="#i-file-plus"/></svg><span class="model-menu-item-title">New model</span></button>
+    <button class="menu-item" type="button"><svg width="13" height="13"><use href="#i-upload"/></svg><span class="model-menu-item-title">Upload YAML…</span></button>
+    <div class="menu-sep"></div>
+    <div class="menu-label">Templates</div>
+    <button class="menu-item" type="button" data-doc="Jacket"><span class="model-menu-item-title">Jacket</span></button>
+    <button class="menu-item" type="button" data-doc="Cotton fibre"><span class="model-menu-item-title">Cotton fibre</span></button>
+    <button class="menu-item" type="button" data-doc="Steel billet"><span class="model-menu-item-title">Steel billet</span></button>
+    <div class="menu-sep"></div>
+    <div class="menu-label">Session models</div>
+    <button class="menu-item" type="button" data-doc="Copy of Jacket"><span class="model-menu-item-title">Copy of Jacket</span><svg class="model-menu-check" width="13" height="13"><use href="#i-check"/></svg></button>
+    <div class="menu-sep"></div>
+    <button class="menu-item" type="button" id="menu-save"><svg width="13" height="13"><use href="#i-save"/></svg><span class="model-menu-item-title">Save</span></button>
+    <button class="menu-item" type="button" id="menu-save-as"><svg width="13" height="13"><use href="#i-copy-plus"/></svg><span class="model-menu-item-title">Save As…</span></button>
+    <button class="menu-item" type="button"><svg width="13" height="13"><use href="#i-download"/></svg><span class="model-menu-item-title">Download YAML</span></button>
+  </div>
+  <div class="menu" id="menu-results" hidden>
+    <div class="menu-label">Analysis views</div>
+    <button class="menu-item" type="button" data-view="results"><span class="model-menu-item-title">LCA results</span></button>
+    <button class="menu-item" type="button" data-view="inventory"><span class="model-menu-item-title">Inventory</span></button>
+    <button class="menu-item" type="button" data-view="impact"><span class="model-menu-item-title">Impact analysis</span></button>
+    <button class="menu-item" type="button" data-view="process"><span class="model-menu-item-title">Process results</span></button>
+    <button class="menu-item" type="button" data-view="contribution"><span class="model-menu-item-title">Contributions</span></button>
+    <button class="menu-item" type="button" data-view="sankey"><span class="model-menu-item-title">Sankey</span></button>
+    <button class="menu-item" type="button" data-view="realtime"><span class="model-menu-item-title">Realtime</span></button>
+  </div>
+
+  <button type="button" class="ai-chat-edge-tab" id="chat-open" aria-label="Open AI assistant" hidden><svg width="14" height="14"><use href="#i-chevron-left"/></svg></button>
+
+  <!-- ============ workspace ============ -->
+  <section class="workspace" id="workspace" hidden>
+    <div class="canvas-wrap">
+      <!-- mobile/tablet view tabs (hidden ≥901 by the original CSS) -->
+      <div class="canvas-head">
+        <div class="canvas-actions"><div class="view-tabs">
+          <div class="navigation-model-group">
+            <button class="navigation-model-title" type="button" id="nav-model-title">Copy of Jacket</button>
+            <button class="view-tabs-file" type="button" data-menu="file" style="display:inline-flex;align-items:center;gap:4px;flex:none;min-height:32px;padding:0 10px;border:0;border-radius:5px;color:var(--tab-foreground);background:transparent;font-size:11px;cursor:pointer">File<svg width="9" height="9"><use href="#i-chevron-down"/></svg></button>
+          </div>
+          <span class="calculation-message" id="tabs-status" role="status" hidden>Calculating…</span>
+          <div class="view-tab-groups">
+            <div class="toggle-group" aria-label="Primary views"><button type="button" data-view="yaml">Edit</button><button type="button" data-view="graph">Graph</button><button type="button" data-view="results">Results</button></div>
+            <div class="toggle-group" aria-label="Result analysis views"><button type="button" data-view="inventory">Inventory</button><button type="button" data-view="impact">Impact Analysis</button><button type="button" data-view="process">Process Results</button><button type="button" data-view="contribution">Contribution</button><button type="button" data-view="sankey">Sankey Graph</button><button type="button" data-view="realtime">Realtime</button></div>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- graph -->
+      <div class="graph-viewport" id="graph-viewport" data-view-panel="graph">
+        <div id="pg-nodes"><svg class="pg-edges" id="pg-edges" aria-hidden="true"></svg></div>
+      </div>
+      <div class="graph-toolbar" id="graph-toolbar" data-view-panel="graph" aria-label="Graph tools">
+        <button type="button" class="toolbar-grip" id="toolbar-grip" aria-label="Move graph toolbar"><svg width="14" height="14"><use href="#i-grip"/></svg></button>
+        <div class="toolbar-group"><button class="tool-button" type="button" id="graph-settings-trigger" aria-label="Graph settings"><svg width="18" height="18"><use href="#i-settings"/></svg></button></div>
+        <div class="toolbar-group"><button class="tool-button" type="button" data-tool="select" aria-label="Select nodes"><svg width="18" height="18"><use href="#i-pointer"/></svg></button></div>
+        <div class="toolbar-group"><button class="tool-button" type="button" data-tool="expand-all" aria-label="Expand all activities"><svg width="18" height="18"><use href="#i-expand"/></svg></button><button class="tool-button" type="button" data-tool="collapse-all" aria-label="Collapse all activities"><svg width="18" height="18"><use href="#i-collapse"/></svg></button></div>
+        <div class="toolbar-group"><button class="tool-button" type="button" data-tool="layout" aria-label="Auto layout"><svg width="18" height="18"><use href="#i-grid"/></svg></button><button class="tool-button" type="button" data-tool="fit" aria-label="Fit graph"><svg width="18" height="18"><use href="#i-scan"/></svg></button></div>
+        <div class="toolbar-group"><button class="tool-button" type="button" data-tool="zoom-in" aria-label="Zoom in"><svg width="18" height="18"><use href="#i-plus"/></svg></button><button class="tool-button" type="button" data-tool="zoom-out" aria-label="Zoom out"><svg width="18" height="18"><use href="#i-minus"/></svg></button></div>
+      </div>
+      <div class="popover graph-settings-picker" id="graph-settings" data-view-scope="graph" hidden>
+        <div class="popover-title"><div><svg width="15" height="15"><use href="#i-settings"/></svg><span>Graph settings</span></div><button type="button" id="graph-settings-close" aria-label="Close graph settings"><svg width="15" height="15"><use href="#i-x"/></svg></button></div>
+        <label><span>Max. number of processes</span><div class="number-stepper" id="max-processes"><button type="button" data-step="-1" aria-label="Decrease">−</button><span>12</span><button type="button" data-step="1" aria-label="Increase">+</button></div></label>
+        <label><span>Orientation</span><button class="select-trigger" type="button" data-cycle="Vertical,Horizontal">Vertical<svg width="12" height="12"><use href="#i-chevron-down"/></svg></button></label>
+        <label><span>Connections</span><button class="select-trigger" type="button" data-cycle="Curved,Straight,Step">Curved<svg width="12" height="12"><use href="#i-chevron-down"/></svg></button></label>
+      </div>
+      <div class="graph-mode-toolbar" data-view-panel="graph" aria-label="Graph display mode">
+        <button class="graph-action is-active" type="button" data-mode="scaled"><svg width="16" height="16"><use href="#i-scan"/></svg>Scaled Graph</button>
+        <button class="graph-action" type="button" data-mode="structure"><svg width="16" height="16"><use href="#i-grid"/></svg>Structure Graph</button>
+      </div>
+      <div class="graph-meta" data-view-panel="graph" id="graph-meta">12 nodes&nbsp;&nbsp;·&nbsp;&nbsp;16 connections</div>
+
+      <!-- inspector -->
+      <aside class="inspector" id="inspector" data-view-scope="graph" data-visibility="class">
+        <div class="inspector-head"><span>SELECTED ACTIVITY</span><button type="button" id="inspector-close" aria-label="Close inspector"><svg width="16" height="16"><use href="#i-x"/></svg></button></div>
+        <div class="node-icon" id="inspector-icon" style="background:#38bdf8"><svg width="16" height="16"><use href="#i-box"/></svg></div>
+        <h2 id="inspector-title">Woven fabric production</h2>
+        <p id="inspector-sub">Foreground activity · 1.4 kg reference flow</p>
+        <div id="inspector-sections"></div>
+        <button class="reference-amounts-toggle" type="button" id="ref-amounts">Hide reference amounts</button>
+      </aside>
+
+      <!-- yaml -->
+      <div class="yaml-editor" data-view-panel="yaml" hidden>
+        <div class="yaml-editor-head"><div><strong>Product graph YAML</strong><span>Edit the current session model.</span></div></div>
+        <textarea id="yaml-text" spellcheck="false" aria-label="Product graph YAML"></textarea>
+        <div class="yaml-editor-foot"><span id="yaml-status">Saved in this browser session.</span><button class="btn btn-primary" type="button" id="yaml-save" hidden><svg width="13" height="13"><use href="#i-save"/></svg>Save</button></div>
+      </div>
+
+      <!-- LCA results -->
+      <div class="results-panel" data-view-panel="results" hidden>
+        <div class="results-panel-head"><div><strong>LCA Results</strong></div></div>
+        <div class="results-panel-body"><article class="markdown-report" id="results-md"></article></div>
+      </div>
+
+      <!-- inventory -->
+      <div class="inventory-view" data-view-panel="inventory" hidden>
+        <div class="inventory-title"><div><strong>Inventory results</strong><span>Copy of Jacket · 1 jacket</span></div></div>
+        <details open><summary>Inputs <span id="inv-in-count">6</span></summary><div class="inventory-table-wrap"><table class="inventory-table" id="inv-inputs" style="width:880px"></table></div></details>
+        <details open><summary>Outputs <span id="inv-out-count">5</span></summary><div class="inventory-table-wrap"><table class="inventory-table" id="inv-outputs" style="width:880px"></table></div></details>
+        <details open class="requirements"><summary>Total requirements <span id="inv-req-count">7</span></summary><div class="inventory-table-wrap"><table class="inventory-table" id="inv-reqs" style="width:880px"></table></div></details>
+      </div>
+
+      <!-- impact -->
+      <div class="impact-view" data-view-panel="impact" hidden>
+        <div class="impact-title"><div><strong>Impact analysis</strong><span>Copy of Jacket · 1 jacket · ReCiPe 2016 Midpoint (H)</span></div></div>
+        <div class="impact-controls">
+          <div class="impact-subgroup"><label><span class="app-radio" data-state="on" data-radio="impact-mode" data-value="category"></span>By category</label><label><span class="app-radio" data-state="off" data-radio="impact-mode" data-value="process"></span>By process</label></div>
+          <i></i>
+          <label class="impact-threshold">Cut-off <input type="number" value="1" min="0" max="100" step="0.5" aria-label="Cut-off threshold"> %</label>
+        </div>
+        <div class="impact-table-wrap"><table class="impact-table" id="impact-table"></table></div>
+      </div>
+
+      <!-- process results -->
+      <div class="process-results-view" data-view-panel="process" hidden>
+        <div class="process-results-title"><div><strong>Process results</strong><span>Copy of Jacket · per-process contribution</span></div></div>
+        <div class="process-results-controls">
+          <label>Process <button class="select-trigger" type="button" data-cycle="Woven fabric production,Polyester yarn,Jacket assembly,Electricity, medium voltage">Woven fabric production<svg width="12" height="12"><use href="#i-chevron-down"/></svg></button></label>
+          <label>Cut-off <input type="number" value="0.5" step="0.1" aria-label="Process cut-off"> %</label>
+        </div>
+        <details open><summary>Exchanges <span>8</span></summary><div class="process-flow-grids"><section><h3>Inputs</h3><table class="process-flow-table" id="proc-inputs" style="min-width:640px"></table></section><section><h3>Outputs</h3><table class="process-flow-table" id="proc-outputs" style="min-width:640px"></table></section></div></details>
+        <details open><summary>Impact contribution <span>6</span></summary><div class="process-impact-table-wrap"><table class="process-impact-table" id="proc-impacts" style="min-width:560px"></table></div></details>
+      </div>
+
+      <!-- contribution -->
+      <div class="contribution-view" data-view-panel="contribution" hidden>
+        <div class="contribution-title"><div><strong>Contribution analysis</strong><span>Copy of Jacket · 1 jacket</span></div><div class="contribution-graph-summary"><strong>Complete</strong><span>16 / 16 edges</span></div></div>
+        <div class="contribution-controls">
+          <div class="contribution-mode-group"><label class="active"><span class="app-radio" data-state="on" data-radio="contrib-mode" data-value="impact"></span>Impact category</label><label><span class="app-radio" data-state="off" data-radio="contrib-mode" data-value="flow"></span>Elementary flow</label></div>
+          <div class="contribution-control-slot"><div class="contribution-select is-impact"><button class="select-trigger" type="button" data-cycle="Climate change,Water consumption,Land use,Fossil depletion">Climate change<svg width="12" height="12"><use href="#i-chevron-down"/></svg></button></div></div>
+        </div>
+        <div class="contribution-table-wrap"><table class="contribution-table" id="contrib-table" style="min-width:760px"></table></div>
+      </div>
+
+      <!-- sankey -->
+      <div class="sankey-view" data-view-panel="sankey" hidden>
+        <div class="sankey-canvas" id="sankey-canvas"><svg class="sankey-ribbons" id="sankey-ribbons" aria-hidden="true"></svg><div id="sankey-nodes"></div></div>
+        <div class="sankey-toolbar" aria-label="Sankey tools">
+          <button type="button" class="toolbar-grip" aria-label="Move toolbar"><svg width="14" height="14"><use href="#i-grip"/></svg></button>
+          <div class="toolbar-group"><button class="tool-button" type="button" id="sankey-picker-trigger" aria-label="Sankey chart settings"><svg width="18" height="18"><use href="#i-settings"/></svg></button></div>
+          <div class="toolbar-group"><button class="tool-button" type="button" aria-label="Fit graph"><svg width="18" height="18"><use href="#i-scan"/></svg></button></div>
+          <div class="toolbar-group"><button class="tool-button" type="button" aria-label="Zoom in"><svg width="18" height="18"><use href="#i-plus"/></svg></button><button class="tool-button" type="button" aria-label="Zoom out"><svg width="18" height="18"><use href="#i-minus"/></svg></button></div>
+        </div>
+        <div class="sankey-chart-picker" id="sankey-picker" data-view-scope="sankey" hidden>
+          <div class="sankey-picker-tabs"><button type="button" data-state="on"><svg width="13" height="13"><use href="#i-chart"/></svg>Impact</button><button type="button" data-state="off"><svg width="13" height="13"><use href="#i-leaf"/></svg>Flow</button></div>
+          <label><span>Impact category</span><button class="select-trigger" type="button" data-cycle="Climate change,Water consumption,Land use">Climate change<svg width="12" height="12"><use href="#i-chevron-down"/></svg></button></label>
+          <div class="sankey-settings-grid">
+            <label><span>Max nodes</span><div class="number-stepper"><button type="button" data-step="-1">−</button><span>18</span><button type="button" data-step="1">+</button></div></label>
+            <label><span>Cut-off %</span><div class="number-stepper"><button type="button" data-step="-1">−</button><span>1</span><button type="button" data-step="1">+</button></div></label>
+          </div>
+        </div>
+        <div class="sankey-selection-summary" id="sankey-summary">
+          <div class="sankey-selection-title"><svg width="12" height="12"><use href="#i-workflow"/></svg>Selected node</div>
+          <strong>Woven fabric production</strong><span class="sankey-selection-result">2.94 kg CO₂-eq · 24.1%</span>
+          <dl><div><dt>Scope</dt><dd>Foreground</dd></div><div><dt>Supply</dt><dd>1.4 kg</dd></div><div><dt>Inbound</dt><dd>3 edges</dd></div></dl>
+        </div>
+      </div>
+
+      <!-- realtime -->
+      <div class="realtime-panel" data-view-panel="realtime" hidden>
+        <div class="results-panel-head"><div><strong>Realtime scenario</strong><span>Drag a parameter to preview its effect before committing.</span></div><div class="realtime-actions"><button class="btn" type="button" id="rt-reset"><svg width="13" height="13"><use href="#i-reset"/></svg>Reset</button><button class="btn btn-primary" type="button" id="rt-commit">Commit</button></div></div>
+        <div class="realtime-body">
+          <div class="realtime-scores" id="rt-scores"></div>
+          <div class="realtime-sliders" id="rt-sliders"></div>
+          <p class="realtime-note">Previews are interpolated from the last committed calculation. Commit to run the full LCA against the engine.</p>
+        </div>
+      </div>
+
+      <!-- scenario panel (graph, when edits pending) -->
+      <div class="scenario-panel" id="scenario-panel" data-view-scope="graph" hidden>
+        <header><svg width="14" height="14" class="scenario-panel-grip"><use href="#i-grip"/></svg><strong>Scenario</strong><span id="scenario-count">2 pending edits</span></header>
+        <div class="scenario-panel-toggles"><button class="scenario-toggle is-on" type="button"><span class="scenario-toggle-dot" style="background:#a78bfa"></span>Climate change</button><button class="scenario-toggle is-on" type="button"><span class="scenario-toggle-dot" style="background:#38bdf8"></span>Water consumption</button></div>
+        <div class="scenario-panel-scores">
+          <div class="scenario-score"><span class="scenario-score-name"><span class="scenario-toggle-dot" style="background:#a78bfa;opacity:1"></span>Climate change</span><span class="scenario-score-values"><em>12.20</em><strong>11.34</strong><small>kg CO₂-eq</small></span><span class="scenario-score-delta is-down">−7.0%</span></div>
+          <div class="scenario-score"><span class="scenario-score-name"><span class="scenario-toggle-dot" style="background:#38bdf8;opacity:1"></span>Water consumption</span><span class="scenario-score-values"><em>0.286</em><strong>0.271</strong><small>m³</small></span><span class="scenario-score-delta is-down">−5.2%</span></div>
+        </div>
+        <footer><span>Edits are previewed locally. Commit to recalculate.</span><button class="btn" type="button" id="scenario-reset">Reset</button><button class="btn btn-primary" type="button" id="scenario-commit">Commit</button></footer>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ============ chat ============ -->
+<div class="ai-chat-pane" id="chat-pane" aria-hidden="true">
+  <aside class="ai-chat-sidebar" id="chat-sidebar" hidden>
+    <button class="ai-chat-resize-handle" type="button" id="chat-resize" aria-label="Resize assistant panel"></button>
+    <div class="ai-chat-header">
+      <button class="ai-chat-model-readout" type="button">claude-sonnet-4-6 · product-graph tools</button>
+      <div class="ai-chat-header-actions"><button class="icon-button" type="button" id="chat-clear" aria-label="Clear conversation"><svg width="14" height="14"><use href="#i-reset"/></svg></button><button class="icon-button" type="button" id="chat-close" aria-label="Close assistant"><svg width="15" height="15"><use href="#i-x"/></svg></button></div>
+    </div>
+    <div class="ai-chat-conversation" id="chat-conversation"><div class="ai-chat-conversation-content" id="chat-content"></div></div>
+    <div class="ai-chat-composer"><textarea id="chat-input" rows="1" placeholder="Ask about this product graph…"></textarea><button class="ai-chat-send" type="button" id="chat-send" aria-label="Send"><svg width="14" height="14"><use href="#i-send"/></svg></button></div>
+  </aside>
+</div>
+
+<!-- ============ nav sheet (small screens) ============ -->
+<div class="nav-sheet-backdrop" id="nav-backdrop" hidden></div>
+<aside class="nav-sheet" id="nav-sheet" hidden aria-label="Navigation">
+  <div class="nav-sheet-head"><strong>Navigate</strong><button class="icon-button" type="button" id="nav-close" aria-label="Close navigation"><svg width="15" height="15"><use href="#i-x"/></svg></button></div>
+  <div class="nav-sheet-body">
+    <span class="nav-sheet-group">Model</span>
+    <div class="nav-sheet-list"><button class="nav-sheet-row" type="button" id="sheet-rename">Copy of Jacket<span style="margin-left:auto;color:var(--help-foreground);font-size:10px">rename</span></button><button class="nav-sheet-row" type="button" data-menu="file">File actions<span style="margin-left:auto;font-size:9px">▸</span></button></div>
+    <span class="nav-sheet-group">Views</span>
+    <div class="nav-sheet-list"><button class="nav-sheet-row" type="button" data-view="yaml">Edit</button><button class="nav-sheet-row" type="button" data-view="graph">Graph</button><button class="nav-sheet-row" type="button" data-view="results">Results</button></div>
+    <span class="nav-sheet-group">Analysis views</span>
+    <div class="nav-sheet-list"><button class="nav-sheet-row" type="button" data-view="inventory">Inventory</button><button class="nav-sheet-row" type="button" data-view="impact">Impact Analysis</button><button class="nav-sheet-row" type="button" data-view="process">Process Results</button><button class="nav-sheet-row" type="button" data-view="contribution">Contribution</button><button class="nav-sheet-row" type="button" data-view="sankey">Sankey Graph</button><button class="nav-sheet-row" type="button" data-view="realtime">Realtime</button></div>
+    <span class="nav-sheet-group">Assistant</span>
+    <div class="nav-sheet-list"><button class="nav-sheet-row" type="button" id="sheet-chat">Open AI assistant</button></div>
+  </div>
+</aside>
+
+<!-- ============ dialogs ============ -->
+<div class="dialog-backdrop" id="saveas-dialog" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="saveas-title">
+    <h2 id="saveas-title">Save model as</h2>
+    <p>Creates a new session model in this browser. The original template is left untouched.</p>
+    <label for="saveas-name">Model name</label>
+    <input type="text" id="saveas-name" value="Copy of Jacket">
+    <p class="dialog-error" id="saveas-error" hidden>A session model with that name already exists.</p>
+    <div class="dialog-actions"><button class="btn" type="button" data-close-dialog>Cancel</button><button class="btn btn-primary" type="button" id="saveas-confirm">Save model</button></div>
+  </div>
+</div>
+<div class="dialog-backdrop" id="unsaved-dialog" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="unsaved-title">
+    <h2 id="unsaved-title">Unsaved changes</h2>
+    <p>“Copy of Jacket” has edits that are not saved to this session. What would you like to do?</p>
+    <div class="dialog-actions"><button class="btn" type="button" data-close-dialog>Cancel</button><button class="btn" type="button" data-close-dialog>Discard</button><button class="btn btn-primary" type="button" data-close-dialog>Save and continue</button></div>
+  </div>
+</div>
+</main>
+<script src="prism-app.js"></script>
+</body>
+</html>
