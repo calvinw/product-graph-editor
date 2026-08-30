@@ -17,7 +17,10 @@ async function mockNavigationAssistant(page: Page) {
     const body = route.request().postDataJSON() as {
       messages: Array<{ role: string; content: string | null }>
     }
-    const toolResult = [...body.messages].reverse().find((message) => message.role === "tool")
+    // A provider sees a tool result only as the *last* message of a tool round.
+    // Earlier rounds stay in the transcript across turns, so match on position.
+    const last = body.messages.at(-1)
+    const toolResult = last?.role === "tool" ? last : undefined
     if (toolResult) {
       const output = JSON.parse(toolResult.content ?? "{}") as { status?: string; label?: string; reason?: string }
       const content = output.status === "unavailable"
@@ -141,7 +144,10 @@ test("assistant connects, displays, confirms, and calls a remote MCP tool", asyn
       messages: Array<{ role: string; content: string | null }>
       tools: Array<{ function: { name: string; description: string } }>
     }
-    const toolResult = [...body.messages].reverse().find((message) => message.role === "tool")
+    // A provider sees a tool result only as the *last* message of a tool round.
+    // Earlier rounds stay in the transcript across turns, so match on position.
+    const last = body.messages.at(-1)
+    const toolResult = last?.role === "tool" ? last : undefined
     if (toolResult) {
       const output = JSON.parse(toolResult.content ?? "{}") as { status?: string }
       const content = output.status === "rejected" ? "The remote change was rejected." : "The remote change completed."

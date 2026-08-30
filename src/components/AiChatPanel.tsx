@@ -40,9 +40,21 @@ type ChatMessage = {
   streaming?: boolean
 }
 
-function messageText(message: ChatMessage) {
-  return message.segments.filter((segment): segment is Extract<MessageSegment, { kind: "text" }> => segment.kind === "text")
-    .map((segment) => segment.content).join("")
+/**
+ * Drop a trailing tool round that never completed, so the transcript stays
+ * valid for the next request.
+ *
+ * A provider rejects an assistant message carrying `tool_calls` unless every
+ * call id is answered by a following `tool` message. An aborted turn can leave
+ * exactly that, so trim the assistant message and its partial results.
+ */
+function repairTranscript(transcript: ModelMessage[]) {
+  let index = transcript.length - 1
+  while (index >= 0 && !(transcript[index].role === "assistant" && transcript[index].tool_calls?.length)) index -= 1
+  if (index === -1) return
+  const answered = new Set(transcript.slice(index + 1).filter((message) => message.role === "tool").map((message) => message.tool_call_id))
+  if (transcript[index].tool_calls?.every((call) => answered.has(call.id))) return
+  transcript.length = index
 }
 
 const MODELS = [
@@ -171,6 +183,11 @@ export function AiChatPanel({
   const [confirmation, setConfirmation] = useState<{ summary: string; resolve(accepted: boolean): void } | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const promptRef = useRef<HTMLTextAreaElement>(null)
+  // The conversation as the model sees it, kept across turns. Display state
+  // cannot stand in for it: a ChatMessage records tool results as segments, not
+  // as the `assistant` + `tool` message pair a provider needs to replay them.
+  const transcriptRef = useRef<ModelMessage[]>([])
+  const sourceReadIdsRef = useRef<string[]>([])
   const latestRuntimeRef = useRef(runtime)
   latestRuntimeRef.current = runtime
   const transport = useMemo(() => createOpenRouterTransport({ apiKey, endpoint: ENDPOINT }), [apiKey])
@@ -268,25 +285,27 @@ export function AiChatPanel({
     // Tool results are pushed into the conversation as messages, so every
     // get_yaml_source result sits in the transcript exactly as an embedded
     // document would and context grows linearly with the number of reads.
-    const sourceReadIds: string[] = []
-    const apiMessages: ModelMessage[] = [
-      { role: "system", content: systemPrompt(runtime) },
-      ...priorMessages.map((message) => ({ role: message.role, content: messageText(message) } as ModelMessage)),
-      { role: "user", content: value },
-    ]
+    const sourceReadIds = sourceReadIdsRef.current
+    const transcript = transcriptRef.current
+    transcript.push({ role: "user", content: value })
     try {
       for (let round = 0; round < 8; round += 1) {
         const segmentId = messageId()
+        // The system message carries live runtime context, so it is rebuilt for
+        // every request rather than stored in the transcript.
         const result = await transport.stream({
           model,
-          messages: apiMessages,
+          messages: [{ role: "system", content: systemPrompt(runtime) }, ...transcript],
           tools: toolDefinitions,
           signal: controller.signal,
           onDelta: (content) => upsertTextSegment(assistantId, segmentId, content),
         })
         upsertTextSegment(assistantId, segmentId, result.content)
-        if (!result.calls.length) break
-        apiMessages.push({ role: "assistant", content: result.content || null, tool_calls: result.calls })
+        if (!result.calls.length) {
+          transcript.push({ role: "assistant", content: result.content })
+          break
+        }
+        transcript.push({ role: "assistant", content: result.content || null, tool_calls: result.calls })
         const toolViews: Array<{ name: string; output: unknown; error: boolean }> = []
         for (const call of result.calls) {
           let output: unknown
@@ -328,10 +347,10 @@ export function AiChatPanel({
             output = { error: toolError instanceof Error ? toolError.message : String(toolError) }
           }
           toolViews.push({ name: call.function.name, output, error: failed })
-          apiMessages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(output) })
+          transcript.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(output) })
           if (call.function.name === "get_yaml_source") sourceReadIds.push(call.id)
         }
-        pruneStaleSourceReads(apiMessages, sourceReadIds)
+        pruneStaleSourceReads(transcript, sourceReadIds)
         appendToolSegments(assistantId, toolViews)
         if (round === 7) throw new Error("The assistant exceeded the view-tool round limit.")
       }
@@ -342,6 +361,7 @@ export function AiChatPanel({
         upsertTextSegment(assistantId, `${assistantId}-error`, message)
       }
     } finally {
+      repairTranscript(transcript)
       setStreaming(assistantId, false)
       abortRef.current = null
       setStatus("idle")
@@ -371,7 +391,7 @@ export function AiChatPanel({
         <div className="ai-chat-header">
           <button type="button" className="ai-chat-model-readout" onClick={() => setSettingsOpen(true)} title="Change model in chat settings">{model}</button>
           <div className="ai-chat-header-actions">
-            <Button variant="ghost" size="icon" type="button" aria-label="New conversation" onClick={() => { setMessages([]); setError("") }} disabled={status !== "idle"}><MessageSquarePlus size={16} /></Button>
+            <Button variant="ghost" size="icon" type="button" aria-label="New conversation" onClick={() => { setMessages([]); setError(""); transcriptRef.current = []; sourceReadIdsRef.current = [] }} disabled={status !== "idle"}><MessageSquarePlus size={16} /></Button>
             <Button variant="ghost" size="icon" type="button" aria-label="Chat settings" onClick={() => setSettingsOpen(true)}><Settings2 size={16} /></Button>
             <Button variant="ghost" size="icon" type="button" aria-label="Close AI assistant" onClick={() => onOpenChange(false)}><X size={16} /></Button>
           </div>

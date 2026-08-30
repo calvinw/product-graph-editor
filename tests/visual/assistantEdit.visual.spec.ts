@@ -26,7 +26,10 @@ type ToolCall = { name: string; arguments: string }
 async function mockAssistant(page: Page, script: (lastToolResult: Record<string, unknown> | null) => ToolCall | null) {
   await page.route("https://openrouter.ai/api/v1/chat/completions", async (route) => {
     const body = route.request().postDataJSON() as { messages: Array<{ role: string; content: string | null }> }
-    const lastTool = [...body.messages].reverse().find((message) => message.role === "tool")
+    // A tool result is only current when it is the last message; earlier rounds
+    // persist in the transcript across turns.
+    const last = body.messages.at(-1)
+    const lastTool = last?.role === "tool" ? last : undefined
     const parsed = lastTool ? JSON.parse(lastTool.content ?? "{}") as Record<string, unknown> : null
     const next = script(parsed)
     if (!next) {
