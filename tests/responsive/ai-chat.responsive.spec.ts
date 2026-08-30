@@ -122,7 +122,7 @@ test("assistant rejects an unavailable Sankey view", async ({ page }) => {
   await prompt.fill("Open the Sankey view")
   await prompt.press("Enter")
 
-  await expect(page.locator(".ai-chat-message-content p").getByText(/Calculate the current model/)).toBeVisible()
+  await expect(page.locator(".ai-chat-message-content").getByText(/Calculate the current model/)).toBeVisible()
   await expect(page.locator(".react-flow")).toBeVisible()
 })
 
@@ -183,7 +183,7 @@ test("assistant connects, displays, confirms, and calls a remote MCP tool", asyn
   await prompt.press("Enter")
   await expect(confirmation).toBeVisible()
   await confirmation.getByRole("button", { name: "Confirm" }).click()
-  await expect(page.getByText(/mcp__.*change_remote_state · complete/).last()).toBeVisible()
+  await expect(page.locator(".ai-chat-tool").filter({ hasText: /mcp__.*change_remote_state/ }).filter({ hasText: "Completed" }).last()).toBeVisible()
   await expect(page.getByText("The remote change completed.")).toBeVisible()
 })
 
@@ -192,14 +192,14 @@ test("assistant reads bounded workspace and graph summaries", async ({ page }) =
   const prompt = page.getByRole("textbox", { name: "Message", exact: true })
   await prompt.fill("Show workspace status")
   await prompt.press("Enter")
-  const workspaceTool = page.getByText("get_workspace_status · complete")
+  const workspaceTool = page.locator(".ai-chat-tool").filter({ hasText: "get_workspace_status" }).filter({ hasText: "Completed" })
   await expect(workspaceTool).toBeVisible()
   await workspaceTool.click()
   await expect(page.getByText(/"yamlDirty"/)).toBeVisible()
 
   await prompt.fill("Summarize this graph")
   await prompt.press("Enter")
-  const graphTool = page.getByText("get_graph_summary · complete")
+  const graphTool = page.locator(".ai-chat-tool").filter({ hasText: "get_graph_summary" }).filter({ hasText: "Completed" })
   await expect(graphTool).toBeVisible()
   await graphTool.click()
   await expect(page.getByText(/"nodeCount"/)).toBeVisible()
@@ -210,7 +210,7 @@ test("assistant changes registered graph presentation settings", async ({ page }
   const prompt = page.getByRole("textbox", { name: "Message", exact: true })
   await prompt.fill("Set the graph orientation to vertical")
   await prompt.press("Enter")
-  await expect(page.getByText("set_graph_display · complete")).toBeVisible()
+  await expect(page.locator(".ai-chat-tool").filter({ hasText: "set_graph_display" }).filter({ hasText: "Completed" })).toBeVisible()
   await page.getByRole("button", { name: "Close AI assistant" }).click()
   await page.getByRole("button", { name: "Graph settings" }).click()
   await expect(page.getByRole("combobox", { name: "Graph orientation" })).toHaveText(/Vertical/)
@@ -225,7 +225,7 @@ test("assistant reads bounded current LCA results", async ({ page }) => {
   const prompt = page.getByRole("textbox", { name: "Message", exact: true })
   await prompt.fill("List the available impact categories")
   await prompt.press("Enter")
-  const resultTool = page.getByText("list_impact_categories · complete")
+  const resultTool = page.locator(".ai-chat-tool").filter({ hasText: "list_impact_categories" }).filter({ hasText: "Completed" })
   await expect(resultTool).toBeVisible()
   await resultTool.click()
   await expect(page.getByText(/climate change/)).toBeVisible()
@@ -236,7 +236,7 @@ test("assistant validates YAML without exposing the draft", async ({ page }) => 
   const prompt = page.getByRole("textbox", { name: "Message", exact: true })
   await prompt.fill("Validate YAML")
   await prompt.press("Enter")
-  const validationTool = page.getByText("validate_yaml_draft · complete")
+  const validationTool = page.locator(".ai-chat-tool").filter({ hasText: "validate_yaml_draft" }).filter({ hasText: "Completed" })
   await expect(validationTool).toBeVisible()
   await validationTool.click()
   await expect(page.getByText(/"valid": true/)).toBeVisible()
@@ -252,7 +252,7 @@ test("assistant requires confirmation before a calculation mutation", async ({ p
   await expect(confirmation).toBeVisible()
   await expect(confirmation).toContainText("Calculate the applied revision")
   await confirmation.getByRole("button", { name: "Confirm" }).click()
-  await expect(page.getByText("calculate_current_model · complete")).toBeVisible()
+  await expect(page.locator(".ai-chat-tool").filter({ hasText: "calculate_current_model" }).filter({ hasText: "Completed" })).toBeVisible()
 })
 
 test("assistant follows new messages to the bottom", async ({ page }) => {
@@ -264,7 +264,7 @@ test("assistant follows new messages to the bottom", async ({ page }) => {
     await expect(prompt).toBeEnabled()
   }
 
-  const viewport = page.locator('[data-slot="message-scroller-viewport"]')
+  const viewport = page.locator(".ai-chat-conversation")
   await expect.poll(() => viewport.evaluate((element) => Math.round(element.scrollHeight - element.scrollTop - element.clientHeight))).toBeLessThanOrEqual(2)
 })
 

@@ -20,6 +20,9 @@ const buttonVariants = cva(
         default: "h-9 px-4",
         sm: "h-8 px-3",
         icon: "size-9",
+        // Added for the ai-elements components, which ask for a smaller icon
+        // button than this app's own controls use.
+        "icon-sm": "size-7",
       },
     },
     defaultVariants: {

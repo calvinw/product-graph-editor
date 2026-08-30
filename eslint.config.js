@@ -43,4 +43,17 @@ export default tseslint.config(
       "react-refresh/only-export-components": "off",
     },
   },
+  {
+    // Vendored from the AI Elements registry. We do not author these files and
+    // re-adding a component overwrites local edits, so they are held to the
+    // type gate (tsc) rather than to this project's lint style.
+    files: ["src/components/ai-elements/**/*.tsx"],
+    rules: {
+      "react-refresh/only-export-components": "off",
+      "react-hooks/exhaustive-deps": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+    },
+    linterOptions: { reportUnusedDisableDirectives: "off" },
+  },
 )

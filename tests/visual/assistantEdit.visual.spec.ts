@@ -23,6 +23,13 @@ type ToolCall = { name: string; arguments: string }
  * either issues the next scripted tool call or, once the script is exhausted,
  * replies with text summarising the last tool result.
  */
+/** The completed propose_yaml_edit tool block, by name and status badge. */
+function proposalTool(page: Page) {
+  return page.locator(".ai-chat-tool")
+    .filter({ hasText: "propose_yaml_edit" })
+    .filter({ hasText: "Completed" })
+}
+
 async function mockAssistant(page: Page, script: (lastToolResult: Record<string, unknown> | null) => ToolCall | null) {
   await page.route("https://openrouter.ai/api/v1/chat/completions", async (route) => {
     const body = route.request().postDataJSON() as { messages: Array<{ role: string; content: string | null }> }
@@ -90,7 +97,7 @@ test("the assistant reads the document and its proposal lands as an unsaved draf
   await openChat(page)
   await ask(page, "Raise the first CO2 emission to 4.2")
 
-  await expect(page.getByText("propose_yaml_edit · complete")).toBeVisible()
+  await expect(proposalTool(page)).toBeVisible()
   // The proposal opens the editor with the change as an unsaved draft.
   const editor = page.getByRole("textbox", { name: "Product graph YAML" })
   await expect(editor).toHaveValue(/amount: 4\.2/)
@@ -117,9 +124,9 @@ test("a proposal written against a stale document is rejected", async ({ page })
   await openChat(page)
   await ask(page, "Add a comment")
 
-  const rejection = page.getByText("propose_yaml_edit · complete")
+  const rejection = proposalTool(page)
   await expect(rejection).toBeVisible()
-  await rejection.click()
+  await rejection.getByRole("button").first().click()
   await expect(page.locator(".ai-chat-tool pre").filter({ hasText: "STALE_VERSION" })).toBeVisible()
 
   // Nothing was written to the editor.
@@ -143,9 +150,9 @@ test("a proposal that does not parse is rejected before it reaches the editor", 
   await openChat(page)
   await ask(page, "Break it")
 
-  const result = page.getByText("propose_yaml_edit · complete")
+  const result = proposalTool(page)
   await expect(result).toBeVisible()
-  await result.click()
+  await result.getByRole("button").first().click()
   await expect(page.locator(".ai-chat-tool pre").filter({ hasText: "INVALID_YAML" })).toBeVisible()
 
   await page.getByRole("radio", { name: "Edit", exact: true }).click()

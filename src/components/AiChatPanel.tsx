@@ -1,7 +1,5 @@
 import { Children, isValidElement, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
-import ReactMarkdown from "react-markdown"
-import remarkGfm from "remark-gfm"
 import { ArrowUp, Download, GripVertical, KeyRound, MessageSquarePlus, Settings2, Square, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,10 +11,11 @@ import {
 } from "@/components/ui/dialog"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import {
-  MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem,
-  MessageScrollerProvider, MessageScrollerViewport,
-} from "@/components/ui/message-scroller"
+import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ai-elements/conversation"
+import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message"
+import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/components/ai-elements/tool"
+import { Loader } from "@/components/ai-elements/loader"
+import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createOpenRouterTransport, type ModelMessage } from "@/ai/chatTransport"
 import {
@@ -31,7 +30,7 @@ import { useMcpServers } from "@/hooks/useMcpServers"
 
 type MessageSegment =
   | { kind: "text"; id: string; content: string }
-  | { kind: "tool"; id: string; name: string; output: unknown; error?: boolean }
+  | { kind: "tool"; id: string; name: string; input: unknown; output: unknown; error?: boolean }
 
 type ChatMessage = {
   id: string
@@ -262,9 +261,9 @@ export function AiChatPanel({
     }))
   }, [])
 
-  const appendToolSegments = useCallback((id: string, tools: Array<{ name: string; output: unknown; error: boolean }>) => {
+  const appendToolSegments = useCallback((id: string, tools: Array<{ id: string; name: string; input: unknown; output: unknown; error: boolean }>) => {
     setMessages((current) => current.map((message) => message.id === id
-      ? { ...message, segments: [...message.segments, ...tools.map((tool): MessageSegment => ({ kind: "tool", id: messageId(), ...tool }))] }
+      ? { ...message, segments: [...message.segments, ...tools.map((tool): MessageSegment => ({ kind: "tool", ...tool }))] }
       : message))
   }, [])
 
@@ -306,7 +305,7 @@ export function AiChatPanel({
           break
         }
         transcript.push({ role: "assistant", content: result.content || null, tool_calls: result.calls })
-        const toolViews: Array<{ name: string; output: unknown; error: boolean }> = []
+        const toolViews: Array<{ id: string; name: string; input: unknown; output: unknown; error: boolean }> = []
         for (const call of result.calls) {
           let output: unknown
           let failed = false
@@ -346,7 +345,7 @@ export function AiChatPanel({
             failed = true
             output = { error: toolError instanceof Error ? toolError.message : String(toolError) }
           }
-          toolViews.push({ name: call.function.name, output, error: failed })
+          toolViews.push({ id: call.id, name: call.function.name, input: parseMcpToolArguments(call.function.arguments), output, error: failed })
           transcript.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(output) })
           if (call.function.name === "get_yaml_source") sourceReadIds.push(call.id)
         }
@@ -397,26 +396,26 @@ export function AiChatPanel({
           </div>
         </div>
 
-        <MessageScrollerProvider autoScroll>
-          <MessageScroller className="ai-chat-conversation" aria-live="polite" aria-busy={status === "streaming"}>
-            <MessageScrollerViewport>
-              <MessageScrollerContent className="ai-chat-conversation-content">
-                {messages.length === 0 ? <div className="ai-chat-welcome"><div className="ai-chat-suggestions"><Button variant="outline" size="sm" onClick={() => void send("Summarize this graph")}>Summarize graph</Button><Button variant="outline" size="sm" onClick={() => void send("What views are available?")}>List views</Button></div></div> : null}
-                {messages.map((message) => <MessageScrollerItem key={message.id} messageId={message.id} scrollAnchor={message.role === "user"}>
-                  <article className={`ai-chat-message is-${message.role}`}>
-                    <div className="ai-chat-message-content">
-                      {message.segments.length === 0 && message.streaming ? <span className="ai-chat-thinking">Thinking…</span> : null}
-                      {message.segments.map((segment) => segment.kind === "text"
-                        ? segment.content ? <ReactMarkdown key={segment.id} remarkPlugins={[remarkGfm]} components={markdownComponents}>{segment.content}</ReactMarkdown> : null
-                        : <details className="ai-chat-tool" key={segment.id}><summary>{segment.name}{segment.error ? " · error" : " · complete"}</summary><pre>{JSON.stringify(segment.output, null, 2)}</pre></details>)}
-                    </div>
-                  </article>
-                </MessageScrollerItem>)}
-              </MessageScrollerContent>
-            </MessageScrollerViewport>
-            <MessageScrollerButton />
-          </MessageScroller>
-        </MessageScrollerProvider>
+        <Conversation className="ai-chat-conversation" aria-live="polite" aria-busy={status === "streaming"}>
+          <ConversationContent className="ai-chat-conversation-content">
+            {messages.length === 0 ? <div className="ai-chat-welcome"><Suggestions><Suggestion suggestion="Summarize this graph" onClick={(value) => void send(value)} /><Suggestion suggestion="What views are available?" onClick={(value) => void send(value)} /></Suggestions></div> : null}
+            {messages.map((message) => <Message key={message.id} from={message.role} className={`ai-chat-message is-${message.role}`}>
+              <MessageContent className="ai-chat-message-content">
+                {message.segments.length === 0 && message.streaming ? <Loader /> : null}
+                {message.segments.map((segment) => segment.kind === "text"
+                  ? segment.content ? <MessageResponse key={segment.id} components={markdownComponents}>{segment.content}</MessageResponse> : null
+                  : <Tool className="ai-chat-tool" key={segment.id} defaultOpen={segment.error}>
+                      <ToolHeader type={`tool-${segment.name}`} state={segment.error ? "output-error" : "output-available"} />
+                      <ToolContent>
+                        <ToolInput input={segment.input} />
+                        <ToolOutput output={segment.output} errorText={segment.error ? "The tool reported an error." : undefined} />
+                      </ToolContent>
+                    </Tool>)}
+              </MessageContent>
+            </Message>)}
+          </ConversationContent>
+          <ConversationScrollButton />
+        </Conversation>
 
         <div className="ai-chat-composer">
           <label className="sr-only" htmlFor="ai-chat-prompt">Message</label>
