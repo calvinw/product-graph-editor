@@ -10,6 +10,13 @@ export default tseslint.config(
       "dist",
       "playwright-report",
       "test-results",
+      // Generated bundles and agent tooling workspaces. Ignored by git too, but
+      // the flat config does not read .gitignore, so they are listed again here.
+      "ds-bundle",
+      "dist-lib",
+      ".ds-sync",
+      ".crush",
+      ".opencode",
       "tests/visual/**/*.snapshots",
       // Repository skills bring their own generated/tooling sources and lint
       // contracts. Keep the application lint gate scoped to product code.
