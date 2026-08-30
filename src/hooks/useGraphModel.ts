@@ -243,7 +243,7 @@ export function useGraphModel({
           target: nodeId,
           label: `${exchange.input_product ?? exchange.input_name} · ${formatNumber(amount)}${exchange.unit ? ` ${exchange.unit}` : ""}`,
           type: graphConnectionStyle === "curved" ? "default" : graphConnectionStyle === "straight" ? "straight" : "smoothstep",
-          style: { stroke: "#2563eb", strokeWidth: 1.5 },
+          style: { stroke: "#2563eb", strokeWidth: 2.5 },
           labelStyle: { fill: "#9aa2ae", fontSize: 12, fontWeight: 650 },
           labelBgStyle: { fill: "#111318", fillOpacity: .92 },
           labelBgPadding: [5, 3],

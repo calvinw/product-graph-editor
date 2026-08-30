@@ -241,7 +241,13 @@ button, input { font: inherit; }
 .top-actions { margin-left: auto; display: flex; gap: 7px; }
 .global-settings-trigger { display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 9px; border: 0; border-radius: 6px; color: var(--trigger-foreground); background: transparent; font-size: 12px; cursor: pointer; }.global-settings-trigger:hover, .global-settings-trigger.is-active { color: var(--foreground); background: var(--control-background-hover); }
 .navbar-portal-target { min-width: 0; flex: 1; align-self: stretch; }
-.desktop-navbar { position: relative; height: 100%; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 2px; }
+/* The model title stays pinned beside the brand and shows in full (see "Show
+   full model title without pill styling"), so it takes part in layout instead
+   of sitting out of flow. The menus centre within whatever width is left, and
+   safe centring keeps a group wider than that space from spilling back over
+   the title. */
+.desktop-navbar { position: relative; height: 100%; min-width: 0; display: flex; align-items: center; gap: 2px; }
+.desktop-navbar-menus { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: safe center; gap: 2px; }
 .desktop-navbar button { font-size: 12px; }
 .desktop-navbar .navbar-menu-trigger, .desktop-primary-nav button { height: 30px; padding: 0 10px; border: 0; border-radius: 6px; color: var(--tab-foreground); background: transparent; box-shadow: none; font-weight: 500; }
 .desktop-navbar .navbar-menu-trigger:hover, .desktop-navbar .navbar-menu-trigger.is-active, .desktop-primary-nav button:hover, .desktop-primary-nav button[data-state="on"] { color: var(--tab-active-foreground); background: var(--tab-active-background); box-shadow: var(--tab-active-shadow); }
@@ -258,7 +264,7 @@ button, input { font: inherit; }
 button.current-model-title { padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: text; }
 button.current-model-title:hover, button.current-model-title:focus-visible { text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; outline: none; }
 input.current-model-title-input { display: block; width: 100%; min-width: 0; height: auto; padding: 1px 5px; border: 1px solid var(--ring); border-radius: 4px; background: var(--control-background); color: inherit; font: inherit; box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 22%, transparent); }
-.navbar-model-title { position: absolute; left: 0; width: 132px; padding-inline: 10px; color: var(--control-foreground); font-size: 12px; }
+.navbar-model-title { flex: none; margin-right: 12px; padding-inline: 10px; color: var(--control-foreground); font-size: 12px; }
 .navbar-status { position: absolute; right: 0; font-size: 10px; }
 .global-settings-panel { z-index: 30; width: 330px; gap: 0; padding: 10px; border: 1px solid var(--floating-border); border-radius: 10px; color: var(--popover-foreground); background: var(--floating-background-strong); box-shadow: var(--floating-shadow-strong); font-size: 16px; line-height: 1.5; backdrop-filter: blur(12px); }
 .history-panel { z-index: 30; width: min(420px, calc(100vw - 24px)); max-height: min(70vh, 560px); overflow-y: auto; gap: 0; padding: 10px; border: 1px solid var(--floating-border); border-radius: 10px; color: var(--popover-foreground); background: var(--floating-background-strong); box-shadow: var(--floating-shadow-strong); backdrop-filter: blur(12px); }
@@ -311,7 +317,7 @@ html[data-theme="light"] .history-diff-stat .is-removed, html[data-theme="light"
 .ai-chat-welcome { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 28px 10px; text-align: center; }
 .ai-chat-suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; }
 .ai-chat-message { display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 18px; }.ai-chat-message.is-user { align-items: flex-end; }.ai-chat-message-content { max-width: 100%; color: var(--foreground); font-size: 12px; line-height: 1.55; }.ai-chat-message.is-user .ai-chat-message-content { max-width: 92%; padding: 9px 11px; border-radius: 10px; color: var(--primary-foreground); background: var(--primary); }.ai-chat-message-content > :first-child { margin-top: 0; }.ai-chat-message-content > :last-child { margin-bottom: 0; }.ai-chat-message-content pre, .ai-chat-tool pre { max-width: 100%; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
-.ai-chat-thinking { color: var(--muted-foreground); }.ai-chat-tool { width: 92%; margin-top: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); font-size: 10px; }.ai-chat-tool summary { padding: 7px 9px; cursor: pointer; }.ai-chat-tool pre { margin: 0; padding: 8px 9px; border-top: 1px solid var(--border); color: var(--muted-foreground); }
+.ai-chat-thinking { color: var(--muted-foreground); }.ai-chat-tool { width: 92%; margin-top: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); font-size: 10px; }.ai-chat-tool summary { padding: 7px 9px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }.ai-chat-tool pre { margin: 0; padding: 8px 9px; border-top: 1px solid var(--border); color: var(--muted-foreground); }
 .ai-chat-table-wrap { max-width: 100%; margin: 10px 0; overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
 .ai-chat-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 11px; }
 .ai-chat-table th, .ai-chat-table td { padding: 6px 9px; border-bottom: 1px solid var(--border); text-align: left; overflow-wrap: break-word; word-break: break-word; }
@@ -863,7 +869,6 @@ html[data-theme="light"] .scenario-bar { background: #ffffff; box-shadow: 0 14px
 .scenario-score-delta.is-down { color: #4ade80; }
 .scenario-score-delta.is-up { color: #fbbf24; }
 .scenario-panel > footer { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; padding: 10px 15px; border-top: 1px solid var(--panel-header-border, #2b2f36); }
-.scenario-panel > footer span { flex: 1 0 100%; color: #6d747f; font-size: 10px; line-height: 1.45; }
 html[data-theme="light"] .scenario-panel { background: #fff; box-shadow: 0 18px 48px rgba(41,51,68,.2); }
 
 .scenario-panel-grip { color: #4b525d; flex: none; }

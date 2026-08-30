@@ -1,4 +1,5 @@
-import { Check, ChevronDown, CopyPlus, Download, FilePlus2, FileUp, Save as SaveIcon } from "lucide-react"
+import { useState } from "react"
+import { Check, ChevronDown, CopyPlus, Download, FilePlus2, FileUp, History, Save as SaveIcon, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
@@ -8,6 +9,8 @@ import {
 import type { ProductGraphTemplate } from "@/lib/lcaApi"
 import type { ActiveDocument, SessionDocument } from "@/lib/modelWorkspace"
 import { productGraphLabel } from "@/lib/resultFormatting"
+import { HistoryPanel } from "@/components/workspace/HistoryPanel"
+import type { DocumentSnapshot, Version } from "@/lib/versionHistory"
 
 export function FileMenu({
   activeDocument,
@@ -23,6 +26,10 @@ export function FileMenu({
   onSaveAs,
   onUpload,
   onDownload,
+  onClearSession,
+  versions,
+  documentSnapshot,
+  onRestoreVersion,
 }: {
   activeDocument: ActiveDocument | null
   templates: ProductGraphTemplate[]
@@ -37,8 +44,14 @@ export function FileMenu({
   onSaveAs: () => void
   onUpload: () => void
   onDownload: () => void
+  onClearSession: () => void
+  /** Omitted on the mobile navigation, which carries no history submenu. */
+  versions?: Version[]
+  documentSnapshot?: DocumentSnapshot
+  onRestoreVersion?: (versionId: string) => void
 }) {
-  return <DropdownMenu>
+  const [open, setOpen] = useState(false)
+  return <DropdownMenu open={open} onOpenChange={setOpen}>
     <DropdownMenuTrigger asChild>
       <Button data-file-menu-trigger className="navbar-menu-trigger model-menu-trigger" variant="ghost" size="sm">File<ChevronDown data-icon="inline-end" /></Button>
     </DropdownMenuTrigger>
@@ -62,6 +75,7 @@ export function FileMenu({
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuLabel>This session</DropdownMenuLabel>
+          <DropdownMenuItem onSelect={onClearSession}><Trash2 />Clear Session</DropdownMenuItem>
           {sessionDocuments.map((document) => {
             const selected = activeDocument?.kind === "session" && activeDocument.id === document.id
             return <DropdownMenuItem key={document.id} aria-current={selected ? "true" : undefined} onSelect={() => onSelectSession(document.id)}>
@@ -74,6 +88,19 @@ export function FileMenu({
       <DropdownMenuGroup>
         <DropdownMenuItem disabled={!canSave} onSelect={onSave}><SaveIcon />Save</DropdownMenuItem>
         <DropdownMenuItem disabled={!canSaveAs} onSelect={onSaveAs}><CopyPlus />Save As...</DropdownMenuItem>
+        {versions && documentSnapshot && onRestoreVersion ? (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger><History />History</DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="navbar-dropdown history-panel">
+              <HistoryPanel
+                versions={versions}
+                current={documentSnapshot}
+                onRestore={onRestoreVersion}
+                onClose={() => setOpen(false)}
+              />
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        ) : null}
       </DropdownMenuGroup>
       <DropdownMenuSeparator />
       <DropdownMenuGroup>

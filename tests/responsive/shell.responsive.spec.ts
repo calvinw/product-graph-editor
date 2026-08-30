@@ -46,3 +46,17 @@ test("welcome page opens the workspace and the PRISM logo returns home", async (
   await expect(page.getByRole("heading", { name: "Welcome to the Future of LCA" })).toBeVisible()
   await expect(page.locator(".react-flow")).toBeHidden()
 })
+
+test("the model title never runs under the File menu", async ({ page }) => {
+  await page.getByRole("button", { name: "Explore PRISM" }).click()
+  const title = page.locator(".navbar-model-title")
+  if (!await title.isVisible()) {
+    test.skip(true, "The desktop navbar title is not rendered at this width.")
+    return
+  }
+  const titleBox = await title.boundingBox()
+  const fileBox = await page.getByRole("button", { name: "File" }).boundingBox()
+  expect(titleBox).not.toBeNull()
+  expect(fileBox).not.toBeNull()
+  expect(titleBox!.x + titleBox!.width).toBeLessThanOrEqual(fileBox!.x)
+})

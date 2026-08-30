@@ -1,7 +1,5 @@
-import { useState } from "react"
-import { History, RotateCcw } from "lucide-react"
+import { RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { diffLines, diffStat } from "@/lib/diff"
 import { YamlDiff } from "@/components/workspace/YamlDiff"
 import { relativeTime, snapshotsEqual, type DocumentSnapshot, type Version } from "@/lib/versionHistory"
@@ -33,12 +31,14 @@ export function HistoryPanel({
   versions,
   current,
   onRestore,
+  onClose,
 }: {
   versions: Version[]
   current: DocumentSnapshot
   onRestore: (versionId: string) => void
+  /** Closes the File menu this panel is a submenu of. */
+  onClose: () => void
 }) {
-  const [open, setOpen] = useState(false)
   const newestFirst = [...versions].reverse()
   // Which recorded version, if any, the document currently matches. When
   // nothing matches there are uncommitted edits ahead of the whole list.
@@ -47,18 +47,14 @@ export function HistoryPanel({
   // Close on restore: the point of restoring is to see the graph and editor
   // change, which cannot happen with the panel covering them.
   const restore = (versionId: string) => {
-    setOpen(false)
+    onClose()
     onRestore(versionId)
   }
 
+  // Rendered as the content of a File > History submenu. It owns no overlay of
+  // its own: dismissal is the menu's business, which is what keeps it closable.
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button className="navbar-menu-trigger" variant="ghost" size="sm" aria-label="Version history">
-          <History data-icon="inline-start" size={14} />History
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="history-panel" side="bottom" align="start" sideOffset={6}>
+    <>
         <div className="history-panel-title">
           <span>Version history</span>
           {versions.length ? <small>{versions.length} version{versions.length === 1 ? "" : "s"}</small> : null}
@@ -114,7 +110,6 @@ export function HistoryPanel({
             })}
           </ul>
         )}
-      </PopoverContent>
-    </Popover>
+    </>
   )
 }
