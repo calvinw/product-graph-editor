@@ -10,6 +10,12 @@ export type McpServerConfig = {
   url: string
   enabled: boolean
   transport: McpTransportPreference
+  /**
+   * Run this server's tools without asking each time. On by default: confirming
+   * every remote call made the assistant unusable. Untick it per server to get
+   * the prompts back.
+   */
+  trusted: boolean
 }
 
 export type McpServerStatus = {
@@ -50,6 +56,9 @@ export function parseStoredMcpServers(serialized: string | null): McpServerConfi
         label: typeof server.label === "string" && server.label.trim() ? server.label : `Server ${index + 1}`,
         url: server.url,
         enabled: server.enabled !== false,
+        // Absent in servers stored before this setting existed, which take the
+        // same default as a newly added one.
+        trusted: server.trusted !== false,
         transport: isTransport(server.transport) ? server.transport : "auto",
       }]
     })
@@ -131,7 +140,7 @@ export function useMcpServers() {
 
   const registry = useMemo(() => createMcpToolRegistry(servers.flatMap((server) => {
     const state = statuses[server.id]
-    return state?.status === "connected" ? [{ id: server.id, label: server.label, tools: state.tools }] : []
+    return state?.status === "connected" ? [{ id: server.id, label: server.label, tools: state.tools, trusted: server.trusted }] : []
   })), [servers, statuses])
 
   const addServer = useCallback((preset?: { label: string; url: string; transport: McpTransportPreference }) => {
@@ -140,6 +149,7 @@ export function useMcpServers() {
       label: preset?.label ?? `Server ${current.length + 1}`,
       url: preset?.url ?? "",
       enabled: true,
+      trusted: true,
       transport: preset?.transport ?? "auto",
     }])
   }, [])

@@ -14,6 +14,7 @@ describe("parseStoredMcpServers", () => {
       label: "Server 1",
       url: "/lca-mcp",
       enabled: true,
+      trusted: true,
       transport: "auto",
     }])
   })
@@ -29,6 +30,7 @@ describe("parseStoredMcpServers", () => {
       label: "Dolt",
       url: "https://example.test/sse",
       enabled: false,
+      trusted: true,
       transport: "sse",
     }])
   })

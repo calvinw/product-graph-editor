@@ -135,9 +135,8 @@ test("chat settings persist the API key across reload", async ({ page }) => {
   await expect(page.getByLabel("OpenRouter API key")).toHaveValue("test-key")
 })
 
-test("assistant connects, displays, confirms, and calls a remote MCP tool", async ({ page }) => {
-  await mockRemoteMcp(page)
-  await configureChat(page)
+/** Drives the model to call the remote server's change_remote_state tool. */
+async function mockRemoteMcpAssistant(page: Page) {
   await page.unroute("https://openrouter.ai/api/v1/chat/completions")
   await page.route("https://openrouter.ai/api/v1/chat/completions", async (route) => {
     const body = route.request().postDataJSON() as {
@@ -158,6 +157,12 @@ test("assistant connects, displays, confirms, and calls a remote MCP tool", asyn
     expect(remote).toBeDefined()
     await sse(route, [{ choices: [{ delta: { tool_calls: [{ index: 0, id: "remote-call", function: { name: remote?.function.name, arguments: "{}" } }] } }] }])
   })
+}
+
+test("assistant connects, displays, confirms, and calls a remote MCP tool", async ({ page }) => {
+  await mockRemoteMcp(page)
+  await configureChat(page)
+  await mockRemoteMcpAssistant(page)
 
   await page.getByRole("button", { name: "Chat settings" }).click()
   await page.getByRole("button", { name: "LCA engine" }).click()
@@ -168,6 +173,10 @@ test("assistant connects, displays, confirms, and calls a remote MCP tool", asyn
   await expectInsideViewport(settings, page)
   const metrics = await pageMetrics(page)
   expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth)
+  // Remote servers run unconfirmed by default, so the confirmation path has to
+  // be turned back on to be exercised.
+  await expect(settings.getByLabel("Run without asking")).toBeChecked()
+  await settings.getByLabel("Run without asking").uncheck()
   await settings.getByRole("button", { name: "Save settings" }).click()
 
   const prompt = page.getByRole("textbox", { name: "Message", exact: true })
@@ -183,8 +192,26 @@ test("assistant connects, displays, confirms, and calls a remote MCP tool", asyn
   await prompt.press("Enter")
   await expect(confirmation).toBeVisible()
   await confirmation.getByRole("button", { name: "Confirm" }).click()
-  await expect(page.locator(".ai-chat-tool").filter({ hasText: /mcp__.*change_remote_state/ }).filter({ hasText: "Completed" }).last()).toBeVisible()
+  await expect(page.locator(".ai-chat-tool").filter({ hasText: /mcp_change_remote_state/ }).filter({ hasText: "Completed" }).last()).toBeVisible()
   await expect(page.getByText("The remote change completed.")).toBeVisible()
+})
+
+test("a remote MCP tool runs without confirmation by default", async ({ page }) => {
+  await mockRemoteMcp(page)
+  await configureChat(page)
+  await mockRemoteMcpAssistant(page)
+  await page.getByRole("button", { name: "Chat settings" }).click()
+  const settings = page.getByRole("dialog", { name: "Chat settings" })
+  await settings.getByRole("button", { name: "LCA engine" }).click()
+  await expect(settings.getByText("Connected via HTTP · 2 tools")).toBeVisible()
+  await settings.getByRole("button", { name: "Save settings" }).click()
+
+  const prompt = page.getByRole("textbox", { name: "Message", exact: true })
+  await prompt.fill("Change the remote state")
+  await prompt.press("Enter")
+
+  await expect(page.locator(".ai-chat-tool").filter({ hasText: /mcp_change_remote_state/ }).filter({ hasText: "Completed" }).last()).toBeVisible()
+  await expect(page.getByRole("alertdialog", { name: "Confirm assistant action" })).toHaveCount(0)
 })
 
 test("assistant reads bounded workspace and graph summaries", async ({ page }) => {

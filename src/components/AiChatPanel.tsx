@@ -1,6 +1,10 @@
 import { Children, isValidElement, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
-import { ArrowUp, Download, GripVertical, KeyRound, MessageSquarePlus, Settings2, Square, X } from "lucide-react"
+import remarkGfm from "remark-gfm"
+import remarkMath from "remark-math"
+import rehypeKatex from "rehype-katex"
+import "katex/dist/katex.min.css"
+import { Download, GripVertical, KeyRound, MessageSquarePlus, Settings2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -16,6 +20,9 @@ import { Message, MessageContent, MessageResponse } from "@/components/ai-elemen
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/components/ai-elements/tool"
 import { Loader } from "@/components/ai-elements/loader"
 import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion"
+import {
+  PromptInput, PromptInputBody, PromptInputFooter, PromptInputSubmit, PromptInputTextarea,
+} from "@/components/ai-elements/prompt-input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createOpenRouterTransport, type ModelMessage } from "@/ai/chatTransport"
 import {
@@ -130,6 +137,16 @@ function MarkdownTable({ children }: { children?: ReactNode }) {
 }
 
 const markdownComponents = { table: MarkdownTable }
+
+// LCA answers carry formulas often enough to be worth rendering. remark-math
+// reads $...$ inline and $$...$$ as a block; the \(...\) and \[...\] forms are
+// not part of its syntax.
+//
+// remark-gfm has to be listed too: this prop replaces the renderer's default
+// plugins rather than adding to them, and dropping it turns every table back
+// into raw pipes.
+const markdownRemarkPlugins = [remarkGfm, remarkMath]
+const markdownRehypePlugins = [rehypeKatex]
 
 /** How many full YAML reads stay in the transcript before older ones are stubbed. */
 const KEPT_SOURCE_READS = 1
@@ -376,14 +393,6 @@ export function AiChatPanel({
     setSettingsOpen(false)
   }
 
-  const growPrompt = () => {
-    const node = promptRef.current
-    if (!node) return
-    node.style.height = "auto"
-    node.style.height = `${Math.min(node.scrollHeight, window.innerHeight * 0.4)}px`
-  }
-  useEffect(() => { growPrompt() }, [draft])
-
   const panel = open && portalTarget ? createPortal(
     <aside className="ai-chat-sidebar" aria-label="PRISM assistant">
         <button className="ai-chat-resize-handle" type="button" aria-label="Resize AI assistant" aria-valuemin={240} aria-valuemax={Math.max(240, window.innerWidth - 80)} aria-valuenow={Math.round(panelWidth)} onKeyDown={resizeByKeyboard} onPointerDown={startResize}><GripVertical aria-hidden="true" /></button>
@@ -398,12 +407,12 @@ export function AiChatPanel({
 
         <Conversation className="ai-chat-conversation" aria-live="polite" aria-busy={status === "streaming"}>
           <ConversationContent className="ai-chat-conversation-content">
-            {messages.length === 0 ? <div className="ai-chat-welcome"><Suggestions><Suggestion suggestion="Summarize this graph" onClick={(value) => void send(value)} /><Suggestion suggestion="What views are available?" onClick={(value) => void send(value)} /></Suggestions></div> : null}
+            {messages.length === 0 ? <div className="ai-chat-welcome"><Suggestions className="ai-chat-suggestions"><Suggestion suggestion="Summarize this graph" onClick={(value) => void send(value)} /><Suggestion suggestion="What views are available?" onClick={(value) => void send(value)} /></Suggestions></div> : null}
             {messages.map((message) => <Message key={message.id} from={message.role} className={`ai-chat-message is-${message.role}`}>
               <MessageContent className="ai-chat-message-content">
                 {message.segments.length === 0 && message.streaming ? <Loader /> : null}
                 {message.segments.map((segment) => segment.kind === "text"
-                  ? segment.content ? <MessageResponse key={segment.id} components={markdownComponents}>{segment.content}</MessageResponse> : null
+                  ? segment.content ? <MessageResponse key={segment.id} components={markdownComponents} remarkPlugins={markdownRemarkPlugins} rehypePlugins={markdownRehypePlugins}>{segment.content}</MessageResponse> : null
                   : <Tool className="ai-chat-tool" key={segment.id} defaultOpen={segment.error}>
                       <ToolHeader type={`tool-${segment.name}`} state={segment.error ? "output-error" : "output-available"} />
                       <ToolContent>
@@ -417,11 +426,34 @@ export function AiChatPanel({
           <ConversationScrollButton />
         </Conversation>
 
-        <div className="ai-chat-composer">
-          <label className="sr-only" htmlFor="ai-chat-prompt">Message</label>
-          <textarea ref={promptRef} id="ai-chat-prompt" rows={1} value={draft} disabled={status === "streaming"} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(draft) } }} placeholder="Ask about the workspace or graph…" />
-          <Button type="button" size="icon" className="ai-chat-send" aria-label={status === "streaming" ? "Stop response" : "Send message"} disabled={status === "idle" && !draft.trim()} onClick={() => status === "streaming" ? abortRef.current?.abort() : void send(draft)}>{status === "streaming" ? <Square size={16} /> : <ArrowUp size={16} />}</Button>
-        </div>
+        <PromptInput
+          className="ai-chat-composer"
+          onSubmit={(message) => { if (status === "idle") void send(message.text ?? draft) }}
+        >
+          <PromptInputBody>
+            <PromptInputTextarea
+              ref={promptRef}
+              id="ai-chat-prompt"
+              aria-label="Message"
+              value={draft}
+              disabled={status === "streaming"}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder="Ask about the workspace or graph…"
+            />
+          </PromptInputBody>
+          <PromptInputFooter className="ai-chat-composer-footer">
+            {/* Submit while idle, abort while streaming. The component only
+                knows how to submit, so stopping stays on our own handler. */}
+            <PromptInputSubmit
+              className="ai-chat-send"
+              status={status === "streaming" ? "streaming" : undefined}
+              aria-label={status === "streaming" ? "Stop response" : "Send message"}
+              disabled={status === "idle" && !draft.trim()}
+              type={status === "streaming" ? "button" : "submit"}
+              onClick={status === "streaming" ? () => abortRef.current?.abort() : undefined}
+            />
+          </PromptInputFooter>
+        </PromptInput>
         {error ? <p className="ai-chat-error" role="alert">{error}</p> : null}
     </aside>,
     portalTarget,

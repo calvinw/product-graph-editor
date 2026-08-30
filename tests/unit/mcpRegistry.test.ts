@@ -16,8 +16,8 @@ describe("MCP tool registry", () => {
   }])
 
   it("prefixes remote names into the model's flat function namespace", () => {
-    expect(mcpToolName("lca server", "read/result")).toBe("mcp__lca_server__read_result")
-    expect([...registry.keys()]).toEqual(["mcp__lca_server__read_result", "mcp__lca_server__run-calculation"])
+    expect(mcpToolName("lca server", "read/result")).toBe("mcp_read_result")
+    expect([...registry.keys()]).toEqual(["mcp_read_result", "mcp_run-calculation"])
   })
 
   it("keeps generated names within the OpenAI function-name limit", () => {
@@ -27,18 +27,41 @@ describe("MCP tool registry", () => {
   it("merges definitions without changing the local definitions", () => {
     const merged = mergeToolDefinitions(appToolDefinitions, registry)
     expect(merged.slice(0, appToolDefinitions.length)).toEqual(appToolDefinitions)
-    expect(merged.at(-1)?.function.name).toBe("mcp__lca_server__run-calculation")
+    expect(merged.at(-1)?.function.name).toBe("mcp_run-calculation")
   })
 
   it("trusts only explicit read-only annotations", () => {
-    expect(requiresToolConfirmation("mcp__lca_server__read_result", registry)).toBe(false)
-    expect(requiresToolConfirmation("mcp__lca_server__run-calculation", registry)).toBe(true)
+    expect(requiresToolConfirmation("mcp_read_result", registry)).toBe(false)
+    expect(requiresToolConfirmation("mcp_run-calculation", registry)).toBe(true)
     expect(requiresToolConfirmation("calculate_current_model", registry)).toBe(true)
     expect(requiresToolConfirmation("get_graph_summary", registry)).toBe(false)
   })
 
+  it("stops asking for a server marked trusted in settings", () => {
+    const trusted = createMcpToolRegistry([{
+      id: "lca server",
+      label: "LCA",
+      trusted: true,
+      tools: [{ name: "run-calculation", description: "Run a calculation" }],
+    }])
+    expect(requiresToolConfirmation("mcp_run-calculation", trusted)).toBe(false)
+    // The app's own tools are unaffected by a remote server's setting.
+    expect(requiresToolConfirmation("calculate_current_model", trusted)).toBe(true)
+  })
+
+  it("disambiguates the same tool name offered by two servers", () => {
+    const twoServers = createMcpToolRegistry([
+      { id: "a", label: "A", tools: [{ name: "list_databases" }] },
+      { id: "b", label: "B", tools: [{ name: "list_databases" }] },
+    ])
+    const names = [...twoServers.keys()]
+    expect(names).toHaveLength(2)
+    expect(names[0]).toBe("mcp_list_databases")
+    expect(names[1]).not.toBe(names[0])
+  })
+
   it("describes a remote confirmation with its server and original name", () => {
-    expect(remoteConfirmationSummary("mcp__lca_server__run-calculation", registry))
+    expect(remoteConfirmationSummary("mcp_run-calculation", registry))
       .toBe("Run “run-calculation” on the remote MCP server LCA?")
   })
 })

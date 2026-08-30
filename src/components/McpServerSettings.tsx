@@ -48,6 +48,14 @@ export function McpServerSettings({
                 />
                 <FieldLabel htmlFor={`mcp-enabled-${server.id}`}>Enabled</FieldLabel>
               </Field>
+              <Field orientation="horizontal">
+                <Checkbox
+                  id={`mcp-trusted-${server.id}`}
+                  checked={server.trusted}
+                  onCheckedChange={(checked) => updateServer(server.id, { trusted: checked === true })}
+                />
+                <FieldLabel htmlFor={`mcp-trusted-${server.id}`} title="Run this server's tools without confirming each call">Run without asking</FieldLabel>
+              </Field>
               <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${server.label || "remote server"}`} onClick={() => removeServer(server.id)}>
                 <Trash2 />
               </Button>

@@ -7,6 +7,8 @@ export type McpRegistryServer = {
   id: string
   label: string
   tools: McpTool[]
+  /** Set on the server in chat settings; skips per-call confirmation. */
+  trusted?: boolean
 }
 
 export type RegisteredMcpTool = {
@@ -15,6 +17,7 @@ export type RegisteredMcpTool = {
   serverLabel: string
   remoteName: string
   readOnly: boolean
+  serverTrusted: boolean
 }
 
 export type McpToolRegistry = Map<string, RegisteredMcpTool>
@@ -33,10 +36,16 @@ function shortHash(value: string) {
   return (hash >>> 0).toString(36)
 }
 
-export function mcpToolName(serverId: string, remoteName: string) {
-  const server = identifier(serverId, "server").slice(0, 20)
-  const tool = identifier(remoteName, "tool")
-  const base = `mcp__${server}__${tool}`
+/**
+ * Name a remote tool as `mcp_<tool>`.
+ *
+ * The server is deliberately not part of the name: it made every tool read as
+ * `mcp__some_server__list_databases` in the transcript and on screen. Two
+ * servers offering the same tool name still collide, which the registry
+ * resolves by suffixing a hash of the server and tool.
+ */
+export function mcpToolName(_serverId: string, remoteName: string) {
+  const base = `mcp_${identifier(remoteName, "tool")}`
   return base.length <= 64 ? base : `${base.slice(0, 55)}_${shortHash(base).slice(0, 8)}`
 }
 
@@ -57,6 +66,7 @@ export function createMcpToolRegistry(servers: McpRegistryServer[]) {
         },
         serverId: server.id,
         serverLabel: server.label,
+        serverTrusted: server.trusted === true,
         remoteName: tool.name,
         readOnly: tool.annotations?.readOnlyHint === true,
       })
@@ -71,7 +81,9 @@ export function mergeToolDefinitions(local: ViewToolDefinition[], registry: McpT
 
 export function requiresToolConfirmation(name: string, registry: McpToolRegistry) {
   const remote = registry.get(name)
-  return remote ? !remote.readOnly : confirmedToolNames.has(name)
+  // A trusted server is approved once, in settings, instead of on every call.
+  if (remote) return !remote.readOnly && !remote.serverTrusted
+  return confirmedToolNames.has(name)
 }
 
 export function remoteConfirmationSummary(name: string, registry: McpToolRegistry) {
