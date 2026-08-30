@@ -147,6 +147,13 @@ export function createPersistentVersionStore(
  */
 export const TRANSIENT_HISTORY_KEY = "__transient__"
 
+/** Drop every persisted version. Used by "Clear Session". */
+export function clearPersistedVersions(storageKey = VERSION_STORAGE_KEY) {
+  try {
+    localStorage.removeItem(storageKey)
+  } catch { /* Storage can be unavailable in restricted browser contexts. */ }
+}
+
 export function historyKeyFor(activeDocument: ActiveDocument | null): string {
   if (!activeDocument) return TRANSIENT_HISTORY_KEY
   if (activeDocument.kind === "session" || activeDocument.kind === "template") return activeDocument.id

@@ -35,7 +35,9 @@ async function openWorkspace(page: Page) {
 const historyRows = (page: Page) => page.locator(".history-row")
 
 async function openHistory(page: Page) {
-  await page.getByRole("button", { name: "Version history" }).click()
+  // History is a submenu of the File menu now, not a navbar button.
+  await page.getByRole("button", { name: "File", exact: true }).click()
+  await page.getByRole("menuitem", { name: "History" }).hover()
   await expect(page.locator(".history-panel")).toBeVisible()
 }
 

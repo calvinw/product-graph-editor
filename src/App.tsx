@@ -37,7 +37,12 @@ import { InventoryView } from "@/components/views/InventoryView"
 import { ProcessResultsView } from "@/components/views/ProcessResultsView"
 import { SankeyView } from "@/components/views/SankeyView"
 import { FileMenu } from "@/components/workspace/FileMenu"
-import { HistoryPanel } from "@/components/workspace/HistoryPanel"
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { clearPersistedWorkspace } from "@/lib/workspacePersistence"
+import { clearPersistedVersions } from "@/lib/versionHistory"
 import { YamlEditor } from "@/components/workspace/YamlEditor"
 import { SaveAsDialog } from "@/components/workspace/SaveAsDialog"
 import { UnsavedChangesDialog } from "@/components/workspace/UnsavedChangesDialog"
@@ -81,6 +86,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
   const graphMode = useProductGraphStore((state) => state.graphMode)
   const showReferenceAmounts = useProductGraphStore((state) => state.showReferenceAmounts)
   const [graphSettingsOpen, setGraphSettingsOpen] = useState(false)
+  const [clearSessionOpen, setClearSessionOpen] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
   const { position: graphToolbarPosition, startDrag: startGraphToolbarDrag, panelRef: graphToolbarRef } = useDraggablePosition("product-graph-editor:graph-toolbar-position")
   const graphMaxProcesses = useProductGraphStore((state) => state.graphMaxProcesses)
@@ -255,6 +261,20 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     cumulativeCategories,
   })
 
+  /**
+   * Wipe the session so a reload starts clean.
+   *
+   * A reload rather than surgical state resets: the point of the button is a
+   * fresh start for debugging, and reloading is the only way to guarantee no
+   * in-memory remnant survives. The assistant's key and model are deliberately
+   * left alone -- clearing them would silently sign the user out of OpenRouter.
+   */
+  const clearSession = () => {
+    clearPersistedWorkspace()
+    clearPersistedVersions()
+    window.location.reload()
+  }
+
   const currentModelTitle = activeDocument?.title
     ?? (templateState === "unavailable" ? "Templates unavailable" : "Loading templates…")
   useEffect(() => onTitleChange(currentModelTitle), [currentModelTitle, onTitleChange])
@@ -382,6 +402,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     <>
       {navbarTarget ? createPortal(<div className="desktop-navbar" aria-label="Application navigation">
         <CurrentModelTitle title={currentModelTitle} className="navbar-model-title" onRename={activeDocument?.kind === "session" ? renameActiveDocument : undefined} />
+        <div className="desktop-navbar-menus">
         <FileMenu
           activeDocument={activeDocument}
           templates={templates}
@@ -396,8 +417,11 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           onSaveAs={openSaveAsDialog}
           onUpload={() => requestAction({ kind: "upload" })}
           onDownload={downloadCurrentYaml}
+          onClearSession={() => setClearSessionOpen(true)}
+          versions={versions}
+          documentSnapshot={documentSnapshot}
+          onRestoreVersion={restoreVersion}
         />
-        <HistoryPanel versions={versions} current={documentSnapshot} onRestore={restoreVersion} />
         <input ref={navbarUploadRef} className="navbar-file-input" type="file" accept=".yaml,.yml,text/yaml" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; loadYamlFile(file) }} />
         <ToggleGroup type="single" value={primaryView} onValueChange={(next) => next && requestView(next as "graph" | "yaml")} className="desktop-primary-nav" aria-label="Primary views">
           <ToggleGroupItem value="yaml">Edit</ToggleGroupItem>
@@ -429,6 +453,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
         </DropdownMenu>
         {calculationInProgress ? <span className="calculation-message navbar-status" role="status" aria-label="LCA calculation in progress">Calculating…</span>
           : backgroundProcessing ? <span className="calculation-message navbar-status" role="status" aria-label="Background graph processing">Processing…</span> : null}
+        </div>
       </div>, navbarTarget) : null}
       <div className="canvas-wrap">
         <div className="canvas-head">
@@ -450,6 +475,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
                   onSaveAs={openSaveAsDialog}
                   onUpload={() => requestAction({ kind: "upload" })}
                   onDownload={downloadCurrentYaml}
+                  onClearSession={() => setClearSessionOpen(true)}
                 />
               </div>
               {calculationInProgress ? <span className="calculation-message" role="status" aria-label="LCA calculation in progress">Calculating…</span>
@@ -584,6 +610,22 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
         clearNodeSelection={clearNodeSelection}
       /> : null}
       <AiChatPanel open={chatOpen} onOpenChange={onChatOpenChange} runtime={assistantRuntime} portalTarget={chatPortalTarget} />
+      <AlertDialog open={clearSessionOpen} onOpenChange={setClearSessionOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear this session?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Every document under &ldquo;This session&rdquo; and its recorded version history will be
+              deleted from this browser, and the workspace will reopen on the default model. Your
+              assistant settings are kept. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={clearSession}>Clear Session</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <UnsavedChangesDialog
         pendingConfirmationOpen={pendingConfirmationOpen}
         activeDocument={activeDocument} canSaveAs={canSaveAs}

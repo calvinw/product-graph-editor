@@ -170,7 +170,8 @@ test("an assistant edit is recorded, diffed, and can be undone", async ({ page }
   await expect(editor).toHaveValue(/amount: 4\.2/)
   await page.getByRole("button", { name: "Save", exact: true }).click()
 
-  await page.getByRole("button", { name: "Version history" }).click()
+  await page.getByRole("button", { name: "File", exact: true }).click()
+  await page.getByRole("menuitem", { name: "History" }).hover()
   const rows = page.locator(".history-row")
   const newest = rows.first()
   await expect(newest).toContainText("Saved")
