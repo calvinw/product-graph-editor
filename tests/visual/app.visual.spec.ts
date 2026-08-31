@@ -906,6 +906,30 @@ test("Structure Graph is the default and Scaled Graph is enabled after the LCA f
   await expect(structureGraph).toHaveAttribute("aria-pressed", "true")
 })
 
+test("scenario impact categories can be enabled and disabled independently", async ({ page }) => {
+  await mockLcaApi(page)
+  await openWorkspace(page)
+  await calculate(page)
+  await page.getByRole("radio", { name: "Graph", exact: true }).click()
+  await page.getByRole("button", { name: "Scaled Graph" }).click()
+
+  const scenarioAmount = page.getByRole("slider").first()
+  await scenarioAmount.focus()
+  await scenarioAmount.press("ArrowRight")
+  const panel = page.getByRole("status", { name: "Scenario impact" })
+  await expect(panel).toBeVisible()
+
+  const switches = panel.getByRole("switch")
+  const scores = panel.locator(".scenario-score")
+  const scoreCount = await scores.count()
+  expect(scoreCount).toBeGreaterThan(0)
+  const first = switches.first()
+  await expect(first).toHaveAttribute("aria-checked", "true")
+  await first.click()
+  await expect(first).toHaveAttribute("aria-checked", "false")
+  await expect(scores).toHaveCount(scoreCount - 1)
+})
+
 test("opening the inspector keeps the selected jacket node visible", async ({ page }) => {
   await mockLcaApi(page)
   await openWorkspace(page)

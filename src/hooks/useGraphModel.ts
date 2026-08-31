@@ -51,9 +51,9 @@ export function useGraphModel({
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges)
   const [query, setQuery] = useState("")
   const [yamlError, setYamlError] = useState("")
-  // Which categories are drawn on the graph. Empty until a result arrives,
-  // then all of them, which is what a first-time viewer wants to see.
-  const [visibleImpactCategories, setVisibleImpactCategories] = useState<string[]>([])
+  // Disabled categories are kept explicitly so that an empty enabled list
+  // means "calculate none", rather than being confused with "not loaded yet".
+  const [disabledImpactCategories, setDisabledImpactCategories] = useState<string[]>([])
   const appliedYaml = useProductGraphStore((state) => state.appliedYaml)
   const appliedRevision = useProductGraphStore((state) => state.appliedRevision)
   const calculatedRevision = useProductGraphStore((state) => state.calculatedRevision)
@@ -379,16 +379,32 @@ export function useGraphModel({
     }).length
   }, [lcaResult, scenarioOverrides])
 
+  const categoryOrder = useMemo(() => Object.keys(lcaResult?.lcia ?? {}), [lcaResult])
+  // A newly available category starts enabled. Keep only disabled labels that
+  // still exist after a calculation refreshes the result.
+  useEffect(() => {
+    setDisabledImpactCategories((current) => current.filter((label) => categoryOrder.includes(label)))
+  }, [categoryOrder])
+  const visibleImpactCategories = useMemo(
+    () => categoryOrder.filter((label) => !disabledImpactCategories.includes(label)),
+    [categoryOrder, disabledImpactCategories],
+  )
+  const toggleImpactCategory = useCallback((label: string) => {
+    setDisabledImpactCategories((current) => current.includes(label)
+      ? current.filter((item) => item !== label)
+      : [...current, label])
+  }, [])
+
   // Every foreground node's cumulative impact, re-solved locally. A background
   // amount edit only moves the right hand side, so this stays exact mid-drag.
   const foregroundImpacts = useMemo(() => {
     if (!structure || !lcaResult) return {}
     try {
       return solveForegroundCumulative(
-        structure.graph.processes as unknown as ForegroundProcess[], lcaResult, scenarioOverrides,
+        structure.graph.processes as unknown as ForegroundProcess[], lcaResult, scenarioOverrides, visibleImpactCategories,
       )
     } catch { return {} }
-  }, [lcaResult, scenarioOverrides, structure])
+  }, [lcaResult, scenarioOverrides, structure, visibleImpactCategories])
 
   // A boundary provider's own contribution: amount x consumer scale x intensity.
   const backgroundImpacts = useMemo(() => {
@@ -400,9 +416,12 @@ export function useGraphModel({
     for (const link of backgroundLinks(lcaResult)) {
       const scale = lcaResult.scaling_vector[link.process_name] ?? 0
       const amount = scenarioAmount(link, scenarioOverrides)
-      const rows = out[link.flow] ?? Object.entries(lcaResult.lcia).map(([label, impact]) => (
+      const rows = out[link.flow] ?? visibleImpactCategories.map((label) => {
+        const impact = lcaResult.lcia[label]
+        return (
         { label, unit: impact.unit, cumulative: 0, percentage: null as number | null }
-      ))
+        )
+      })
       for (const row of rows) {
         row.cumulative += scale * amount * (link.intensities[row.label] ?? 0)
         const total = lcaResult.lcia[row.label]?.score ?? 0
@@ -411,20 +430,12 @@ export function useGraphModel({
       out[link.flow] = rows
     }
     return out
-  }, [lcaResult, scenarioOverrides])
+  }, [lcaResult, scenarioOverrides, visibleImpactCategories])
 
   const categoryTotals = useMemo(
-    () => (lcaResult ? scoreScenario(lcaResult, scenarioOverrides) : []),
-    [lcaResult, scenarioOverrides],
+    () => (lcaResult ? scoreScenario(lcaResult, scenarioOverrides, visibleImpactCategories) : []),
+    [lcaResult, scenarioOverrides, visibleImpactCategories],
   )
-
-  const categoryOrder = useMemo(() => Object.keys(lcaResult?.lcia ?? {}), [lcaResult])
-  useEffect(() => { setVisibleImpactCategories(categoryOrder) }, [categoryOrder])
-  const toggleImpactCategory = useCallback((label: string) => {
-    setVisibleImpactCategories((current) => current.includes(label)
-      ? current.filter((item) => item !== label)
-      : categoryOrder.filter((item) => current.includes(item) || item === label))
-  }, [categoryOrder])
 
   // Paint each activity's own contribution onto its node. Impacts are merged
   // into existing node data rather than rebuilding nodes, so positions and

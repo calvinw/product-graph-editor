@@ -121,20 +121,22 @@ export function ScenarioPanel({
         <span>{editCount} input{editCount === 1 ? "" : "s"} changed</span>
       </header>
 
-      <div className="scenario-panel-toggles" role="group" aria-label="Categories shown on the graph">
+      <div className="scenario-panel-toggles" role="group" aria-label="Impact category calculations">
         {categoryOrder.map((label, index) => {
           const on = visibleCategories.includes(label)
           return (
             <button
               key={label}
               type="button"
+              role="switch"
               className={`scenario-toggle${on ? " is-on" : ""}`}
-              aria-pressed={on}
+              aria-checked={on}
+              aria-label={`${on ? "Disable" : "Enable"} ${impactCategoryDisplayName(label)} calculation`}
               onClick={() => onToggleCategory(label)}
               style={on ? { borderColor: impactColor(index), color: impactColor(index) } : undefined}
             >
-              <span className="scenario-toggle-dot" style={{ background: impactColor(index) }} />
-              {impactCategoryDisplayName(label)}
+              <span className="scenario-toggle-switch" aria-hidden="true"><span /></span>
+              <span>{impactCategoryDisplayName(label)}</span>
             </button>
           )
         })}

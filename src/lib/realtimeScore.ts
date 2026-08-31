@@ -78,9 +78,11 @@ export function scenarioAmount(
 export function scoreScenario(
   result: LcaResult,
   overrides: ScenarioOverrides,
+  categories?: readonly string[],
 ): CategoryPreview[] {
   const links = backgroundLinks(result)
-  return Object.entries(result.lcia).map(([label, impact]) => {
+  const enabled = categories ? new Set(categories) : null
+  return Object.entries(result.lcia).filter(([label]) => !enabled || enabled.has(label)).map(([label, impact]) => {
     const delta = links.reduce((total, link) => {
       const intensity = link.intensities[label]
       if (!Number.isFinite(intensity)) return total
@@ -184,6 +186,7 @@ export function solveForegroundCumulative(
   processes: ForegroundProcess[],
   result: LcaResult,
   overrides: ScenarioOverrides = {},
+  categories?: readonly string[],
 ): Record<string, NodeImpact[]> {
   const links = backgroundLinks(result)
   const scaling = result.scaling_vector
@@ -193,7 +196,9 @@ export function solveForegroundCumulative(
   const impacts: Record<string, NodeImpact[]> = Object.fromEntries(processes.map((p) => [p.name, []]))
   if (!n) return impacts
 
+  const enabled = categories ? new Set(categories) : null
   for (const [label, impact] of Object.entries(result.lcia)) {
+    if (enabled && !enabled.has(label)) continue
     const category = result.process_contributions.categories.find((item) => item.label === label)
     if (!category) continue
     const direct = new Map(
