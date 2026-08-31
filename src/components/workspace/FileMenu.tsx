@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Check, ChevronDown, CopyPlus, Download, FilePlus2, FileUp, History, Save as SaveIcon, Trash2 } from "lucide-react"
+import { Check, ChevronDown, CopyPlus, Download, FilePlus2, FileUp, History, Save as SaveIcon, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
@@ -27,6 +27,7 @@ export function FileMenu({
   onUpload,
   onDownload,
   onClearSession,
+  onDeleteSession,
   versions,
   documentSnapshot,
   onRestoreVersion,
@@ -45,6 +46,7 @@ export function FileMenu({
   onUpload: () => void
   onDownload: () => void
   onClearSession: () => void
+  onDeleteSession: (id: string) => void
   /** Omitted on the mobile navigation, which carries no history submenu. */
   versions?: Version[]
   documentSnapshot?: DocumentSnapshot
@@ -78,9 +80,21 @@ export function FileMenu({
           <DropdownMenuItem onSelect={onClearSession}><Trash2 />Clear Session</DropdownMenuItem>
           {sessionDocuments.map((document) => {
             const selected = activeDocument?.kind === "session" && activeDocument.id === document.id
-            return <DropdownMenuItem key={document.id} aria-current={selected ? "true" : undefined} onSelect={() => onSelectSession(document.id)}>
-              <span className="model-menu-item-title">{document.title}</span>{selected ? <Check className="model-menu-check" /> : null}
-            </DropdownMenuItem>
+            return <div key={document.id} className="session-model-row">
+              <DropdownMenuItem className="session-model-select" aria-current={selected ? "true" : undefined} onSelect={() => onSelectSession(document.id)}>
+                <span className="model-menu-item-title">{document.title}</span>{selected ? <Check className="model-menu-check" /> : null}
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild onSelect={(event) => {
+                // Keep File open so several session files can be managed in
+                // one pass. Radix otherwise closes the menu after selection.
+                event.preventDefault()
+                onDeleteSession(document.id)
+              }}>
+                <button type="button" className="session-model-delete" aria-label={`Delete ${document.title}`} title={`Delete ${document.title}`}>
+                  <X size={14} />
+                </button>
+              </DropdownMenuItem>
+            </div>
           })}
         </DropdownMenuGroup>
       </> : null}

@@ -418,6 +418,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           onUpload={() => requestAction({ kind: "upload" })}
           onDownload={downloadCurrentYaml}
           onClearSession={() => setClearSessionOpen(true)}
+          onDeleteSession={(id) => dispatchModelWorkspace({ type: "delete-session", id })}
           versions={versions}
           documentSnapshot={documentSnapshot}
           onRestoreVersion={restoreVersion}
@@ -476,6 +477,12 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
                   onUpload={() => requestAction({ kind: "upload" })}
                   onDownload={downloadCurrentYaml}
                   onClearSession={() => setClearSessionOpen(true)}
+                  onDeleteSession={(id) => dispatchModelWorkspace({ type: "delete-session", id })}
+                  onClearSession={() => setClearSessionOpen(true)}
+                  onDeleteSession={(id) => dispatchModelWorkspace({ type: "delete-session", id })}
+                  versions={versions}
+                  documentSnapshot={documentSnapshot}
+                  onRestoreVersion={restoreVersion}
                 />
               </div>
               {calculationInProgress ? <span className="calculation-message" role="status" aria-label="LCA calculation in progress">Calculating…</span>

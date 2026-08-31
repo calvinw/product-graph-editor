@@ -203,6 +203,23 @@ test("New starts blank and Save As creates a writable session model", async ({ p
   await expect(page.getByRole("radio", { name: "Graph", exact: true })).toBeChecked()
 })
 
+test("session files can be deleted from the File menu", async ({ page }) => {
+  await mockLcaApi(page)
+  await openWorkspace(page)
+
+  await page.getByRole("button", { name: "File", exact: true }).click()
+  await openTemplates(page)
+  await page.getByRole("menuitem", { name: "Jacket", exact: true }).click()
+
+  await page.getByRole("button", { name: "File", exact: true }).click()
+  await expect(page.getByText("This session", { exact: true })).toBeVisible()
+  await page.getByRole("menuitem", { name: "Delete Copy of Jacket" }).click()
+
+  await expect(page.getByRole("menu", { name: "File", exact: true })).toBeVisible()
+  await expect(page.getByText("This session", { exact: true })).toHaveCount(0)
+  await expect(page.getByRole("menuitem", { name: "Delete Copy of Jacket" })).toHaveCount(0)
+})
+
 test("Upload creates a writable session model and Download preserves the exact draft", async ({ page }) => {
   await mockLcaApi(page)
   let calculationRequests = 0
@@ -992,4 +1009,3 @@ for (const theme of ["dark", "light"] as const) {
     await screenshot(page, `${theme}-sankey-chart-settings.png`)
   })
 }
-
