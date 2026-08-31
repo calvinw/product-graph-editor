@@ -225,7 +225,7 @@ button, input { font: inherit; }
 [data-slot="select-content"] [data-position="popper"] { height: auto; min-height: var(--radix-select-trigger-height); padding: 4px; }
 [data-slot="select-item"] { min-height: 26px; font-size: 11px; }
 .app-shell { height: 100%; display: flex; min-width: 0; overflow: hidden; background: var(--background); }
-.app-main-pane { position: relative; min-width: 0; flex: 1 1 auto; display: grid; grid-template-rows: 58px minmax(0, 1fr); }
+.app-main-pane { position: relative; min-width: 0; flex: 1 1 auto; display: grid; grid-template-rows: 58px minmax(0, 1fr); container-type: inline-size; }
 .ai-chat-pane { position: relative; width: 0; min-width: 0; flex: none; overflow: visible; transition: width .22s cubic-bezier(.16,1,.3,1); }
 .ai-chat-edge-tab { position: fixed; z-index: 39; right: 0; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 20px; height: 64px; padding: 0; border: 1px solid var(--floating-border); border-right: 0; border-radius: 8px 0 0 8px; color: var(--muted-foreground); background: var(--floating-background); box-shadow: var(--floating-shadow); cursor: pointer; }
 .ai-chat-edge-tab:hover, .ai-chat-edge-tab:focus-visible { color: var(--foreground); background: var(--control-background-hover); outline: none; }
@@ -754,8 +754,10 @@ html[data-theme="light"] .process-flow-table .empty-row td { color: #6b7280; }
   .brand-study-title, .brand-separator { display: none; }
   .desktop-navbar .navbar-menu-trigger, .desktop-primary-nav button { height: 40px; padding: 0 15px; border-radius: 999px; font-size: 13px; font-weight: 600; letter-spacing: 0; }
   .desktop-navbar .lucide-chevron-down { width: 10px; height: 10px; }
-  .navbar-model-title { width: max-content; max-width: none; padding-inline: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; font-size: 13px; font-weight: 550; text-overflow: clip; }
-  .navbar-status { font-size: 11px; }
+  .desktop-navbar { justify-content: flex-start; gap: 4px; }
+  .desktop-navbar .navbar-menu-trigger, .desktop-primary-nav { flex: none; }
+  .navbar-model-title { position: static; flex: 1 1 0; width: auto; min-width: 0; max-width: clamp(140px, 20vw, 260px); padding-inline: 0; overflow: hidden; border: 0; border-radius: 0; background: transparent; font-size: 13px; font-weight: 550; text-overflow: ellipsis; }
+  .navbar-status { position: static; flex: none; max-width: 130px; overflow: hidden; font-size: 11px; text-overflow: ellipsis; }
   .top-actions { padding-left: 12px; }
   .global-settings-trigger { height: 40px; padding: 0 16px; border: 1px solid rgba(255,255,255,.1); border-radius: 999px; background: rgba(255,255,255,.045); font-size: 13px; }
   html[data-theme="light"] .topbar { border-color: rgba(71,85,105,.18); background: rgba(255,255,255,.82); box-shadow: 0 18px 50px rgba(41,51,68,.16), inset 0 1px rgba(255,255,255,.9); }
@@ -771,6 +773,10 @@ html[data-theme="light"] .process-flow-table .empty-row td { color: #6b7280; }
   .yaml-editor, .results-empty, .results-panel { inset: 108px 28px 28px; }
   .inventory-view, .impact-view, .process-results-view, .contribution-view, .sankey-view { inset: 108px 28px 28px; border-radius: 12px; }
   .sankey-toolbar, .sankey-chart-picker { top: 18px; }
+}
+@container (max-width: 720px) {
+  .desktop-navbar .navbar-model-title { display: none; }
+  .desktop-navbar .navbar-menu-trigger, .desktop-primary-nav button { padding-inline: 10px; font-size: 12px; }
 }
 @media (max-width: 620px) {
   .welcome-page { padding: 10px; }

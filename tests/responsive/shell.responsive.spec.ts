@@ -15,8 +15,8 @@ test("application shell and primary graph controls load", async ({ page }) => {
     await expect(fileTitle).toHaveCSS("border-top-width", "0px")
     await expect(fileTitle).toHaveCSS("border-radius", "0px")
     await expect(fileTitle).toHaveCSS("background-color", "rgba(0, 0, 0, 0)")
-    await expect(fileTitle).toHaveCSS("text-overflow", "clip")
-    await expect(fileTitle).toHaveCSS("overflow", "visible")
+    await expect(fileTitle).toHaveCSS("text-overflow", "ellipsis")
+    await expect(fileTitle).toHaveCSS("overflow", "hidden")
   } else {
     await expect(page.getByRole("heading", { name: "Copy of Jacket" })).toBeVisible()
   }
