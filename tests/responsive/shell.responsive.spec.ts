@@ -29,6 +29,7 @@ test("application shell and primary graph controls load", async ({ page }) => {
     : page.getByRole("radio", { name: "Results", exact: true })
   await expect(results).toBeVisible()
   await expect(page.locator(".react-flow")).toBeVisible()
+  await expect(page.locator(".react-flow__node .pg-node").first()).toHaveCSS("font-size", "24px")
 })
 
 test("page does not overflow horizontally", async ({ page }) => {
