@@ -113,7 +113,7 @@ async function rebuildIntensities(source: string) {
     }
   }))
 
-  return rows.filter((row): row is Record<string, unknown> => row !== null)
+  return rows.filter((row): row is NonNullable<typeof row> => row !== null)
 }
 
 export function lcaIntensityShim(): Plugin {

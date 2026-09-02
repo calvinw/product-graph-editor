@@ -478,8 +478,6 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
                   onDownload={downloadCurrentYaml}
                   onClearSession={() => setClearSessionOpen(true)}
                   onDeleteSession={(id) => dispatchModelWorkspace({ type: "delete-session", id })}
-                  onClearSession={() => setClearSessionOpen(true)}
-                  onDeleteSession={(id) => dispatchModelWorkspace({ type: "delete-session", id })}
                   versions={versions}
                   documentSnapshot={documentSnapshot}
                   onRestoreVersion={restoreVersion}
