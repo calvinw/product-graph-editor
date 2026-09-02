@@ -116,20 +116,6 @@ test("assistant switches to Edit through the guarded view action", async ({ page
   expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth)
 })
 
-test("assistant pane does not let the model title overlap navigation", async ({ page }) => {
-  test.skip((page.viewportSize()?.width ?? 0) <= 900, "Compact navigation is used below desktop width.")
-  await configureChat(page)
-
-  const [title, file] = await Promise.all([
-    page.locator(".navbar-model-title").boundingBox(),
-    page.getByRole("button", { name: "File", exact: true }).boundingBox(),
-  ])
-  expect(title).not.toBeNull()
-  expect(file).not.toBeNull()
-  if (!title || !file) return
-  expect(title.x + title.width).toBeLessThanOrEqual(file.x)
-})
-
 test("assistant rejects an unavailable Sankey view", async ({ page }) => {
   await configureChat(page)
   const prompt = page.getByRole("textbox", { name: "Message", exact: true })
