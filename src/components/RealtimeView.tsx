@@ -94,19 +94,20 @@ export function RealtimeView({
         {previews.map((preview) => {
           const changed = preview.delta !== 0
           const direction = preview.delta < 0 ? "down" : "up"
+          const resultColor = direction === "up" ? "#f87171" : "#4ade80"
           return <article className="realtime-score" key={preview.label}>
             <header>{impactCategoryDisplayName(preview.label)}</header>
             <div className="realtime-score-values">
               {changed ? <span className="realtime-score-baseline">{formatNumber(preview.baseline)}</span> : null}
               {changed ? <ArrowRight size={14} className="realtime-score-arrow" /> : null}
-              <span className={`realtime-score-preview${changed ? ` is-${direction}` : ""}`}>
+              <span className={`realtime-score-preview${changed ? ` is-${direction}` : ""}`} style={changed ? { color: resultColor } : undefined}>
                 {formatNumber(preview.preview)}
               </span>
             </div>
             <footer>
               <span className="realtime-score-unit">{preview.unit}</span>
               {changed && preview.relativeDelta !== null
-                ? <span className={`realtime-score-delta is-${direction}`}>
+                ? <span className={`realtime-score-delta is-${direction}`} style={{ color: resultColor }}>
                     {preview.delta < 0 ? "−" : "+"}{(Math.abs(preview.relativeDelta) * 100).toFixed(1)}%
                   </span>
                 : null}
