@@ -9,6 +9,10 @@ const NODE_GAP = 340
 const RANK_GAP = 640
 const BACKGROUND_BRANCH_NODE_GAP = 460
 const BACKGROUND_BRANCH_RANK_GAP = 700
+const COMPACT_NODE_GAP = 180
+const COMPACT_RANK_GAP = 320
+const COMPACT_BACKGROUND_BRANCH_NODE_GAP = 240
+const COMPACT_BACKGROUND_BRANCH_RANK_GAP = 360
 // Extra clearance kept between any two nodes' boxes once positioned, on top
 // of their real measured size, so labels and connecting arrows stay legible.
 const OVERLAP_PADDING = 40
@@ -84,15 +88,19 @@ export function resolveNodeOverlaps<T extends Record<string, unknown>>(
 export function layoutNodes<T extends Record<string, unknown>>(
   nodes: Node<T>[],
   edges: Edge[],
-  options: { orientation?: "vertical" | "horizontal" } = {},
+  options: { orientation?: "vertical" | "horizontal"; compact?: boolean } = {},
 ): Node<T>[] {
   const graph = new dagre.graphlib.Graph()
   graph.setDefaultEdgeLabel(() => ({}))
   const hasBackgroundBranches = nodes.filter((node) => node.data.scope === "background").length > 1
   graph.setGraph({
     rankdir: options.orientation === "vertical" ? "BT" : "LR",
-    nodesep: hasBackgroundBranches ? BACKGROUND_BRANCH_NODE_GAP : NODE_GAP,
-    ranksep: hasBackgroundBranches ? BACKGROUND_BRANCH_RANK_GAP : RANK_GAP,
+    nodesep: options.compact
+      ? (hasBackgroundBranches ? COMPACT_BACKGROUND_BRANCH_NODE_GAP : COMPACT_NODE_GAP)
+      : (hasBackgroundBranches ? BACKGROUND_BRANCH_NODE_GAP : NODE_GAP),
+    ranksep: options.compact
+      ? (hasBackgroundBranches ? COMPACT_BACKGROUND_BRANCH_RANK_GAP : COMPACT_RANK_GAP)
+      : (hasBackgroundBranches ? BACKGROUND_BRANCH_RANK_GAP : RANK_GAP),
     marginx: 32,
     marginy: 32,
     ranker: "network-simplex",

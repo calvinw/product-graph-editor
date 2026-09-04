@@ -590,6 +590,7 @@ html[data-theme="light"] .pg-node-head, html[data-theme="light"] .pg-flow-sectio
   box-shadow: 0 4px 14px rgba(0,0,0,.28);
   transition: border-color .15s ease, opacity .15s ease, box-shadow .15s ease;
 }
+.graph-viewport.is-tote-compact .pg-node { height: 56px; padding: 0 14px 0 18px; font-size: 30px; }
 .pg-node.is-selected {
   border-color: var(--node-color);
   border-width: 1.5px;

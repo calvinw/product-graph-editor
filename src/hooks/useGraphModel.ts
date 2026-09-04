@@ -62,9 +62,11 @@ export function useGraphModel({
   const graphMaxProcesses = useProductGraphStore((state) => state.graphMaxProcesses)
   const graphOrientation = useProductGraphStore((state) => state.graphOrientation)
   const graphConnectionStyle = useProductGraphStore((state) => state.graphConnectionStyle)
+  const activeDocument = useProductGraphStore((state) => state.workspace.activeDocument)
   const selected = useProductGraphStore((state) => state.selectedNode)
   const scenarioOverrides = useProductGraphStore((state) => state.scenarioOverrides)
   const scenarioCommitRevision = useProductGraphStore((state) => state.scenarioCommitRevision)
+  const compactToteLayout = activeDocument?.title.toLowerCase().includes("cotton tote bag") ?? false
   const {
     applySource, applyScenarioSource, setGraphMode, setGraphMaxProcesses, setReferenceAmountsVisible,
     requestViewChange: setView, setScenarioOverride, dispatchWorkspace,
@@ -89,10 +91,10 @@ export function useGraphModel({
   const wasNodesInitializedRef = useRef(false)
   useEffect(() => {
     if (nodesInitialized && !wasNodesInitializedRef.current) {
-      setNodes((current) => layoutNodes(current, edgesRef.current, { orientation: graphOrientation }))
+      setNodes((current) => layoutNodes(current, edgesRef.current, { orientation: graphOrientation, compact: compactToteLayout }))
     }
     wasNodesInitializedRef.current = nodesInitialized
-  }, [graphOrientation, nodesInitialized, setNodes])
+  }, [compactToteLayout, graphOrientation, nodesInitialized, setNodes])
 
   const hydrateBackgroundNode = useCallback(async (nodeId: string) => {
     const node = nodesRef.current.find((candidate) => candidate.id === nodeId)
@@ -634,9 +636,9 @@ export function useGraphModel({
     // so its dagre-computed slot no longer matches; relay out once the new
     // size has been measured, or it can overlap its neighbors.
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      setNodes((current) => layoutNodes(current, edgesRef.current, { orientation: graphOrientation }))
+      setNodes((current) => layoutNodes(current, edgesRef.current, { orientation: graphOrientation, compact: compactToteLayout }))
     }))
-  }, [edges, graphOrientation, hydrateBackgroundNode, setEdges, setNodes])
+  }, [compactToteLayout, edges, graphOrientation, hydrateBackgroundNode, setEdges, setNodes])
 
   const setAllExpanded = useCallback((expanded: boolean) => {
     const currentEdges = edgesRef.current
@@ -659,13 +661,13 @@ export function useGraphModel({
         .forEach((node) => void hydrateBackgroundNode(node.id))
     }
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      setNodes((current) => layoutNodes(current, edgesRef.current, { orientation: graphOrientation }))
+      setNodes((current) => layoutNodes(current, edgesRef.current, { orientation: graphOrientation, compact: compactToteLayout }))
     }))
-  }, [graphOrientation, hydrateBackgroundNode, setEdges, setNodes])
+  }, [compactToteLayout, graphOrientation, hydrateBackgroundNode, setEdges, setNodes])
 
-  const fit = () => fitView({ padding: 0.4, maxZoom: 0.85, duration: 350 })
+  const fit = () => fitView({ padding: compactToteLayout ? 0.2 : 0.4, maxZoom: 0.85, duration: 350 })
   const relayout = () => {
-    setNodes((current) => layoutNodes(current, edges, { orientation: graphOrientation }))
+    setNodes((current) => layoutNodes(current, edges, { orientation: graphOrientation, compact: compactToteLayout }))
     requestAnimationFrame(fit)
   }
   const applyGraphSettings = ({
@@ -692,7 +694,7 @@ export function useGraphModel({
         ...edge,
         type: connectionStyle === "curved" ? "default" : connectionStyle === "straight" ? "straight" : "smoothstep",
       }))
-      setNodes(layoutNodes(nextNodes, nextEdges, { orientation }))
+      setNodes(layoutNodes(nextNodes, nextEdges, { orientation, compact: compactToteLayout }))
       setEdges(nextEdges)
       requestAnimationFrame(fit)
     } catch (error) {
@@ -719,7 +721,7 @@ export function useGraphModel({
           })
         : buildGraphFromYaml(appliedYaml, mode, currentResult?.scaling_vector, graphDecimalPlaces)
       const previousById = new Map(nodesRef.current.map((node) => [node.id, node]))
-      const laidOutNodes = layoutNodes(parsed.nodes, parsed.edges, { orientation: graphOrientation })
+      const laidOutNodes = layoutNodes(parsed.nodes, parsed.edges, { orientation: graphOrientation, compact: compactToteLayout })
       let nextNodes: Node<ProcessNodeData>[] = laidOutNodes.map((node) => {
         const previous = previousById.get(node.id)
         return {
@@ -772,10 +774,10 @@ export function useGraphModel({
       setNodes(layoutNodes(parsed.nodes.map((node) => ({
         ...node,
         data: { ...node.data, canFold: parsed.edges.some((edge) => edge.target === node.id) },
-      })), parsed.edges, { orientation: graphOrientation }))
+      })), parsed.edges, { orientation: graphOrientation, compact: compactToteLayout }))
       setYamlError("")
       onResultsMarkdown("")
-      requestAnimationFrame(() => requestAnimationFrame(() => fitView({ padding: 0.4, maxZoom: 0.85, duration: 350 })))
+      requestAnimationFrame(() => requestAnimationFrame(() => fitView({ padding: compactToteLayout ? 0.2 : 0.4, maxZoom: 0.85, duration: 350 })))
       return nextRevision
     } catch (error) {
       setYamlError(error instanceof Error ? error.message : "Could not parse this YAML file.")
@@ -852,9 +854,9 @@ export function useGraphModel({
       setNodes(layoutNodes(parsed.nodes.map((node) => ({
         ...node,
         data: { ...node.data, canFold: parsed.edges.some((edge) => edge.target === node.id) },
-      })), parsed.edges, { orientation: graphOrientation }))
+      })), parsed.edges, { orientation: graphOrientation, compact: compactToteLayout }))
       setYamlError("")
-      requestAnimationFrame(() => requestAnimationFrame(() => fitView({ padding: 0.4, maxZoom: 0.85, duration: 350 })))
+      requestAnimationFrame(() => requestAnimationFrame(() => fitView({ padding: compactToteLayout ? 0.2 : 0.4, maxZoom: 0.85, duration: 350 })))
     } catch (error) {
       // A recorded version parsed when it was written, so this should not
       // happen; surface it rather than leaving a half-restored graph.
@@ -881,7 +883,7 @@ export function useGraphModel({
     nodesRef, edgesRef, foldDirectionRef,
     query, setQuery, yamlError, setYamlError,
     graphDecimalPlaces, availableGraphProcessCount,
-    fitView, zoomIn, zoomOut, fit, relayout,
+    fitView, zoomIn, zoomOut, fit, relayout, compactToteLayout,
     removeNode, restoreNode, toggleExpanded, setAllExpanded,
     applyGraphSettings, showGraphMode, applyYaml, applyAndCalculateYaml,
     commitVersion, restoreVersion, undo, redo, captureDraftVersion,

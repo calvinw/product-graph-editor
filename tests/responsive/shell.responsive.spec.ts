@@ -39,6 +39,28 @@ test("page does not overflow horizontally", async ({ page }) => {
   expect(metrics.bodyWidth).toBeLessThanOrEqual(metrics.viewportWidth)
 })
 
+test("the fitted graph keeps every visible node inside its canvas", async ({ page }) => {
+  await page.getByRole("button", { name: "Explore PRISM" }).click()
+  await expect(page.locator(".react-flow__node:visible").first()).toBeVisible()
+  await page.waitForTimeout(100)
+  const [canvas, nodes] = await Promise.all([
+    page.locator(".react-flow").boundingBox(),
+    page.locator(".react-flow__node:visible").evaluateAll((elements) => elements.map((element) => {
+      const bounds = element.getBoundingClientRect()
+      return { left: bounds.left, top: bounds.top, right: bounds.right, bottom: bounds.bottom }
+    })),
+  ])
+  expect(canvas).not.toBeNull()
+  expect(nodes).not.toHaveLength(0)
+  if (!canvas) return
+  for (const node of nodes) {
+    expect(node.left).toBeGreaterThanOrEqual(canvas.x)
+    expect(node.top).toBeGreaterThanOrEqual(canvas.y)
+    expect(node.right).toBeLessThanOrEqual(canvas.x + canvas.width)
+    expect(node.bottom).toBeLessThanOrEqual(canvas.y + canvas.height)
+  }
+})
+
 test("welcome page opens the workspace and the PRISM logo returns home", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Welcome to the Future of LCA" })).toBeVisible()
   await page.getByRole("button", { name: "Explore PRISM" }).click()

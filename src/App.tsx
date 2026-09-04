@@ -126,7 +126,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     applyGraphSettings, showGraphMode, applyYaml, applyAndCalculateYaml,
     hydrateBackgroundNode, commitScenario, scenarioEditCount, restoreVersion,
     undo, redo, captureDraftVersion,
-    categoryTotals, visibleImpactCategories, toggleImpactCategory, categoryOrder,
+    categoryTotals, visibleImpactCategories, toggleImpactCategory, categoryOrder, compactToteLayout,
   } = useGraphModel({
     resetCalculationState, markRevision, calculateSource,
     onResultsMarkdown: setResultsMarkdown, loadContributionGraphs,
@@ -141,13 +141,13 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     if (view !== "graph" || !active) return
     let fitFrame = 0
     const resizeFrame = requestAnimationFrame(() => {
-      fitFrame = requestAnimationFrame(() => fitView({ padding: 0.4, maxZoom: 0.85, duration: 250 }))
+      fitFrame = requestAnimationFrame(() => fitView({ padding: compactToteLayout ? 0.2 : 0.4, maxZoom: 0.85, duration: 250 }))
     })
     return () => {
       cancelAnimationFrame(resizeFrame)
       cancelAnimationFrame(fitFrame)
     }
-  }, [active, fitView, view])
+  }, [active, compactToteLayout, fitView, view])
   useEffect(() => {
     if (!chatPortalTarget || view !== "graph" || !active) return
     let fitFrame = 0
@@ -157,27 +157,27 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
       if (Math.abs(nextWidth - previousWidth) < 1) return
       previousWidth = nextWidth
       cancelAnimationFrame(fitFrame)
-      fitFrame = requestAnimationFrame(() => fitView({ padding: 0.4, maxZoom: 0.85 }))
+      fitFrame = requestAnimationFrame(() => fitView({ padding: compactToteLayout ? 0.2 : 0.4, maxZoom: 0.85 }))
     })
     observer.observe(chatPortalTarget)
     return () => {
       observer.disconnect()
       cancelAnimationFrame(fitFrame)
     }
-  }, [active, chatPortalTarget, fitView, view])
+  }, [active, chatPortalTarget, compactToteLayout, fitView, view])
   useEffect(() => {
     if (view !== "graph" || !active) return
     let fitFrame = 0
     const onResize = () => {
       cancelAnimationFrame(fitFrame)
-      fitFrame = requestAnimationFrame(() => fitView({ padding: 0.4, maxZoom: 0.85, duration: 200 }))
+      fitFrame = requestAnimationFrame(() => fitView({ padding: compactToteLayout ? 0.2 : 0.4, maxZoom: 0.85, duration: 200 }))
     }
     window.addEventListener("resize", onResize)
     return () => {
       window.removeEventListener("resize", onResize)
       cancelAnimationFrame(fitFrame)
     }
-  }, [active, fitView, view])
+  }, [active, compactToteLayout, fitView, view])
   useEffect(() => {
     if (view !== "graph" || !active || !inspectorOpen || !selected) return
     const frame = requestAnimationFrame(() => {
@@ -508,6 +508,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
           // Either right-rail panel shrinks the canvas, so neither covers the graph.
           inspectorOpen={inspectorOpen || (graphMode === "scaled" && scenarioEditCount > 0)} theme={theme}
+          compactLayout={compactToteLayout}
           setSelected={setSelected} clearNodeSelection={clearNodeSelection}
           hydrateBackgroundNode={hydrateBackgroundNode} toggleExpanded={toggleExpanded}
           selectMode={selectMode}

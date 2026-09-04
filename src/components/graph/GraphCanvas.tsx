@@ -1,6 +1,6 @@
-import { useCallback } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import {
-  Background, BackgroundVariant, ReactFlow, SelectionMode, getNodesBounds, useReactFlow,
+  Background, BackgroundVariant, ReactFlow, SelectionMode, getNodesBounds, useNodesInitialized, useReactFlow,
   type Edge, type Node, type OnEdgesChange, type OnNodesChange,
 } from "@xyflow/react"
 import { ProcessNode, type ProcessNodeData } from "@/components/ProcessNode"
@@ -21,7 +21,7 @@ const edgeTypes = { scenario: ScenarioEdge }
 export function GraphCanvas({
   nodes, edges, onNodesChange, onEdgesChange,
   inspectorOpen, theme, selectMode,
-  setSelected, clearNodeSelection, hydrateBackgroundNode, toggleExpanded,
+  compactLayout, setSelected, clearNodeSelection, hydrateBackgroundNode, toggleExpanded,
 }: {
   nodes: Node<ProcessNodeData>[]
   edges: Edge[]
@@ -30,12 +30,39 @@ export function GraphCanvas({
   inspectorOpen: boolean
   theme: string
   selectMode: boolean
+  compactLayout: boolean
   setSelected: (node: SelectedGraphNode) => void
   clearNodeSelection: () => void
   hydrateBackgroundNode: (id: string) => void | Promise<void>
   toggleExpanded: (id: string) => void
 }) {
   const { fitBounds, getNodes } = useReactFlow()
+  const nodesInitialized = useNodesInitialized()
+  const fitAfterMeasurementRef = useRef(false)
+
+  // The larger node labels are measured after the initial layout. Fit only the
+  // main GraphCanvas again after that measurement-driven relayout, rather than
+  // using the shared React Flow provider while another canvas (such as Sankey)
+  // is active.
+  useEffect(() => {
+    if (!nodesInitialized) {
+      fitAfterMeasurementRef.current = false
+      return
+    }
+    if (fitAfterMeasurementRef.current) return
+    fitAfterMeasurementRef.current = true
+    let secondFrame = 0
+    const frame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => {
+        void fitBounds(getNodesBounds(getNodes()), { padding: compactLayout ? 0.2 : 0.4 })
+      })
+    })
+    return () => {
+      cancelAnimationFrame(frame)
+      cancelAnimationFrame(secondFrame)
+    }
+  }, [compactLayout, fitBounds, getNodes, nodesInitialized])
+
   // Alt+drag draws a selection box (selectionKeyCode below) and zooms to it.
   // Plain drag in Select mode stays a pure multi-select so the selected nodes
   // can be dragged as a group -- the two are deliberately separate (#67).
@@ -48,7 +75,7 @@ export function GraphCanvas({
   }, [fitBounds, getNodes])
 
   return (
-    <div className={`graph-viewport${inspectorOpen ? " has-inspector" : ""}`}><ReactFlow
+    <div className={`graph-viewport${inspectorOpen ? " has-inspector" : ""}${compactLayout ? " is-tote-compact" : ""}`}><ReactFlow
       className="reactflow-canvas"
       nodes={nodes}
       edges={edges}
@@ -90,7 +117,7 @@ export function GraphCanvas({
       // free here now that box-select lives on Alt.
       multiSelectionKeyCode={["Meta", "Control", "Shift"]}
       onSelectionEnd={zoomToSelectionIfModified}
-      onInit={(instance) => requestAnimationFrame(() => requestAnimationFrame(() => instance.fitView({ padding: 0.4, maxZoom: 0.85 })))}
+      onInit={(instance) => requestAnimationFrame(() => requestAnimationFrame(() => instance.fitView({ padding: compactLayout ? 0.2 : 0.4, maxZoom: 0.85 })))}
       proOptions={{ hideAttribution: true }}
     >
       <Background variant={BackgroundVariant.Dots} gap={22} size={1} color={theme === "dark" ? "#242831" : "#cbd5e1"} />
