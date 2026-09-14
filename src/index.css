@@ -238,8 +238,8 @@ button, input { font: inherit; }
 .brand-product-name { white-space: nowrap; font-size: 14px; }
 .brand-separator { color: var(--control-muted); font-weight: 400; }
 .brand-study-title { min-width: 0; max-width: 190px; margin: 0; overflow: hidden; color: var(--control-muted); font-size: 10px; font-weight: 550; letter-spacing: -.01em; text-overflow: ellipsis; white-space: nowrap; }
-.top-actions { margin-left: auto; display: flex; gap: 7px; }
-.logout-trigger { height: 32px; padding: 0 11px; border: 1px solid var(--control-border); border-radius: 8px; color: var(--trigger-foreground); background: var(--trigger-background); font-size: 11px; }.logout-trigger:hover { border-color: var(--control-border-hover); color: var(--foreground); background: var(--control-background-hover); }
+.top-actions { margin-left: auto; display: flex; align-items: center; gap: 7px; }
+.logout-trigger { height: 30px; padding: 0 11px; border: 1px solid var(--control-border); border-radius: 8px; color: var(--trigger-foreground); background: var(--trigger-background); font-size: 11px; }.logout-trigger:hover { border-color: var(--control-border-hover); color: var(--foreground); background: var(--control-background-hover); }
 .user-account { display: flex; align-items: center; gap: 8px; min-width: 0; padding-left: 4px; }
 .user-account > img, .user-account > span { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
 .user-account > span { display: grid; place-items: center; color: #fff; background: #6366f1; font-size: 11px; font-weight: 700; }
