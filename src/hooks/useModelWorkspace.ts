@@ -142,6 +142,25 @@ export function useModelWorkspace({
     commitVersion({ label: `Opened ${document.title}` })
   }
 
+  const openSharedRoomFile = (title: string, yaml: string) => {
+    const revision = applyYaml(yaml)
+    if (revision === null) return false
+    const document: SessionDocument = {
+      kind: "session",
+      id: crypto.randomUUID(),
+      title: uniqueSessionTitle(title, sessionDocuments),
+      filename: safeYamlFilename(title),
+      committedYaml: yaml,
+      source: "session-copy",
+    }
+    dispatchModelWorkspace({ type: "commit-new-session", document })
+    setYamlError("")
+    setView("graph")
+    commitVersion({ label: `Opened shared ${document.title}` })
+    void calculateSource(yaml, revision)
+    return true
+  }
+
   const downloadTextFile = (contents: string, filename: string, type: string) => {
     const url = URL.createObjectURL(new Blob([contents], { type }))
     const link = document.createElement("a")
@@ -407,7 +426,7 @@ export function useModelWorkspace({
     saveAsOpen, setSaveAsOpen, saveAsName, setSaveAsName, saveAsError, setSaveAsError,
     saveAsReturnFocusRef, navbarUploadRef,
     isDirty, isTransient, hasUncommittedWorkspace, canSave, canSaveAs, canDownload,
-    loadYamlFile, loadTemplate, loadSessionModel,
+    loadYamlFile, loadTemplate, loadSessionModel, openSharedRoomFile,
     openSaveAsDialog, openBlankYamlEditor, saveSessionModel, saveAsSessionModel, renameActiveDocument,
     discardYamlChanges, downloadCurrentYaml, downloadTextFile,
     saveAsSessionModelWithName,

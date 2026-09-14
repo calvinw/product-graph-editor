@@ -25,6 +25,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { NumberStepper } from "@/components/NumberStepper"
 import { AuthGate } from "@/components/AuthGate"
+import { TeamRoomDialog } from "@/components/TeamRoomDialog"
 import { AiChatPanel } from "@/components/AiChatPanel"
 import { RealtimeView } from "@/components/RealtimeView"
 import type { AppToolRuntime } from "@/ai/viewTools"
@@ -69,7 +70,7 @@ type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribu
 
 
 
-function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, chatOpen, onChatOpenChange }: { onTitleChange: (title: string) => void; navbarTarget: HTMLDivElement | null; chatPortalTarget: HTMLDivElement | null; active: boolean; chatOpen: boolean; onChatOpenChange: (open: boolean) => void }) {
+function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, chatOpen, onChatOpenChange, teamRoomOpen, onTeamRoomOpenChange }: { onTitleChange: (title: string) => void; navbarTarget: HTMLDivElement | null; chatPortalTarget: HTMLDivElement | null; active: boolean; chatOpen: boolean; onChatOpenChange: (open: boolean) => void; teamRoomOpen: boolean; onTeamRoomOpenChange: (open: boolean) => void }) {
   const { decimalPlaces, showAllDecimalPlaces, theme } = useDisplaySettings()
   const selected = useProductGraphStore((state) => state.selectedNode)
   const view = useProductGraphStore((state) => state.activeView)
@@ -246,7 +247,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     saveAsOpen, setSaveAsOpen, saveAsName, setSaveAsName, saveAsError, setSaveAsError,
     saveAsReturnFocusRef, navbarUploadRef,
     isDirty, canSave, canSaveAs, canDownload,
-    loadYamlFile,
+    loadYamlFile, openSharedRoomFile,
     openSaveAsDialog, saveSessionModel, saveAsSessionModel,
     downloadCurrentYaml, downloadTextFile,
     saveAsSessionModelWithName, isTransient, renameActiveDocument,
@@ -618,6 +619,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
         clearNodeSelection={clearNodeSelection}
       /> : null}
       <AiChatPanel open={chatOpen} onOpenChange={onChatOpenChange} runtime={assistantRuntime} portalTarget={chatPortalTarget} />
+      <TeamRoomDialog open={teamRoomOpen} onOpenChange={onTeamRoomOpenChange} currentFile={{ name: currentModelTitle, yaml: yamlDraft }} onOpenFile={(file) => openSharedRoomFile(file.name, file.yaml_content)} />
       <AlertDialog open={clearSessionOpen} onOpenChange={setClearSessionOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -658,6 +660,7 @@ function AppContent({ user, signOut }: { user: User; signOut: () => Promise<void
   const [welcomeOpen, setWelcomeOpen] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
+  const [teamRoomOpen, setTeamRoomOpen] = useState(false)
   const [workspaceTitle, setWorkspaceTitle] = useState("Loading product graphs…")
   const [navbarTarget, setNavbarTarget] = useState<HTMLDivElement | null>(null)
   const [chatPortalTarget, setChatPortalTarget] = useState<HTMLDivElement | null>(null)
@@ -692,6 +695,11 @@ function AppContent({ user, signOut }: { user: User; signOut: () => Promise<void
                     <ToggleGroupItem value="light"><Sun size={14} />Light</ToggleGroupItem>
                   </ToggleGroup>
                 </div>
+                <div className="global-setting-field team-room-setting">
+                  <span>Team room</span>
+                  <p>Share models and saved analyses with collaborators.</p>
+                  <Button type="button" variant="ghost" className="team-room-launcher" onClick={() => { setSettingsOpen(false); setTeamRoomOpen(true) }}>Open team rooms <ChevronLeft size={14} /></Button>
+                </div>
               </PopoverContent>
             </Popover>
             <Button variant="ghost" className="logout-trigger" type="button" onClick={() => void signOut()}>Log out</Button>
@@ -709,7 +717,7 @@ function AppContent({ user, signOut }: { user: User; signOut: () => Promise<void
 
           <section className="workspace" hidden={welcomeOpen}>
             <ReactFlowProvider>
-              <GraphEditor onTitleChange={setWorkspaceTitle} navbarTarget={navbarTarget} chatPortalTarget={chatPortalTarget} active={!welcomeOpen} chatOpen={chatOpen} onChatOpenChange={setChatOpen} />
+              <GraphEditor onTitleChange={setWorkspaceTitle} navbarTarget={navbarTarget} chatPortalTarget={chatPortalTarget} active={!welcomeOpen} chatOpen={chatOpen} onChatOpenChange={setChatOpen} teamRoomOpen={teamRoomOpen} onTeamRoomOpenChange={setTeamRoomOpen} />
             </ReactFlowProvider>
           </section>
         </div>
