@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase"
 
 export type TeamRoom = { id: string; name: string; owner_id: string; member_count: number; role: "owner" | "member"; invite_code?: string }
 export type TeamRoomFile = { id: string; room_id: string; name: string; yaml_content: string; updated_at: string; updated_by: string }
+export type TeamRoomMember = { user_id: string; role: "owner" | "member"; name: string; email: string }
 
 function client() {
   if (!supabase) throw new Error("Supabase is not configured.")
@@ -39,4 +40,20 @@ export async function saveTeamRoomFile(roomId: string, name: string, yaml: strin
   ).select("id, room_id, name, yaml_content, updated_at, updated_by").single()
   if (error) throw error
   return data as TeamRoomFile
+}
+
+export async function listTeamRoomMembers(roomId: string): Promise<TeamRoomMember[]> {
+  const { data, error } = await client().rpc("list_team_room_members", { target_room_id: roomId })
+  if (error) throw error
+  return (data ?? []) as TeamRoomMember[]
+}
+
+export async function removeTeamRoomMember(roomId: string, userId: string) {
+  const { error } = await client().rpc("remove_team_room_member", { target_room_id: roomId, target_user_id: userId })
+  if (error) throw error
+}
+
+export async function deleteTeamRoom(roomId: string) {
+  const { error } = await client().rpc("delete_team_room", { target_room_id: roomId })
+  if (error) throw error
 }

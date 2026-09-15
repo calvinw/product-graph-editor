@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react"
-import { Check, Copy, FolderUp, Network, Plus, UsersRound } from "lucide-react"
+import { Check, Copy, Crown, FolderUp, Network, Plus, Trash2, UserMinus, UsersRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { createTeamRoom, joinTeamRoom, listTeamRoomFiles, listTeamRooms, saveTeamRoomFile, type TeamRoom, type TeamRoomFile } from "@/lib/teamRooms"
+import { createTeamRoom, deleteTeamRoom, joinTeamRoom, listTeamRoomFiles, listTeamRoomMembers, listTeamRooms, removeTeamRoomMember, saveTeamRoomFile, type TeamRoom, type TeamRoomFile, type TeamRoomMember } from "@/lib/teamRooms"
 
 function readableError(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message
@@ -20,17 +20,21 @@ export function TeamRoomDialog({ open, onOpenChange, currentFile, onOpenFile }: 
   const [rooms, setRooms] = useState<TeamRoom[]>([])
   const [activeRoom, setActiveRoom] = useState<TeamRoom | null>(null)
   const [files, setFiles] = useState<TeamRoomFile[]>([])
+  const [members, setMembers] = useState<TeamRoomMember[]>([])
   const [mode, setMode] = useState<"home" | "create" | "join">("home")
   const [name, setName] = useState("")
   const [code, setCode] = useState("")
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState("")
+  const [managingMembers, setManagingMembers] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const refreshRooms = async () => {
     try { setRooms(await listTeamRooms()) } catch (error) { setMessage(readableError(error, "Could not load team rooms.")) }
   }
   useEffect(() => { if (open) { void refreshRooms(); setMessage("") } }, [open])
   useEffect(() => { if (!activeRoom) { setFiles([]); return }; void listTeamRoomFiles(activeRoom.id).then(setFiles).catch((error) => setMessage(error.message)) }, [activeRoom])
+  useEffect(() => { if (!activeRoom) { setMembers([]); return }; void listTeamRoomMembers(activeRoom.id).then(setMembers).catch((error) => setMessage(readableError(error, "Could not load room members."))) }, [activeRoom])
   const activeCode = activeRoom?.invite_code
   const initials = useMemo(() => activeRoom?.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase() ?? "◌", [activeRoom])
 
@@ -49,6 +53,17 @@ export function TeamRoomDialog({ open, onOpenChange, currentFile, onOpenFile }: 
     setBusy(true); setMessage("")
     try { const saved = await saveTeamRoomFile(activeRoom.id, currentFile.name, currentFile.yaml); setFiles((current) => [saved, ...current.filter((file) => file.id !== saved.id)]) } catch (error) { setMessage(readableError(error, "Could not save the shared file.")) } finally { setBusy(false) }
   }
+  const removeMember = async (member: TeamRoomMember) => {
+    if (!activeRoom) return
+    setBusy(true); setMessage("")
+    try { await removeTeamRoomMember(activeRoom.id, member.user_id); setMembers((current) => current.filter((item) => item.user_id !== member.user_id)); setActiveRoom({ ...activeRoom, member_count: Math.max(1, activeRoom.member_count - 1) }) } catch (error) { setMessage(readableError(error, "Could not remove that member.")) } finally { setBusy(false) }
+  }
+  const deleteRoom = async () => {
+    if (!activeRoom) return
+    if (!confirmDelete) { setConfirmDelete(true); return }
+    setBusy(true); setMessage("")
+    try { await deleteTeamRoom(activeRoom.id); setRooms((current) => current.filter((room) => room.id !== activeRoom.id)); setActiveRoom(null); setConfirmDelete(false); setManagingMembers(false) } catch (error) { setMessage(readableError(error, "Could not delete this room.")) } finally { setBusy(false) }
+  }
 
   return <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="team-room-dialog" aria-describedby="team-room-description">
@@ -58,7 +73,7 @@ export function TeamRoomDialog({ open, onOpenChange, currentFile, onOpenFile }: 
       </DialogHeader>
       {mode === "create" ? <div className="team-room-form"><label>Room name<Input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Aether Materials" /></label><div className="team-room-actions"><Button variant="ghost" onClick={() => setMode("home")}>Back</Button><Button disabled={busy} onClick={() => void create()}><Plus size={15} />Create room</Button></div></div>
       : mode === "join" ? <div className="team-room-form"><label>Four-digit invite code<Input autoFocus inputMode="numeric" maxLength={4} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))} placeholder="4827" className="team-room-code-input" /></label><div className="team-room-actions"><Button variant="ghost" onClick={() => setMode("home")}>Back</Button><Button disabled={busy} onClick={() => void join()}>Join room</Button></div></div>
-      : activeRoom ? <div className="team-room-studio"><div className="team-room-studio-head"><span className="team-room-avatar">{initials}</span><div><strong>Room studio</strong><small><UsersRound size={13} />{activeRoom.member_count} collaborators</small></div>{activeCode ? <Button variant="ghost" size="sm" className="team-room-copy" onClick={() => void navigator.clipboard.writeText(activeCode)}><Copy size={14} />{activeCode}</Button> : null}</div><div className="team-room-files"><div><span>Files in this room</span><Button size="sm" disabled={busy || !currentFile.yaml.trim()} onClick={() => void shareCurrent()}><FolderUp size={14} />Share current file</Button></div>{files.length ? files.map((file) => <button className="team-room-file" type="button" key={file.id} onClick={() => { onOpenFile(file); onOpenChange(false) }}><span><strong>{file.name}</strong><small>Shared {new Date(file.updated_at).toLocaleString()}</small></span><Check size={15} /></button>) : <p>No shared files yet. Share the model you are working on to start the room library.</p>}</div><Button variant="ghost" size="sm" onClick={() => setActiveRoom(null)}>Switch room</Button></div>
+      : activeRoom ? <div className="team-room-studio"><div className="team-room-studio-head"><span className="team-room-avatar">{initials}</span><div><strong>Room studio</strong><small><UsersRound size={13} />{activeRoom.member_count} collaborators{activeRoom.role === "owner" ? <><span>·</span><Crown size={13} />Room owner</> : null}</small></div>{activeCode ? <Button variant="ghost" size="sm" className="team-room-copy" onClick={() => void navigator.clipboard.writeText(activeCode)}><Copy size={14} />{activeCode}</Button> : null}</div><div className="team-room-files"><div><span>Files in this room</span><Button size="sm" disabled={busy || !currentFile.yaml.trim()} onClick={() => void shareCurrent()}><FolderUp size={14} />Share current file</Button></div>{files.length ? files.map((file) => <button className="team-room-file" type="button" key={file.id} onClick={() => { onOpenFile(file); onOpenChange(false) }}><span><strong>{file.name}</strong><small>Shared {new Date(file.updated_at).toLocaleString()}</small></span><Check size={15} /></button>) : <p>No shared files yet. Share the model you are working on to start the room library.</p>}</div>{activeRoom.role === "owner" ? <div className="team-room-owner"><div><span>Room owner controls</span><Button variant="ghost" size="sm" onClick={() => setManagingMembers((current) => !current)}>{managingMembers ? "Close members" : "Manage members"}</Button></div>{managingMembers ? <div className="team-room-members">{members.map((member) => <div key={member.user_id}><span className="team-room-avatar">{member.name.slice(0, 1).toUpperCase()}</span><p><strong>{member.name}</strong><small>{member.email}</small></p>{member.role === "owner" ? <span className="team-room-owner-label"><Crown size={13} />Owner</span> : <Button variant="ghost" size="icon-sm" disabled={busy} aria-label={`Remove ${member.name}`} onClick={() => void removeMember(member)}><UserMinus size={15} /></Button>}</div>)}</div> : null}<Button variant="destructive" size="sm" disabled={busy} className="team-room-delete" onClick={() => void deleteRoom()}><Trash2 size={14} />{confirmDelete ? "Confirm delete room" : "Delete room"}</Button>{confirmDelete ? <small className="team-room-delete-note">This permanently deletes the room and all its shared files.</small> : null}</div> : null}<Button variant="ghost" size="sm" onClick={() => setActiveRoom(null)}>Switch room</Button></div>
       : <div className="team-room-home"><div className="team-room-launch"><Button onClick={() => setMode("create")}><Plus size={15} />Create room</Button><Button variant="outline" onClick={() => setMode("join")}>Join with code</Button></div>{rooms.length ? <div className="team-room-list">{rooms.map((room) => <button type="button" key={room.id} onClick={() => setActiveRoom(room)}><span className="team-room-avatar">{room.name.slice(0, 2).toUpperCase()}</span><span><strong>{room.name}</strong><small>{room.member_count} collaborators</small></span></button>)}</div> : <p className="team-room-empty">Start a room to turn your current model into a shared analysis.</p>}</div>}
       {message ? <p className="team-room-message" role="alert">{message}</p> : null}
     </DialogContent>
