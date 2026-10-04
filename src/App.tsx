@@ -694,7 +694,7 @@ function AppContent({ user, signOut }: { user: User; signOut: () => Promise<void
               </PopoverContent>
             </Popover>
             <Button variant="ghost" className="logout-trigger" type="button" onClick={() => void signOut()}>Log out</Button>
-            <div className="user-account">
+            <div className="user-account" title={[user.user_metadata.full_name, user.email].filter(Boolean).join(" · ")}>
               {user.user_metadata.avatar_url ? <img src={user.user_metadata.avatar_url} alt="" referrerPolicy="no-referrer" /> : <span>{(user.user_metadata.full_name ?? user.email ?? "?").slice(0, 1).toUpperCase()}</span>}
               <div><strong>{user.user_metadata.full_name ?? "Signed in"}</strong><small>{user.email}</small></div>
             </div>

@@ -2,7 +2,8 @@ import { expect, type Locator, type Page } from "@playwright/test"
 import { lcaResultFixture } from "../fixtures/lca-result"
 import { productGraphTemplatesFixture } from "../fixtures/product-graph-templates"
 
-export async function mockLcaApi(page: Page) {
+/** `baseDelayMs` holds the LCA calculation open, e.g. to test the "Calculating…" status. */
+export async function mockLcaApi(page: Page, { baseDelayMs = 0 }: { baseDelayMs?: number } = {}) {
   await page.route("**/lca-api/api/**", async (route) => {
     const { pathname } = new URL(route.request().url())
 
@@ -24,6 +25,7 @@ export async function mockLcaApi(page: Page) {
       return
     }
     if (pathname.endsWith("/api/lca/base")) {
+      if (baseDelayMs) await new Promise((resolve) => setTimeout(resolve, baseDelayMs))
       await route.fulfill({ json: { ...lcaResultFixture, contribution_graphs: [] } })
       return
     }

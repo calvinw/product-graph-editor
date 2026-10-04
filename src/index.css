@@ -739,7 +739,18 @@ html[data-theme="light"] .process-flow-table .empty-row td { color: #6b7280; }
   .brand-study-title, .brand-separator { display: none; }
   .desktop-navbar .navbar-menu-trigger, .desktop-primary-nav button { height: 40px; padding: 0 15px; border-radius: 999px; font-size: 13px; font-weight: 600; letter-spacing: 0; }
   .desktop-navbar .lucide-chevron-down { width: 10px; height: 10px; }
-  .navbar-model-title { width: max-content; max-width: none; padding-inline: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; font-size: 13px; font-weight: 550; text-overflow: clip; }
+  /* The title gives way first when the bar runs short: it truncates with an
+     ellipsis (its tooltip carries the full name), while the menus beside it
+     keep their natural width so they never spill into Settings (#79). */
+  .navbar-model-title { flex: 0 1 auto; min-width: 5em; max-width: none; padding-inline: 0; overflow: hidden; border: 0; border-radius: 0; background: transparent; font-size: 13px; font-weight: 550; text-overflow: ellipsis; }
+  .desktop-navbar-menus { flex: 1 0 auto; }
+  .desktop-navbar-menus > * { flex: none; }
+  /* The status sits in the row, in a slot that is reserved even when idle, so
+     a long title cannot push the menus under it and the menus do not shift
+     when a calculation starts or ends. */
+  .desktop-navbar-menus > .navbar-status, .desktop-navbar-menus:not(:has(> .navbar-status))::after { width: 104px; margin-left: 10px; }
+  .desktop-navbar-menus > .navbar-status { position: static; }
+  .desktop-navbar-menus:not(:has(> .navbar-status))::after { content: ""; flex: none; }
   .navbar-status { font-size: 11px; }
   .top-actions { padding-left: 12px; }
   .global-settings-trigger { height: 40px; padding: 0 16px; border: 1px solid rgba(255,255,255,.1); border-radius: 999px; background: rgba(255,255,255,.045); font-size: 13px; }
@@ -756,6 +767,21 @@ html[data-theme="light"] .process-flow-table .empty-row td { color: #6b7280; }
   .yaml-editor, .results-empty, .results-panel { inset: 108px 28px 28px; }
   .inventory-view, .impact-view, .process-results-view, .contribution-view, .sankey-view { inset: 108px 28px 28px; border-radius: 12px; }
   .sankey-toolbar, .sankey-chart-picker { top: 18px; }
+}
+/* Desktop widths where the single-row bar runs short (#79). Each step frees
+   space without hiding anything: the status keeps its pulsing dot and
+   accessible name, the avatar's tooltip names the account, and Settings
+   keeps its icon and label. */
+@media (min-width: 901px) and (max-width: 1365px) {
+  .desktop-navbar-menus > .navbar-status, .desktop-navbar-menus:not(:has(> .navbar-status))::after { width: 7px; }
+  .desktop-navbar-menus > .navbar-status { gap: 0; font-size: 0; }
+}
+@media (min-width: 901px) and (max-width: 1279px) {
+  .user-account > div { display: none; }
+}
+@media (min-width: 901px) and (max-width: 1179px) {
+  .global-settings-trigger span { display: none; }
+  .global-settings-trigger { width: 40px; padding: 0; justify-content: center; }
 }
 @media (max-width: 620px) {
   .welcome-page { padding: 10px; }

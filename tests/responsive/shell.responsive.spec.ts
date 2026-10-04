@@ -15,8 +15,9 @@ test("application shell and primary graph controls load", async ({ page }) => {
     await expect(fileTitle).toHaveCSS("border-top-width", "0px")
     await expect(fileTitle).toHaveCSS("border-radius", "0px")
     await expect(fileTitle).toHaveCSS("background-color", "rgba(0, 0, 0, 0)")
-    await expect(fileTitle).toHaveCSS("text-overflow", "clip")
-    await expect(fileTitle).toHaveCSS("overflow", "visible")
+    // A short title shows in full; a long one truncates rather than overlap (#79).
+    await expect(fileTitle).toHaveCSS("text-overflow", "ellipsis")
+    expect(await fileTitle.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
   } else {
     await expect(page.getByRole("button", { name: "Current model: Copy of Jacket" })).toBeVisible()
   }
@@ -30,6 +31,45 @@ test("application shell and primary graph controls load", async ({ page }) => {
   await expect(results).toBeVisible()
   await expect(page.locator(".react-flow")).toBeVisible()
   await expect(page.locator(".react-flow__node .pg-node").first()).toHaveCSS("font-size", "24px")
+})
+
+test("desktop top bar items never overlap as the window narrows", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 0) <= 900, "The single-row desktop bar is not used at this width.")
+  // Unroute the default mock so the calculation stays open and "Calculating…" shows.
+  await page.unrouteAll({ behavior: "ignoreErrors" })
+  await mockLcaApi(page, { baseDelayMs: 20_000 })
+  await page.goto("/")
+  await page.getByRole("button", { name: "Explore PRISM" }).click()
+
+  const longTitle = "Copy of Cotton Tote Bag with a long descriptive model name (bafu-linked)"
+  await page.locator(".navbar-model-title").click()
+  await page.getByRole("textbox", { name: "Model title" }).fill(longTitle)
+  await page.getByRole("textbox", { name: "Model title" }).press("Enter")
+  await expect(page.locator(".navbar-model-title")).toHaveAttribute("aria-label", `Current model: ${longTitle}`)
+  await expect(page.getByRole("status", { name: "LCA calculation in progress" }).first()).toBeAttached()
+
+  for (const width of [901, 1024, 1180, 1280, 1440]) {
+    await page.setViewportSize({ width, height: 900 })
+    await expect(async () => {
+      const overlaps = await page.evaluate(() => {
+        const items = [...document.querySelectorAll(".topbar .brand, .topbar .navbar-model-title, .topbar .desktop-navbar-menus > *:not(input), .topbar .top-actions > *")]
+          .filter((element) => element.getClientRects().length)
+          .map((element) => ({ name: element.getAttribute("aria-label") ?? element.textContent?.trim(), box: element.getBoundingClientRect() }))
+        const found: string[] = []
+        items.forEach((a, i) => items.slice(i + 1).forEach((b) => {
+          if (Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left) > 1) found.push(`${a.name} × ${b.name}`)
+        }))
+        const bar = document.querySelector(".topbar")!.getBoundingClientRect()
+        items.filter((item) => item.box.right > bar.right + 1).forEach((item) => found.push(`${item.name} outside the bar`))
+        return found
+      })
+      expect(overlaps, `overlaps at ${width}px`).toEqual([])
+    }).toPass({ timeout: 3_000 })
+    // Every destination stays reachable at every desktop width.
+    for (const name of ["File", "Results", "Global settings", "Log out"]) {
+      await expect(page.getByRole("button", { name, exact: true })).toBeVisible()
+    }
+  }
 })
 
 test("page does not overflow horizontally", async ({ page }) => {

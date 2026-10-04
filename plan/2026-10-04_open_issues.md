@@ -104,6 +104,26 @@ toggle the mode, and check that its position hasn't changed.
 
 ## 4. #79 + #80 — Navbar squashed when the window is narrow, tablet, phone
 
+**4 Oct status:** #79 (desktop widths, 901px and up) is **done**. #80 (tablet/phone, ≤900px)
+is **deferred** at calvinw's request.
+
+#79 fix, measured before and after at 901–1440px with the default Cotton Tote model:
+- Before: overlaps at every width ≤1280px (menus over Settings; "Calculating…" over
+  Edit/Results).
+- Root causes: the title never shrank (`width: max-content`); the menu container could
+  shrink below its buttons; and `.navbar-status` was `position: absolute`, so it ignored
+  layout. With a long title, it overlapped even at 1440px.
+- Fix: the title truncates first (ellipsis plus tooltip) and menu buttons never shrink.
+  The status sits in the row in a reserved slot, so menus don't jump when a calculation
+  starts. Below 1366px the status is just its dot, below 1280px only the avatar shows
+  (name and email in its tooltip), and below 1180px Settings is icon-only. Nothing is
+  hidden or moved below 900px.
+- Test: `shell.responsive.spec.ts` "desktop top bar items never overlap as the window
+  narrows" renames the model to a long title while a calculation runs, and checks 901,
+  1024, 1180, 1280 and 1440px.
+
+Original analysis:
+
 I couldn't open the screenshots, because GitHub user-attachment URLs need a
 browser session. This is from reading `src/index.css`.
 
