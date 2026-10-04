@@ -26,8 +26,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { NumberStepper } from "@/components/NumberStepper"
 import { AuthGate } from "@/components/AuthGate"
 import { TeamRoomDialog } from "@/components/TeamRoomDialog"
+import { TEAMS_ENABLED } from "@/lib/features"
 import { AiChatPanel } from "@/components/AiChatPanel"
-import { RealtimeView } from "@/components/RealtimeView"
 import type { AppToolRuntime } from "@/ai/viewTools"
 import type { ProcessNodeData } from "./components/ProcessNode"
 import {
@@ -65,7 +65,7 @@ import {
   type ProductGraphView as View,
 } from "./state/productGraphStore"
 type NodeMeta = { label: string; kind: string; detail: string; color: string; scope?: "foreground" | "background" }
-type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribution" | "sankey" | "realtime">
+type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribution" | "sankey">
 
 
 
@@ -85,7 +85,6 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
   const resultsError = useProductGraphStore((state) => state.calculationError)
   const lcaResult = useProductGraphStore((state) => state.lcaResult)
   const calculatedRevision = useProductGraphStore((state) => state.calculatedRevision)
-  const scenarioOverrides = useProductGraphStore((state) => state.scenarioOverrides)
   const graphMode = useProductGraphStore((state) => state.graphMode)
   const showReferenceAmounts = useProductGraphStore((state) => state.showReferenceAmounts)
   const [graphSettingsOpen, setGraphSettingsOpen] = useState(false)
@@ -105,7 +104,6 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     setGraphOrientation,
     setGraphConnectionStyle,
     dispatchWorkspace: dispatchModelWorkspace,
-    setScenarioOverride,
     resetScenario,
   } = storeActions
   const inspectorOpen = selected !== null
@@ -445,7 +443,6 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
                 ["process", "Process results"],
                 ["contribution", "Contributions"],
                 ["sankey", "Sankey"],
-                ["realtime", "Realtime"],
               ] as const).map(([resultView, label]) => {
                 const selected = view === resultView
                 return <DropdownMenuItem key={resultView} aria-current={selected ? "true" : undefined} onSelect={() => requestView(resultView)} disabled={resultView !== "results" && !hasCurrentResults}>
@@ -500,7 +497,6 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
                   <ToggleGroupItem value="process" disabled={!hasCurrentResults}>Process Results</ToggleGroupItem>
                   <ToggleGroupItem value="contribution" disabled={!hasCurrentResults}>Contribution</ToggleGroupItem>
                   <ToggleGroupItem value="sankey" disabled={!hasCurrentResults}>Sankey Graph</ToggleGroupItem>
-                  <ToggleGroupItem value="realtime" disabled={!hasCurrentResults}>Realtime</ToggleGroupItem>
                 </ToggleGroup>
               </div>
             </div>
@@ -580,7 +576,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           onChange={(yaml) => { dispatchModelWorkspace({ type: "edit-draft", yaml }); setYamlError("") }}
           onSave={saveSessionModel}
           onSaveAs={openSaveAsDialog}
-        /> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} loadContributionGraphs={loadContributionGraphs} /> : view === "realtime" ? <RealtimeView result={lcaResult} isCurrent={hasCurrentResults} error={resultsError} overrides={scenarioOverrides} onOverride={setScenarioOverride} onReset={resetScenario} onCommit={commitScenario} committing={calculationInProgress} /> : <div className="results-panel">
+        /> : view === "inventory" ? <InventoryView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError} /> : view === "impact" ? <ImpactAnalysisView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "process" && hasCurrentResults && lcaResult ? <ProcessResultsView result={lcaResult} yaml={appliedYaml} /> : view === "contribution" ? <ContributionView result={lcaResult} yaml={appliedYaml} isCurrent={hasCurrentResults} error={resultsError || contributionError} loadContributionGraphs={loadContributionGraphs} /> : view === "sankey" && hasCurrentResults && lcaResult ? <SankeyView result={lcaResult} loadContributionGraphs={loadContributionGraphs} /> : <div className="results-panel">
           <div className="results-panel-head">
             <div><strong>LCA Results</strong>{isCalculating ? <span className="calculation-message">Calculating…</span> : null}</div>
           </div>
@@ -619,7 +615,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
         clearNodeSelection={clearNodeSelection}
       /> : null}
       <AiChatPanel open={chatOpen} onOpenChange={onChatOpenChange} runtime={assistantRuntime} portalTarget={chatPortalTarget} />
-      <TeamRoomDialog open={teamRoomOpen} onOpenChange={onTeamRoomOpenChange} currentFile={{ name: currentModelTitle, yaml: yamlDraft }} onOpenFile={(file) => openSharedRoomFile(file.name, file.yaml_content)} />
+      {TEAMS_ENABLED ? <TeamRoomDialog open={teamRoomOpen} onOpenChange={onTeamRoomOpenChange} currentFile={{ name: currentModelTitle, yaml: yamlDraft }} onOpenFile={(file) => openSharedRoomFile(file.name, file.yaml_content)} /> : null}
       <AlertDialog open={clearSessionOpen} onOpenChange={setClearSessionOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -695,11 +691,11 @@ function AppContent({ user, signOut }: { user: User; signOut: () => Promise<void
                     <ToggleGroupItem value="light"><Sun size={14} />Light</ToggleGroupItem>
                   </ToggleGroup>
                 </div>
-                <div className="global-setting-field team-room-setting">
+                {TEAMS_ENABLED ? <div className="global-setting-field team-room-setting">
                   <span>Team room</span>
                   <p>Share models and saved analyses with collaborators.</p>
                   <Button type="button" variant="ghost" className="team-room-launcher" onClick={() => { setSettingsOpen(false); setTeamRoomOpen(true) }}>Open team rooms <ChevronLeft size={14} /></Button>
-                </div>
+                </div> : null}
               </PopoverContent>
             </Popover>
             <Button variant="ghost" className="logout-trigger" type="button" onClick={() => void signOut()}>Log out</Button>

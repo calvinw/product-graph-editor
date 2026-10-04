@@ -15,8 +15,8 @@ import { useProductGraphStore, type ProductGraphView as View } from "@/state/pro
 // impact propagation are both visible on first open.
 const WEBAPP_DEFAULT_PRODUCT_GRAPH_ID = import.meta.env.VITE_DEFAULT_PRODUCT_GRAPH_ID ?? "cotton_tote_bafu_linked"
 
-type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribution" | "sankey" | "realtime">
-const analysisViews: AnalysisView[] = ["inventory", "impact", "process", "contribution", "sankey", "realtime"]
+type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribution" | "sankey">
+const analysisViews: AnalysisView[] = ["inventory", "impact", "process", "contribution", "sankey"]
 const isAnalysisView = (view: View): view is AnalysisView => analysisViews.includes(view as AnalysisView)
 
 export type PendingAction =

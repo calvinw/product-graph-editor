@@ -18,7 +18,7 @@ import {
   type VersionSource,
 } from "@/lib/versionHistory"
 
-export type ProductGraphView = "graph" | "yaml" | "inventory" | "impact" | "process" | "contribution" | "sankey" | "results" | "realtime"
+export type ProductGraphView = "graph" | "yaml" | "inventory" | "impact" | "process" | "contribution" | "sankey" | "results"
 export type GraphMode = "scaled" | "structure"
 export type GraphOrientation = "vertical" | "horizontal"
 export type GraphConnectionStyle = "curved" | "straight" | "step"
