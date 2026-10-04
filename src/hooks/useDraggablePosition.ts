@@ -1,21 +1,30 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 
-type Position = { left: number; top: number }
+/**
+ * Distance of the panel from its anchored viewport edge, and from the top.
+ * Left-anchored panels (the toolbars) store `{ left, top }`; right-anchored
+ * panels (the property editor, which resizes from its left edge and so must
+ * keep its right edge still) store `{ right, top }`.
+ */
+type Anchor = "left" | "right"
+type Offset = { offset: number; top: number }
+export type DraggedPosition = { left?: number; right?: number; top: number }
 
 /** Keeps at least this much of the panel inside every viewport edge. */
 const EDGE_MARGIN = 8
 
-function storedPosition(key: string): Position | null {
+function storedPosition(key: string, anchor: Anchor): Offset | null {
   try {
     const raw = localStorage.getItem(key)
     if (!raw) return null
-    const parsed = JSON.parse(raw) as Partial<Position>
-    return typeof parsed.left === "number" && typeof parsed.top === "number" ? { left: parsed.left, top: parsed.top } : null
+    const parsed = JSON.parse(raw) as Partial<Record<Anchor | "top", number>>
+    const offset = parsed[anchor]
+    return typeof offset === "number" && typeof parsed.top === "number" ? { offset, top: parsed.top } : null
   } catch { return null }
 }
 
-function persistPosition(key: string, position: Position) {
-  try { localStorage.setItem(key, JSON.stringify(position)) } catch { /* Optional preference. */ }
+function persistPosition(key: string, anchor: Anchor, position: Offset) {
+  try { localStorage.setItem(key, JSON.stringify({ [anchor]: position.offset, top: position.top })) } catch { /* Optional preference. */ }
 }
 
 /**
@@ -23,11 +32,11 @@ function persistPosition(key: string, position: Position) {
  * floor at EDGE_MARGIN so a panel larger than the viewport still starts on
  * screen rather than being pushed off the opposite edge.
  */
-function clampToViewport({ left, top }: Position, width: number, height: number): Position {
-  const maxLeft = Math.max(EDGE_MARGIN, window.innerWidth - width - EDGE_MARGIN)
+function clampToViewport({ offset, top }: Offset, width: number, height: number): Offset {
+  const maxOffset = Math.max(EDGE_MARGIN, window.innerWidth - width - EDGE_MARGIN)
   const maxTop = Math.max(EDGE_MARGIN, window.innerHeight - height - EDGE_MARGIN)
   return {
-    left: Math.min(Math.max(EDGE_MARGIN, left), maxLeft),
+    offset: Math.min(Math.max(EDGE_MARGIN, offset), maxOffset),
     top: Math.min(Math.max(EDGE_MARGIN, top), maxTop),
   }
 }
@@ -42,22 +51,22 @@ function clampToViewport({ left, top }: Position, width: number, height: number)
  * off-screen on a smaller one, where its own drag handle is unreachable.
  * Attach the returned `panelRef` to the panel so its real size can be measured.
  */
-export function useDraggablePosition(storageKey: string) {
-  const [position, setPosition] = useState<Position | null>(() => storedPosition(storageKey))
-  const panelRef = useRef<HTMLDivElement | null>(null)
-  const positionRef = useRef(position)
-  positionRef.current = position
+export function useDraggablePosition<T extends HTMLElement = HTMLDivElement>(storageKey: string, { anchor = "left" }: { anchor?: Anchor } = {}) {
+  const [stored, setStored] = useState<Offset | null>(() => storedPosition(storageKey, anchor))
+  const panelRef = useRef<T | null>(null)
+  const storedRef = useRef(stored)
+  storedRef.current = stored
 
   const reconcile = useCallback(() => {
-    const current = positionRef.current
+    const current = storedRef.current
     const panel = panelRef.current
     if (!current || !panel) return
     const next = clampToViewport(current, panel.offsetWidth, panel.offsetHeight)
-    if (next.left === current.left && next.top === current.top) return
-    positionRef.current = next
-    setPosition(next)
-    persistPosition(storageKey, next)
-  }, [storageKey])
+    if (next.offset === current.offset && next.top === current.top) return
+    storedRef.current = next
+    setStored(next)
+    persistPosition(storageKey, anchor, next)
+  }, [anchor, storageKey])
 
   // Layout effect so a stranded panel is corrected before it can be painted.
   useLayoutEffect(reconcile, [reconcile])
@@ -73,25 +82,28 @@ export function useDraggablePosition(storageKey: string) {
     if (!panel) return
     event.preventDefault()
     const rect = panel.getBoundingClientRect()
-    const offsetX = event.clientX - rect.left
-    const offsetY = event.clientY - rect.top
-    let next: Position = { left: rect.left, top: rect.top }
+    const grabX = event.clientX - rect.left
+    const grabY = event.clientY - rect.top
+    const offsetFor = (left: number) => anchor === "left" ? left : window.innerWidth - left - rect.width
+    let next: Offset = { offset: offsetFor(rect.left), top: rect.top }
     const move = (moveEvent: PointerEvent) => {
+      // Measure live: a panel can change size once it starts floating.
       next = clampToViewport(
-        { left: moveEvent.clientX - offsetX, top: moveEvent.clientY - offsetY },
-        rect.width,
-        rect.height,
+        { offset: offsetFor(moveEvent.clientX - grabX), top: moveEvent.clientY - grabY },
+        panel.offsetWidth,
+        panel.offsetHeight,
       )
-      setPosition(next)
+      setStored(next)
     }
     const finish = () => {
       window.removeEventListener("pointermove", move)
       window.removeEventListener("pointerup", finish)
-      persistPosition(storageKey, next)
+      persistPosition(storageKey, anchor, next)
     }
     window.addEventListener("pointermove", move)
     window.addEventListener("pointerup", finish, { once: true })
-  }, [storageKey])
+  }, [anchor, storageKey])
 
+  const position: DraggedPosition | null = stored ? { [anchor]: stored.offset, top: stored.top } : null
   return { position, startDrag, panelRef }
 }

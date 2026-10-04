@@ -201,6 +201,19 @@ editor. The smallest version is a "Volume | Name" toggle that sorts with `locale
 - The issue mentioned moving the Structure/Scaled switch into the editor. That isn't
   needed now the editor is hidden by default, so it stays in the toolbar.
 
+### Floating, movable Property Editor (changed 4 Oct after review)
+calvinw asked for the editor to float over the graph and be movable like the toolbar.
+- It now floats: the canvas no longer shrinks for it. Only the scenario panel still docks.
+- It can be dragged by its header, anchored by its right edge (so resizing from the left
+  edge keeps the right edge still). The position is remembered and pulled back on screen
+  after a resize. At ≤900px it stays docked.
+- **Bug found on the way:** clicking a card where the editor opens (in practice the final
+  product, on the right) zoomed right in on that card (scale 0.34 → 1) and flung the graph
+  left. It was reproduced with Cotton Tote on the previous commit, and the old reference
+  screenshots had recorded it. It is replaced by a sideways slide at the same zoom, only
+  as far as needed to uncover the card. The test "opening the Property Editor over the
+  clicked card slides the graph without zooming" fails on the old code and passes now.
+
 ### Make the Property Editor resizable
 There's a pattern to reuse. `AiChatPanel.tsx:231-260` already has a resize handle that
 works with both the pointer and the keyboard (`.ai-chat-resize-handle`). The editor's

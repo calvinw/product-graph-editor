@@ -3,6 +3,7 @@ import { createPortal } from "react-dom"
 import type { User } from "@supabase/supabase-js"
 import {
   ReactFlowProvider,
+  useReactFlow,
   type Node,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
@@ -107,6 +108,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     resetScenario,
   } = storeActions
   const inspectorOpen = selected !== null
+  const { getViewport, setViewport } = useReactFlow()
   const lastSelectedRef = useRef<(NodeMeta & { id: string }) | null>(null)
 
   const {
@@ -178,27 +180,31 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
       cancelAnimationFrame(fitFrame)
     }
   }, [active, compactToteLayout, fitView, view])
+  // Opening the property editor never zooms. It floats over the graph, so if it
+  // ends up covering the activity that was clicked, slide the graph sideways
+  // just far enough to uncover it, at the current zoom. Measured after the
+  // editor's slide-in transition, including on the very first open, when the
+  // editor has only just been mounted.
+  const selectedId = selected?.id
   useEffect(() => {
-    if (view !== "graph" || !active || !inspectorOpen || !selected) return
-    const frame = requestAnimationFrame(() => {
-      // Only re-fit when the selected node is actually too close to (or
-      // under) the inspector -- otherwise leave the viewport exactly as the
-      // user left it (a manual zoom/pan should survive opening the panel).
-      const nodeEl = document.querySelector(`.react-flow__node[data-id="${CSS.escape(selected.id)}"]`)
-      const inspectorEl = document.querySelector(".inspector")
-      if (nodeEl && inspectorEl) {
-        const gap = inspectorEl.getBoundingClientRect().left - nodeEl.getBoundingClientRect().right
-        if (gap >= 16) return
-      }
-      fitView({
-        nodes: [{ id: selected.id }],
-        padding: { top: 0.25, bottom: 0.25, left: 0.25, right: "360px" },
-        maxZoom: 1,
-        duration: 250,
-      })
-    })
-    return () => cancelAnimationFrame(frame)
-  }, [active, fitView, inspectorOpen, selected, view])
+    if (view !== "graph" || !active || !selectedId) return
+    const timer = window.setTimeout(() => {
+      const nodeEl = document.querySelector(`.react-flow__node[data-id="${CSS.escape(selectedId)}"]`)
+      const editorEl = document.querySelector(".inspector.is-open")
+      if (!nodeEl || !editorEl) return
+      const node = nodeEl.getBoundingClientRect()
+      const editor = editorEl.getBoundingClientRect()
+      const clearance = 16
+      const overlapsVertically = node.bottom > editor.top && node.top < editor.bottom
+      const overlapsHorizontally = node.right > editor.left - clearance && node.left < editor.right + clearance
+      if (!overlapsVertically || !overlapsHorizontally) return
+      const editorOnRight = editor.left + editor.width / 2 > window.innerWidth / 2
+      const dx = editorOnRight ? editor.left - clearance - node.right : editor.right + clearance - node.left
+      const { x, y, zoom } = getViewport()
+      void setViewport({ x: x + dx, y, zoom }, { duration: 250 })
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [active, getViewport, selectedId, setViewport, view])
   // Two undo scopes exist and must not fight. The browser gives text inputs
   // per-keystroke undo for free; model undo steps between recorded versions.
   // Focus decides which one Cmd+Z drives, which also leaves the chat
@@ -504,8 +510,8 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
         {view === "graph" ? <><GraphCanvas
           nodes={nodes} edges={edges}
           onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
-          // Either right-rail panel shrinks the canvas, so neither covers the graph.
-          inspectorOpen={inspectorOpen || (graphMode === "scaled" && scenarioEditCount > 0)} theme={theme}
+          // The scenario panel docks and shrinks the canvas; the property editor floats over it.
+          inspectorOpen={graphMode === "scaled" && scenarioEditCount > 0} theme={theme}
           compactLayout={compactToteLayout}
           setSelected={setSelected} clearNodeSelection={clearNodeSelection}
           hydrateBackgroundNode={hydrateBackgroundNode}
