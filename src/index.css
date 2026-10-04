@@ -541,6 +541,14 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
 .sankey-selection-summary > strong { display: block; overflow: hidden; color: #f0f2f4; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }.sankey-selection-result { display: block; margin-top: 3px; color: #8bdcf3; font-size: 11px; font-variant-numeric: tabular-nums; }
 .sankey-selection-summary dl { display: grid; gap: 5px; margin: 11px 0 0; padding-top: 9px; border-top: 1px solid #292d34; font-size: 9px; }.sankey-selection-summary dl div { display: flex; align-items: center; justify-content: space-between; gap: 12px; }.sankey-selection-summary dt { color: #777e89; }.sankey-selection-summary dd { margin: 0; color: #b7bcc4; text-transform: capitalize; font-variant-numeric: tabular-nums; }
 .sankey-process-node.pg-node.is-expanded { width: 300px; min-height: 94px; }
+/* Sankey cards set their own type rather than inheriting the 24px graph-card
+   size: the name wraps onto up to two lines instead of being cut off. */
+.sankey-process-node.pg-node.is-expanded { font-size: 14px; }
+.sankey-process-node .pg-node-head { height: auto; min-height: 34px; padding: 7px 8px; align-items: flex-start; }
+.sankey-process-node .pg-node-head > svg { flex: none; margin-top: 2px; }
+.sankey-process-node .pg-node-label { display: -webkit-box; overflow: hidden; white-space: normal; line-height: 1.25; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.sankey-process-node .pg-node-scope { margin-top: 2px; font-size: 10px; }
+.sankey-metric-value { white-space: nowrap; }
 .sankey-process-node.is-path-highlighted { border-color: #facc15; box-shadow: 0 0 0 2px rgba(250,204,21,.65), 0 0 22px rgba(250,204,21,.28); }
 .sankey-process-node.is-path-dimmed { opacity: .2; filter: saturate(.35); }
 .sankey-process-metrics { display: grid; gap: 2px; padding: 10px 12px 11px; color: #8bdcf3; text-align: center; font-size: 12px; font-weight: 650; line-height: 1.5; }

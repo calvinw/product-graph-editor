@@ -25,6 +25,12 @@ type SankeyProcessNodeData = {
   pathHighlighted?: boolean
   pathDimmed?: boolean
 }
+/** "Direct (12%): 0.004 kg SO2-Eq": keeps the value and its unit on one line. */
+function SankeyMetric({ text }: { text: string }) {
+  const split = text.indexOf(": ")
+  if (split < 0) return <div>{text}</div>
+  return <div>{text.slice(0, split + 1)} <span className="sankey-metric-value">{text.slice(split + 2)}</span></div>
+}
 function SankeyProcessNode({ data }: NodeProps<Node<SankeyProcessNodeData>>) {
   const targetPosition = data.orientation === "vertical" ? Position.Top : Position.Left
   const sourcePosition = data.orientation === "vertical" ? Position.Bottom : Position.Right
@@ -32,8 +38,8 @@ function SankeyProcessNode({ data }: NodeProps<Node<SankeyProcessNodeData>>) {
     <Handle type="target" position={targetPosition} />
     <div className="pg-node-head"><Component size={14} /><span className="pg-node-label">{data.label}</span><small className={`pg-node-scope is-${data.scope}`}>{data.scope}</small></div>
     <div className="sankey-process-metrics">
-      <div>{data.direct}</div>
-      <div>{data.upstream}</div>
+      <SankeyMetric text={data.direct} />
+      <SankeyMetric text={data.upstream} />
     </div>
     <Handle type="source" position={sourcePosition} />
   </div>

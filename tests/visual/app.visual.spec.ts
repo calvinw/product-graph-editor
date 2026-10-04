@@ -1034,6 +1034,26 @@ test("Results shows progress during lazy contribution calculations", async ({ pa
   await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toHaveCount(0)
 })
 
+test("Sankey cards show full activity names at their own, smaller size", async ({ page }) => {
+  await mockLcaApi(page)
+  await openWorkspace(page)
+  await calculate(page)
+  await openDesktopAnalysis(page, "Sankey", ".sankey-view")
+  const labels = page.locator(".sankey-process-node .pg-node-label")
+  await expect(labels.first()).toBeVisible()
+  expect(await labels.count()).toBeGreaterThan(0)
+  for (const label of await labels.all()) {
+    await expect(label).toHaveCSS("font-size", "14px")
+    // Not truncated: the name fits in at most two lines.
+    expect(await label.evaluate((element) => element.scrollHeight <= element.clientHeight + 1 && element.scrollWidth <= element.clientWidth + 1)).toBe(true)
+  }
+  await expect(page.locator(".sankey-process-node .pg-node-scope").first()).toHaveCSS("font-size", "10px")
+  // A value never splits from its unit (e.g. "SO2-" / "Eq").
+  for (const value of await page.locator(".sankey-metric-value").all()) {
+    await expect(value).toHaveCSS("white-space", "nowrap")
+  }
+})
+
 test("Sankey starts in Impact mode without briefly rendering the Flow graph", async ({ page }) => {
   await mockLcaApi(page, lcaResultFixture, undefined, 600)
   await openWorkspace(page)
