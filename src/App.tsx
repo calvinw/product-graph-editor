@@ -180,6 +180,16 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
       cancelAnimationFrame(fitFrame)
     }
   }, [active, compactToteLayout, fitView, view])
+  // When a scenario edit starts, the scenario impact panel takes the right
+  // rail, so close the property editor if it is open. Clicking an activity
+  // during the scenario still opens it.
+  const scenarioActive = view === "graph" && graphMode === "scaled" && scenarioEditCount > 0
+  const wasScenarioActiveRef = useRef(scenarioActive)
+  useEffect(() => {
+    if (scenarioActive && !wasScenarioActiveRef.current && inspectorOpen) clearNodeSelection()
+    wasScenarioActiveRef.current = scenarioActive
+  }, [clearNodeSelection, inspectorOpen, scenarioActive])
+
   // Opening the property editor never zooms. It floats over the graph, so if it
   // ends up covering the activity that was clicked, slide the graph sideways
   // just far enough to uncover it, at the current zoom. Measured after the

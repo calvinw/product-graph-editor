@@ -1065,6 +1065,32 @@ test("Structure Graph is the default and Scaled Graph is enabled after the LCA f
   await expect(structureGraph).toHaveAttribute("aria-pressed", "true")
 })
 
+test("starting a scenario edit closes the Property Editor", async ({ page }) => {
+  await mockLcaApi(page, broomLcaResultFixture)
+  await openWorkspace(page)
+  await page.getByRole("button", { name: "File", exact: true }).click()
+  await openTemplates(page)
+  await page.getByRole("menuitem", { name: /Simple Mock Plastic Broom/ }).click()
+  await calculate(page)
+  await page.getByRole("radio", { name: "Graph", exact: true }).click()
+  await page.getByRole("button", { name: "Scaled Graph" }).click()
+
+  const editor = page.locator("aside.inspector.is-open")
+  await page.locator(".react-flow__node").first().click()
+  await expect(editor).toBeVisible()
+
+  const scenarioAmount = page.getByRole("slider").first()
+  await scenarioAmount.focus()
+  await scenarioAmount.press("ArrowRight")
+  await expect(page.getByRole("status", { name: "Scenario impact" })).toBeVisible()
+  await expect(editor).toHaveCount(0)
+
+  // Clicking an activity during the scenario still opens it.
+  await page.locator(".react-flow__node").first().click()
+  await expect(editor).toBeVisible()
+  await expect(page.getByRole("status", { name: "Scenario impact" })).toBeVisible()
+})
+
 /** A node's position in flow coordinates, read from React Flow's transform. */
 async function flowPosition(page: Page, label: string) {
   const transform = await page.locator(".react-flow__node", { hasText: label }).first().evaluate((node) => (node as HTMLElement).style.transform)
