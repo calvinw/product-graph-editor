@@ -18,6 +18,8 @@ export default defineConfig({
     env: {
       // The browser fixtures describe Jacket; production uses the app's Cotton Fiber default.
       VITE_DEFAULT_PRODUCT_GRAPH_ID: "jacket",
+      // Browser tests do not sign in; see AuthGate. Has no effect on `vite build`.
+      VITE_AUTH_DISABLED: "true",
     },
     url: "http://127.0.0.1:5178",
     reuseExistingServer: false,

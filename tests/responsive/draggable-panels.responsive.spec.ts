@@ -57,10 +57,14 @@ test("the toolbar drag handle stays reachable after the viewport shrinks", async
   const grip = toolbar.getByRole("button", { name: /Move .*toolbar/i })
   await expect(grip).toBeVisible()
 
+  // The browser fires "resize" asynchronously after setViewportSize, and the
+  // app re-clamps the toolbar in that handler, so retry until it has settled.
   const shrunk = page.viewportSize()!
-  const gripBox = (await grip.boundingBox())!
-  expect(gripBox.x).toBeGreaterThanOrEqual(0)
-  expect(gripBox.y).toBeGreaterThanOrEqual(0)
-  expect(gripBox.x + gripBox.width).toBeLessThanOrEqual(shrunk.width)
-  expect(gripBox.y + gripBox.height).toBeLessThanOrEqual(shrunk.height)
+  await expect(async () => {
+    const gripBox = (await grip.boundingBox())!
+    expect(gripBox.x).toBeGreaterThanOrEqual(0)
+    expect(gripBox.y).toBeGreaterThanOrEqual(0)
+    expect(gripBox.x + gripBox.width).toBeLessThanOrEqual(shrunk.width)
+    expect(gripBox.y + gripBox.height).toBeLessThanOrEqual(shrunk.height)
+  }).toPass({ timeout: 5_000 })
 })

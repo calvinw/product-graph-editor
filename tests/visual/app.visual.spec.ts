@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 import { lcaResultFixture } from "../fixtures/lca-result"
+import { broomLcaResultFixture } from "../fixtures/broom-lca-result"
 import { productGraphTemplatesFixture } from "../fixtures/product-graph-templates"
 import type { LcaResult } from "../../src/lib/lcaApi"
 
@@ -213,11 +214,17 @@ test("session files can be deleted from the File menu", async ({ page }) => {
 
   await page.getByRole("button", { name: "File", exact: true }).click()
   await expect(page.getByText("This session", { exact: true })).toBeVisible()
-  await page.getByRole("menuitem", { name: "Delete Copy of Jacket" }).click()
+  // Startup opens a session copy of the default template, so picking Jacket
+  // again adds a second one. Delete both; the section goes once none remain.
+  await page.getByRole("menuitem", { name: "Delete Copy of Jacket (2)", exact: true }).click()
+  await expect(page.getByRole("menu", { name: "File", exact: true })).toBeVisible()
+  await expect(page.getByRole("menuitem", { name: "Delete Copy of Jacket (2)", exact: true })).toHaveCount(0)
+  await expect(page.getByText("This session", { exact: true })).toBeVisible()
 
+  await page.getByRole("menuitem", { name: "Delete Copy of Jacket", exact: true }).click()
   await expect(page.getByRole("menu", { name: "File", exact: true })).toBeVisible()
   await expect(page.getByText("This session", { exact: true })).toHaveCount(0)
-  await expect(page.getByRole("menuitem", { name: "Delete Copy of Jacket" })).toHaveCount(0)
+  await expect(page.getByRole("menuitem", { name: "Delete Copy of Jacket", exact: true })).toHaveCount(0)
 })
 
 test("Upload creates a writable session model and Download preserves the exact draft", async ({ page }) => {
@@ -907,8 +914,13 @@ test("Structure Graph is the default and Scaled Graph is enabled after the LCA f
 })
 
 test("scenario impact categories can be enabled and disabled independently", async ({ page }) => {
-  await mockLcaApi(page)
+  // Scenario edges are draggable only when the result has background links,
+  // which the Jacket fixture does not, so this test uses the broom template.
+  await mockLcaApi(page, broomLcaResultFixture)
   await openWorkspace(page)
+  await page.getByRole("button", { name: "File", exact: true }).click()
+  await openTemplates(page)
+  await page.getByRole("menuitem", { name: /Simple Mock Plastic Broom/ }).click()
   await calculate(page)
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   await page.getByRole("button", { name: "Scaled Graph" }).click()

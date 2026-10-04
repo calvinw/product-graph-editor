@@ -7,7 +7,29 @@ type AuthGateProps = {
   children: (auth: { user: User; signOut: () => Promise<void> }) => ReactNode
 }
 
+// Browser tests run without signing in. The Playwright dev server sets
+// VITE_AUTH_DISABLED; `vite build` replaces import.meta.env.DEV with false, so
+// this path, and the local user below, are removed from production builds.
+const authDisabled = import.meta.env.DEV && import.meta.env.VITE_AUTH_DISABLED === "true"
+
+const localTestUser = {
+  id: "local-test-user",
+  aud: "authenticated",
+  email: "test@example.com",
+  app_metadata: {},
+  user_metadata: { full_name: "Local Test User" },
+  created_at: "2026-01-01T00:00:00.000Z",
+} as User
+
+function LocalAuthGate({ children }: AuthGateProps) {
+  return children({ user: localTestUser, signOut: async () => {} })
+}
+
 export function AuthGate({ children }: AuthGateProps) {
+  return authDisabled ? <LocalAuthGate>{children}</LocalAuthGate> : <SupabaseAuthGate>{children}</SupabaseAuthGate>
+}
+
+function SupabaseAuthGate({ children }: AuthGateProps) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(Boolean(supabase))
   const [error, setError] = useState<string | null>(supabaseConfigurationError)

@@ -18,7 +18,7 @@ test("application shell and primary graph controls load", async ({ page }) => {
     await expect(fileTitle).toHaveCSS("text-overflow", "clip")
     await expect(fileTitle).toHaveCSS("overflow", "visible")
   } else {
-    await expect(page.getByRole("heading", { name: "Copy of Jacket" })).toBeVisible()
+    await expect(page.getByRole("button", { name: "Current model: Copy of Jacket" })).toBeVisible()
   }
   await expect(page.locator('[aria-label="Current model: Copy of Jacket"]:visible')).toBeVisible()
   await expect(page.getByRole("button", { name: "File", exact: true })).toBeVisible()

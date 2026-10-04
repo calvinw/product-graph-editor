@@ -214,7 +214,9 @@ npm run test:responsive
 npm run test:visual
 ```
 
-Expected baseline results are 115 unit tests passed, 62 responsive tests passed with 1 deliberate viewport-conditional skip (the assistant split-pane test does not apply at phone width), and 56 visual tests passed with no failures. All three suites exit zero. The three formerly accepted visual failures (issues #37, #38, #39) are fixed and closed, so there is no accepted-failure allowance: a failing visual test is a regression. Never update screenshot baselines without visually reviewing the actual, expected, and diff images.
+Expected baseline results are 117 unit tests passed, 69 responsive tests passed with 3 deliberate viewport-conditional skips (the assistant split-pane test does not apply at phone width, and the desktop-navbar title test does not apply at phone or tablet width), and 58 visual tests passed with no failures. All three suites exit zero, and there is no accepted-failure allowance: a failing test is a regression. Never update screenshot baselines without visually reviewing the actual, expected, and diff images.
+
+The browser suites do not sign in. `playwright.base.config.ts` starts the dev server with `VITE_AUTH_DISABLED=true`, which makes `AuthGate` use a local test user. That switch only works under the dev server: `vite build` removes it, and `npm run build` runs `scripts/check-no-auth-bypass.mjs` to fail the build if it ever reaches production.
 
 ---
 
