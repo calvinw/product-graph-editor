@@ -21,7 +21,7 @@ const edgeTypes = { scenario: ScenarioEdge }
 export function GraphCanvas({
   nodes, edges, onNodesChange, onEdgesChange,
   inspectorOpen, theme, selectMode,
-  compactLayout, setSelected, clearNodeSelection, hydrateBackgroundNode, toggleExpanded,
+  compactLayout, setSelected, clearNodeSelection, hydrateBackgroundNode,
 }: {
   nodes: Node<ProcessNodeData>[]
   edges: Edge[]
@@ -34,7 +34,6 @@ export function GraphCanvas({
   setSelected: (node: SelectedGraphNode) => void
   clearNodeSelection: () => void
   hydrateBackgroundNode: (id: string) => void | Promise<void>
-  toggleExpanded: (id: string) => void
 }) {
   const { fitBounds, getNodes } = useReactFlow()
   const nodesInitialized = useNodesInitialized()
@@ -96,7 +95,6 @@ export function GraphCanvas({
         setSelected({ id: node.id, label: node.data.label, kind: node.data.kind, detail: node.data.detail, color: node.data.color, scope: node.data.scope })
         if (node.data.scope === "background") void hydrateBackgroundNode(node.id)
       }}
-      onNodeDoubleClick={(_, node) => toggleExpanded(node.id)}
       onPaneClick={clearNodeSelection}
       // The graph renders appliedYaml and has no structural editing. Without
       // this, Backspace on a selected node removes it from React Flow's state

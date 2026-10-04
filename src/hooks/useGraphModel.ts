@@ -11,9 +11,6 @@ import {
   applyScenarioToYaml, backgroundLinks, scenarioAmount, scenarioKey, scoreScenario,
   impactColor, solveForegroundCumulative, type ForegroundProcess,
 } from "@/lib/realtimeScore"
-import {
-  incomingEdgesFor, inputHandleIdFor, populateExpandedConnections, targetExpandedInputRows,
-} from "@/lib/graphNodes"
 import { selectDocumentSnapshot, useProductGraphStore } from "@/state/productGraphStore"
 import { redoTarget, undoTarget } from "@/lib/versionHistory"
 
@@ -24,10 +21,9 @@ const initialNodes: Node<ProcessNodeData>[] = []
  * The product graph's data model: nodes and edges, the operations that mutate
  * them, and applyYaml, which rebuilds the whole model from source.
  *
- * Background hydration lives here rather than in its own hook because
- * toggleExpanded, setAllExpanded, and showGraphMode all call
- * hydrateBackgroundNode while it needs this hook's setters and refs. Expanding
- * a background node is a graph-model mutation, so the two are one concern.
+ * Background hydration lives here rather than in its own hook because node
+ * selection and background-branch toggling call hydrateBackgroundNode while it
+ * needs this hook's setters and refs, so the two are one concern.
  *
  * yamlError is owned here because applyYaml is what decides whether the source
  * parses. useModelWorkspace receives the setter.
@@ -606,65 +602,6 @@ export function useGraphModel({
     })
   }, [nodes, setNodes, toggleBackgroundBranch])
 
-  const toggleExpanded = useCallback((nodeId: string) => {
-    const target = nodesRef.current.find((node) => node.id === nodeId)
-    const expanding = !target?.data.expanded
-    setNodes((current) => {
-      const byId = new Map(current.map((node) => [node.id, node]))
-      return current.map((node) => {
-        if (node.id !== nodeId) return node
-        if (node.data.scope === "background") return { ...node, data: { ...node.data, expanded: !node.data.expanded } }
-        const flowItem = (id: string) => {
-          const connected = byId.get(id)
-          return connected ? { label: connected.data.label, kind: connected.data.scope ?? connected.data.kind, color: connected.data.color } : null
-        }
-        const inputs = incomingEdgesFor(nodeId, edges, byId).map((edge) => {
-          const item = flowItem(edge.source)
-          return item ? { ...item, handleId: inputHandleIdFor(edge.id) } : null
-        }).filter((item): item is NonNullable<typeof item> => item !== null)
-        const outputs = edges.filter((edge) => edge.source === nodeId).map((edge) => flowItem(edge.target)).filter((item): item is NonNullable<typeof item> => item !== null)
-        return { ...node, data: { ...node.data, expanded: !node.data.expanded, inputs, outputs } }
-      })
-    })
-    if (target?.data.scope !== "background") {
-      setEdges((current) => current.map((edge) => edge.target === nodeId
-        ? { ...edge, targetHandle: expanding ? inputHandleIdFor(edge.id) : undefined }
-        : edge))
-    }
-    if (target?.data.scope === "background" && !target.data.expanded) void hydrateBackgroundNode(nodeId)
-    // The toggled node's rendered size just changed (collapsed <-> expanded),
-    // so its dagre-computed slot no longer matches; relay out once the new
-    // size has been measured, or it can overlap its neighbors.
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      setNodes((current) => layoutNodes(current, edgesRef.current, { orientation: graphOrientation, compact: compactToteLayout }))
-    }))
-  }, [compactToteLayout, edges, graphOrientation, hydrateBackgroundNode, setEdges, setNodes])
-
-  const setAllExpanded = useCallback((expanded: boolean) => {
-    const currentEdges = edgesRef.current
-    const nodesById = new Map(nodesRef.current.map((node) => [node.id, node]))
-    setNodes((current) => {
-      const updated = current.map((node) => node.data.expanded === expanded
-        ? node
-        : { ...node, data: { ...node.data, expanded } })
-      return expanded ? populateExpandedConnections(updated, currentEdges) : updated
-    })
-    setEdges((current) => current.map((edge) => ({
-      ...edge,
-      targetHandle: expanded && nodesById.get(edge.target)?.data.scope !== "background"
-        ? inputHandleIdFor(edge.id)
-        : undefined,
-    })))
-    if (expanded) {
-      nodesRef.current
-        .filter((node) => node.data.scope === "background")
-        .forEach((node) => void hydrateBackgroundNode(node.id))
-    }
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      setNodes((current) => layoutNodes(current, edgesRef.current, { orientation: graphOrientation, compact: compactToteLayout }))
-    }))
-  }, [compactToteLayout, graphOrientation, hydrateBackgroundNode, setEdges, setNodes])
-
   const fit = () => fitView({ padding: compactToteLayout ? 0.2 : 0.4, maxZoom: 0.85, duration: 350 })
   const relayout = () => {
     setNodes((current) => layoutNodes(current, edges, { orientation: graphOrientation, compact: compactToteLayout }))
@@ -722,7 +659,7 @@ export function useGraphModel({
         : buildGraphFromYaml(appliedYaml, mode, currentResult?.scaling_vector, graphDecimalPlaces)
       const previousById = new Map(nodesRef.current.map((node) => [node.id, node]))
       const laidOutNodes = layoutNodes(parsed.nodes, parsed.edges, { orientation: graphOrientation, compact: compactToteLayout })
-      let nextNodes: Node<ProcessNodeData>[] = laidOutNodes.map((node) => {
+      const nextNodes: Node<ProcessNodeData>[] = laidOutNodes.map((node) => {
         const previous = previousById.get(node.id)
         return {
           ...node,
@@ -735,25 +672,21 @@ export function useGraphModel({
           selected: previous?.selected ?? false,
           data: {
             ...node.data,
-            expanded: previous?.data.expanded ?? false,
             canRestore: previous?.data.canRestore ?? false,
             canFold: parsed.edges.some((edge) => edge.target === node.id),
           },
         }
       })
       const hiddenIds = new Set(nextNodes.filter((node) => node.hidden).map((node) => node.id))
-      let nextEdges: Edge[] = parsed.edges.map((edge) => ({
+      const nextEdges: Edge[] = parsed.edges.map((edge) => ({
         ...edge,
         hidden: hiddenIds.has(edge.source) || hiddenIds.has(edge.target),
       }))
-      nextEdges = targetExpandedInputRows(nextNodes, nextEdges)
-      nextNodes = populateExpandedConnections(nextNodes, nextEdges)
       foldDirectionRef.current = "upstream"
       setEdges(nextEdges)
       setNodes(nextNodes)
       setGraphMode(mode)
       setYamlError("")
-      requestAnimationFrame(() => nextNodes.filter((node) => node.data.scope === "background" && node.data.expanded).forEach((node) => void hydrateBackgroundNode(node.id)))
     } catch (error) {
       setYamlError(error instanceof Error ? error.message : "Could not parse this YAML file.")
       setView("yaml")
@@ -888,7 +821,7 @@ export function useGraphModel({
     query, setQuery, yamlError, setYamlError,
     graphDecimalPlaces, availableGraphProcessCount,
     fitView, zoomIn, zoomOut, fit, relayout, compactToteLayout,
-    removeNode, restoreNode, toggleExpanded, setAllExpanded,
+    removeNode, restoreNode,
     applyGraphSettings, showGraphMode, applyYaml, applyAndCalculateYaml,
     commitVersion, restoreVersion, undo, redo, captureDraftVersion,
     commitScenario, scenarioEditCount,

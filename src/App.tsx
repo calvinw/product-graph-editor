@@ -11,7 +11,7 @@ import remarkGfm from "remark-gfm"
 import prismLogoRound from "./assets/prism-logo-round.png"
 import {
   BarChart3, Check, ChevronLeft, GripHorizontal, Scan, LayoutGrid, ChevronDown,
-  ChevronsDownUp, ChevronsUpDown, Minus, Moon, MousePointer2, Plus, Settings2, Sun, X,
+  Minus, Moon, MousePointer2, Plus, Settings2, Sun, X,
 } from "lucide-react"
 import { parse } from "yaml"
 import { Button } from "@/components/ui/button"
@@ -123,7 +123,6 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     yamlError, setYamlError,
     availableGraphProcessCount,
     fitView, zoomIn, zoomOut, fit, relayout,
-    toggleExpanded, setAllExpanded,
     applyGraphSettings, showGraphMode, applyYaml, applyAndCalculateYaml,
     hydrateBackgroundNode, commitScenario, scenarioEditCount, restoreVersion,
     undo, redo, captureDraftVersion,
@@ -509,7 +508,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           inspectorOpen={inspectorOpen || (graphMode === "scaled" && scenarioEditCount > 0)} theme={theme}
           compactLayout={compactToteLayout}
           setSelected={setSelected} clearNodeSelection={clearNodeSelection}
-          hydrateBackgroundNode={hydrateBackgroundNode} toggleExpanded={toggleExpanded}
+          hydrateBackgroundNode={hydrateBackgroundNode}
           selectMode={selectMode}
         />
         <div ref={graphToolbarRef} className="graph-toolbar" data-draggable-panel aria-label="Graph tools" style={graphToolbarPosition ? { position: "fixed", left: graphToolbarPosition.left, top: graphToolbarPosition.top } : undefined}>
@@ -546,10 +545,6 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           </div>
           <div className="toolbar-group">
             <ToolButton label="Select nodes (hold Alt and drag to zoom to an area)" pressed={selectMode} onClick={() => setSelectMode((current) => !current)}><MousePointer2 size={18} /></ToolButton>
-          </div>
-          <div className="toolbar-group">
-            <ToolButton label="Expand all activities" onClick={() => setAllExpanded(true)}><ChevronsUpDown size={18} /></ToolButton>
-            <ToolButton label="Collapse all activities" onClick={() => setAllExpanded(false)}><ChevronsDownUp size={18} /></ToolButton>
           </div>
           <div className="toolbar-group">
             <ToolButton label="Auto layout" onClick={relayout}><LayoutGrid size={18} /></ToolButton>

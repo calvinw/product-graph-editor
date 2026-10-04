@@ -413,16 +413,35 @@ test("toolbar tooltips open from keyboard focus and pointer input", async ({ pag
   await expect(page.getByRole("tooltip", { name: "Graph settings" })).toBeVisible()
 })
 
-test("graph toolbar expands and collapses all activities", async ({ page }) => {
+test("activity cards do not expand; a click opens the Property Editor instead", async ({ page }) => {
   await mockLcaApi(page)
   await openWorkspace(page)
-  await expect(page.locator(".react-flow__node")).toHaveCount(5)
+  const nodes = page.locator(".react-flow__node")
+  await expect(nodes).toHaveCount(5)
+  await expect(page.getByRole("button", { name: "Expand all activities" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Collapse all activities" })).toHaveCount(0)
 
-  await page.getByRole("button", { name: "Expand all activities" }).click()
-  await expect(page.locator(".react-flow__node .pg-node.is-expanded")).toHaveCount(5)
+  // The Property Editor is not shown until an activity is clicked.
+  const editor = page.locator("aside.inspector")
+  await expect(page.locator("aside.inspector.is-open")).toHaveCount(0)
 
-  await page.getByRole("button", { name: "Collapse all activities" }).click()
-  await expect(page.locator(".react-flow__node .pg-node.is-expanded")).toHaveCount(0)
+  const card = nodes.filter({ hasText: "P1 — Spinning" })
+  const viewport = page.locator(".react-flow__viewport")
+  await card.click()
+  await expect(editor).toHaveClass(/is-open/)
+  await expect(editor.getByRole("heading", { name: "P1 — Spinning" })).toBeVisible()
+  await settle(page)
+
+  const transform = await viewport.evaluate((element) => (element as HTMLElement).style.transform)
+  const size = await card.boundingBox()
+  await card.dblclick()
+  await settle(page)
+  await expect(card.locator(".pg-node")).not.toHaveClass(/is-expanded/)
+  expect((await card.boundingBox())!.height).toBeCloseTo(size!.height, 0)
+  expect(await viewport.evaluate((element) => (element as HTMLElement).style.transform)).toBe(transform)
+
+  await page.locator(".react-flow__pane").click({ position: { x: 20, y: 20 } })
+  await expect(page.locator("aside.inspector.is-open")).toHaveCount(0)
 })
 
 test("primary switcher and Results menu support keyboard navigation", async ({ page }) => {

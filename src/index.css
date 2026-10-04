@@ -591,7 +591,7 @@ html[data-theme="light"] .contribution-scope.is-background { color: #1d4ed8 !imp
 html[data-theme="light"] .contribution-table .rate-value,
 html[data-theme="light"] .contribution-table td:first-child { color: #000; font-weight: 750; }
 html[data-theme="light"] .pg-node { color: #263244; background: #fff; box-shadow: 0 12px 32px rgba(41,51,68,.16); }
-html[data-theme="light"] .pg-node-head, html[data-theme="light"] .pg-flow-section, html[data-theme="light"] .pg-biosphere, html[data-theme="light"] .pg-extractions, html[data-theme="light"] .pg-emissions { border-color: #dbe0e7; background: #f8fafc; }
+html[data-theme="light"] .pg-node-head { border-color: #dbe0e7; background: #f8fafc; }
 .markdown-report { max-width: 900px; margin: 0 auto; color: #cbd0d8; font-size: 12px; line-height: 1.65; }
 .markdown-report h1 { margin: 0 0 10px; color: #f4f4f5; font-size: 23px; }.markdown-report h2 { margin: 30px 0 10px; color: #e5e7eb; font-size: 15px; }
 .markdown-report p { margin: 7px 0; }.markdown-report strong { color: #f1f3f5; }
@@ -630,29 +630,7 @@ html[data-theme="light"] .pg-node-head, html[data-theme="light"] .pg-flow-sectio
 }
 .pg-node.is-expanded .pg-node-head .pg-node-label { color: #eef0f4; font-weight: 650; }
 .pg-node-scope { flex: none; color: var(--node-color); font-size: 15px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
-.pg-flow-section { padding: 9px 10px 10px; }
-.pg-flow-title { display: flex; align-items: center; gap: 4px; margin-bottom: 7px; color: #7b88ad; font-size: 18px; font-weight: 650; }
-.pg-flow-section.is-output .pg-flow-title { justify-content: flex-end; }
-.pg-flow-row { position: relative; display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 7px; min-height: 32px; color: #8bdcf3; font-size: 20px; font-weight: 650; }
-.pg-flow-row .pg-flow-handle { left: -10px; top: 50%; }
-.pg-flow-row .pg-flow-handle.is-vertical { left: 50%; top: auto; bottom: -10px; }
-.pg-flow-row small { color: #8a929f; font-size: 10px; font-weight: 550; text-transform: capitalize; }
-.pg-flow-empty { padding: 2px 0; color: #555d6a; font-size: 16px; }
-.pg-flow-empty.is-error, .property-error { color: #fb7185 !important; }
-.pg-flow-divider { height: 1px; margin: 0 10px; background: color-mix(in srgb, var(--node-color) 70%, transparent); }
-.pg-extractions { padding: 8px 10px 10px; border-top: 1px solid #303541; background: rgba(56,189,248,.045); }
-.pg-extractions-title { margin-bottom: 5px; color: #38bdf8; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
-.pg-extraction-row { display: flex; align-items: center; justify-content: space-between; min-height: 29px; color: #c8cdd6; font-size: 19px; }
-.pg-extraction-row strong { color: #7dd3fc; font-size: 10px; font-weight: 650; }
-.pg-emissions { padding: 8px 10px 10px; border-top: 1px solid #303541; background: rgba(251,113,133,.045); }
-.pg-emissions-title { margin-bottom: 5px; color: #fb7185; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
-.pg-emission-row { display: flex; align-items: center; justify-content: space-between; min-height: 29px; color: #c8cdd6; font-size: 19px; }
-.pg-emission-row strong { color: #fda4af; font-size: 10px; font-weight: 650; }
-.pg-biosphere { padding: 8px 10px 10px; border-top: 1px solid #303541; background: rgba(251,113,133,.045); }
-.pg-biosphere-title { margin-bottom: 5px; color: #fb7185; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
-.pg-biosphere-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; color: #c8cdd6; font-size: 14px; }
-.pg-biosphere-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pg-biosphere-row strong { flex: none; color: #fda4af; font-size: 10px; font-weight: 650; }
+.property-error { color: #fb7185 !important; }
 .pg-node-icon {
   display: grid; place-items: center; flex: none;
   width: 18px; height: 18px; border-radius: 6px;
@@ -687,28 +665,11 @@ html[data-theme="light"] .pg-node-head, html[data-theme="light"] .pg-flow-sectio
 .property-section.is-emission .property-row strong { color: #fda4af; }
 .tooltip { z-index: 20; padding: 6px 8px; border: 1px solid #30343b; border-radius: 5px; color: #dddfe4; background: #191c21; font-size: 11px; box-shadow: 0 8px 25px rgba(0,0,0,.35); }
 html[data-theme="light"] .pg-node.is-expanded .pg-node-head .pg-node-label,
-html[data-theme="light"] .pg-node.is-expanded .pg-node-scope,
-html[data-theme="light"] .pg-node.is-expanded .pg-flow-title,
-html[data-theme="light"] .pg-node.is-expanded .pg-flow-row,
-html[data-theme="light"] .pg-node.is-expanded .pg-flow-row small,
-html[data-theme="light"] .pg-node.is-expanded .pg-flow-empty,
-html[data-theme="light"] .pg-node.is-expanded .pg-extractions-title,
-html[data-theme="light"] .pg-node.is-expanded .pg-extraction-row,
-html[data-theme="light"] .pg-node.is-expanded .pg-extraction-row strong,
-html[data-theme="light"] .pg-node.is-expanded .pg-emissions-title,
-html[data-theme="light"] .pg-node.is-expanded .pg-emission-row,
-html[data-theme="light"] .pg-node.is-expanded .pg-emission-row strong,
-html[data-theme="light"] .pg-node.is-expanded .pg-biosphere-title,
-html[data-theme="light"] .pg-node.is-expanded .pg-biosphere-row,
-html[data-theme="light"] .pg-node.is-expanded .pg-biosphere-row strong { color: #000; }
-html[data-theme="light"] .pg-node.is-expanded .pg-flow-section:not(.is-output) .pg-flow-title { color: #2563eb; }
-html[data-theme="light"] .pg-node.is-expanded .pg-flow-row > span { color: #2563eb; }
+html[data-theme="light"] .pg-node.is-expanded .pg-node-scope { color: #000; }
 html[data-theme="light"] .sankey-process-metrics,
 html[data-theme="light"] .sankey-selection-result { color: #2563eb; }
 html[data-theme="light"] .sankey-selection-summary > strong { color: #000; }
-html[data-theme="light"] .pg-node.is-expanded .pg-node-scope.is-foreground,
-html[data-theme="light"] .pg-node.is-expanded .pg-flow-section.is-output .pg-flow-title { color: #7c3aed; }
-html[data-theme="light"] .pg-node.is-expanded .pg-emissions-title { color: #dc2626; }
+html[data-theme="light"] .pg-node.is-expanded .pg-node-scope.is-foreground { color: #7c3aed; }
 html[data-theme="light"] .react-flow__edge-text { fill: #000 !important; }
 html[data-theme="light"] .react-flow__edge-textbg { fill: #fff !important; fill-opacity: .96 !important; }
 html[data-theme="light"] .inspector { border-color: #cbd1da; color: #111827; background: rgba(255,255,255,.98); box-shadow: 0 18px 48px rgba(41,51,68,.18); }
