@@ -444,6 +444,50 @@ test("activity cards do not expand; a click opens the Property Editor instead", 
   await expect(page.locator("aside.inspector.is-open")).toHaveCount(0)
 })
 
+test("the Property Editor can be resized, and keeps its width after a reload", async ({ page }) => {
+  await mockLcaApi(page)
+  await openWorkspace(page)
+  const card = page.locator(".react-flow__node").filter({ hasText: "P1 — Spinning" })
+  const editor = page.locator("aside.inspector.is-open")
+  const handle = page.getByRole("separator", { name: "Resize property editor" })
+  const canvas = page.locator(".graph-viewport")
+  const width = async () => Math.round((await editor.boundingBox())!.width)
+  const canvasRight = async () => Math.round((await canvas.boundingBox())!.x + (await canvas.boundingBox())!.width)
+
+  await card.click()
+  await expect(editor).toBeVisible()
+  await settle(page)
+  expect(await width()).toBe(286)
+  const canvasRightBefore = await canvasRight()
+
+  const box = (await handle.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2 - 150, box.y + box.height / 2, { steps: 10 })
+  await page.mouse.up()
+  expect(await width()).toBe(436)
+  await expect(handle).toHaveAttribute("aria-valuenow", "436")
+  // The canvas gives up the same width, so the editor never covers the graph.
+  expect(await canvasRight()).toBe(canvasRightBefore - 150)
+
+  await page.reload()
+  await page.getByRole("button", { name: "Explore PRISM" }).click()
+  await card.click()
+  await expect(editor).toBeVisible()
+  await settle(page)
+  expect(await width()).toBe(436)
+
+  await handle.focus()
+  await handle.press("Home")
+  expect(await width()).toBe(240)
+  await handle.press("ArrowLeft")
+  expect(await width()).toBe(260)
+  await handle.press("End")
+  expect(await width()).toBe(page.viewportSize()!.width - 320)
+  await handle.dblclick()
+  expect(await width()).toBe(286)
+})
+
 test("primary switcher and Results menu support keyboard navigation", async ({ page }) => {
   await mockLcaApi(page)
   await openWorkspace(page)

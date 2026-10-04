@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { useDisplaySettings } from "@/lib/displaySettings"
 import { impactCategoryDisplayName } from "@/lib/lcaApi"
 import { impactColor, type CategoryPreview } from "@/lib/realtimeScore"
+import { RailResizeHandle } from "./RailResizeHandle"
 
 /**
  * Impact of the pending scenario, shown only while edits are outstanding.
@@ -16,26 +17,6 @@ import { impactColor, type CategoryPreview } from "@/lib/realtimeScore"
  * and be draggable to get out of the way; docking removes that need, since the
  * canvas shrinks to make room exactly as it does for the property editor.
  */
-const RAIL_WIDTH_STORAGE = "product-graph-editor:rail-width"
-const RAIL_DEFAULT = 286
-const RAIL_MIN = 240
-
-function storedRailWidth() {
-  try {
-    const value = Number(localStorage.getItem(RAIL_WIDTH_STORAGE))
-    return Number.isFinite(value) && value >= RAIL_MIN ? value : RAIL_DEFAULT
-  } catch { return RAIL_DEFAULT }
-}
-
-/**
- * The rail width is shared with the property editor stacked beneath, because
- * two docked panels of different widths would read as a mistake. Published as
- * a CSS variable so the canvas inset follows without a re-render.
- */
-function applyRailWidth(width: number) {
-  document.documentElement.style.setProperty("--rail-width", `${Math.round(width)}px`)
-}
-
 export function ScenarioPanel({
   editCount, stacked, categoryTotals, calculating, onReset, onCommit,
   categoryOrder, visibleCategories, onToggleCategory,
@@ -53,41 +34,6 @@ export function ScenarioPanel({
 }) {
   const { formatNumber } = useDisplaySettings()
   const panelRef = useRef<HTMLElement | null>(null)
-
-  useEffect(() => { applyRailWidth(storedRailWidth()) }, [])
-
-  const startResize = (event: React.PointerEvent<HTMLButtonElement>) => {
-    event.preventDefault()
-    const startX = event.clientX
-    const startWidth = panelRef.current?.offsetWidth ?? RAIL_DEFAULT
-    let next = startWidth
-    const resize = (moveEvent: PointerEvent) => {
-      // Leave enough canvas that the graph stays usable no matter how wide
-      // the rail is dragged.
-      const maximum = Math.max(RAIL_MIN, window.innerWidth - 320)
-      next = Math.min(maximum, Math.max(RAIL_MIN, startWidth + startX - moveEvent.clientX))
-      applyRailWidth(next)
-    }
-    const finish = () => {
-      window.removeEventListener("pointermove", resize)
-      window.removeEventListener("pointerup", finish)
-      document.body.classList.remove("is-resizing-rail")
-      try { localStorage.setItem(RAIL_WIDTH_STORAGE, String(Math.round(next))) } catch { /* Optional preference. */ }
-    }
-    document.body.classList.add("is-resizing-rail")
-    window.addEventListener("pointermove", resize)
-    window.addEventListener("pointerup", finish, { once: true })
-  }
-
-  const resizeByKeyboard = (event: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
-    event.preventDefault()
-    const current = panelRef.current?.offsetWidth ?? RAIL_DEFAULT
-    const maximum = Math.max(RAIL_MIN, window.innerWidth - 320)
-    const next = Math.min(maximum, Math.max(RAIL_MIN, current + (event.key === "ArrowLeft" ? 20 : -20)))
-    applyRailWidth(next)
-    try { localStorage.setItem(RAIL_WIDTH_STORAGE, String(Math.round(next))) } catch { /* Optional preference. */ }
-  }
 
   // The property editor sits below this panel in the same rail, so it needs to
   // know how tall this one is. Published as a CSS variable and kept current
@@ -109,13 +55,7 @@ export function ScenarioPanel({
 
   return (
     <aside ref={panelRef} className={`scenario-panel${stacked ? " is-stacked" : ""}`} role="status" aria-label="Scenario impact">
-      <button
-        type="button"
-        className="rail-resize-handle"
-        aria-label="Resize scenario and property panels"
-        onPointerDown={startResize}
-        onKeyDown={resizeByKeyboard}
-      />
+      <RailResizeHandle panelRef={panelRef} label="Resize scenario and property panels" />
       <header>
         <strong>Scenario</strong>
         <span>{editCount} input{editCount === 1 ? "" : "s"} changed</span>

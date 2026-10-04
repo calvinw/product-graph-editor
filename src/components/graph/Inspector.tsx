@@ -1,15 +1,20 @@
+import { useRef } from "react"
 import { Box, X } from "lucide-react"
 import type { Node } from "@xyflow/react"
 import { Button } from "@/components/ui/button"
 import type { ProcessNodeData } from "@/components/ProcessNode"
 import { useDisplaySettings } from "@/lib/displaySettings"
 import type { SelectedGraphNode } from "@/state/productGraphStore"
+import { RailResizeHandle } from "./RailResizeHandle"
 
 /**
  * The property editor for the selected graph node.
  *
  * `inspectorSelection` is the last selection rather than the live one, so the
  * panel keeps its contents while animating closed.
+ *
+ * It opens when an activity is clicked and can be resized from its left edge.
+ * The contents scroll inside .inspector-scroll so the resize handle stays put.
  */
 export function Inspector({
   selected, inspectorSelection, selectedNode, inputNodes, outputNodes,
@@ -26,9 +31,11 @@ export function Inspector({
   clearNodeSelection: () => void
 }) {
   const { formatNumber } = useDisplaySettings()
+  const panelRef = useRef<HTMLElement | null>(null)
   return (
-    <aside className={`inspector${selected ? " is-open" : ""}`} aria-hidden={!selected} inert={!selected}>
-  <>
+    <aside ref={panelRef} className={`inspector${selected ? " is-open" : ""}`} aria-hidden={!selected} inert={!selected}>
+    <RailResizeHandle panelRef={panelRef} label="Resize property editor" />
+  <div className="inspector-scroll">
     <div className="inspector-head"><span>NODE DETAILS</span><Button variant="ghost" size="icon" onClick={clearNodeSelection} aria-label="Close property editor" title="Close property editor"><X size={16} /></Button></div>
     <div className="node-icon" style={{ background: selectedNode?.data.color ?? inspectorSelection.color }}><Box size={22} /></div>
     <h2>{selectedNode?.data.label ?? inspectorSelection.label}</h2><p>{selectedNode?.data.detail ?? inspectorSelection.detail}</p>
@@ -88,7 +95,7 @@ export function Inspector({
         {selectedNode.data.emissions.map((item) => <div className="property-row" key={item.label}><span>{item.label}</span>{selectedNode.data.showAmounts !== false ? <strong>{formatNumber(item.amount ?? 0)} {item.unit}</strong> : null}</div>)}
       </div> : null}
     </>}
-  </>
+  </div>
     </aside>
   )
 }
