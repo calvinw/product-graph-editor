@@ -17,6 +17,7 @@ export default tseslint.config(
       ".ds-sync",
       ".crush",
       ".opencode",
+      ".vite",
       "tests/visual/**/*.snapshots",
       // Repository skills bring their own generated/tooling sources and lint
       // contracts. Keep the application lint gate scoped to product code.
