@@ -13,7 +13,10 @@ import { useProductGraphStore, type ProductGraphView as View } from "@/state/pro
 // The cotton tote is the default: four foreground stages, six background
 // links, and one provider shared by three of them, so scenario dragging and
 // impact propagation are both visible on first open.
-const WEBAPP_DEFAULT_PRODUCT_GRAPH_ID = import.meta.env.VITE_DEFAULT_PRODUCT_GRAPH_ID ?? "cotton_tote_bafu_linked"
+// The app starts with no model open; the user picks New, a template, or an
+// upload. Set VITE_DEFAULT_PRODUCT_GRAPH_ID to open a template copy on first
+// launch instead -- the browser tests do this so they start from Jacket.
+const STARTUP_PRODUCT_GRAPH_ID = import.meta.env.VITE_DEFAULT_PRODUCT_GRAPH_ID as string | undefined
 
 type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribution" | "sankey">
 const analysisViews: AnalysisView[] = ["inventory", "impact", "process", "contribution", "sankey"]
@@ -298,9 +301,6 @@ export function useModelWorkspace({
     void (async () => {
       try {
         const templateCollection = await getProductGraphTemplates()
-        const initial = templateCollection.product_graphs.find((item) => item.id === WEBAPP_DEFAULT_PRODUCT_GRAPH_ID)
-          ?? templateCollection.product_graphs.find((item) => item.id === templateCollection.default_id)
-        if (!initial) throw new Error("The product-graph templates have no default selection.")
         setTemplates(templateCollection.product_graphs)
         setTemplateState("ready")
 
@@ -316,6 +316,9 @@ export function useModelWorkspace({
           return
         }
 
+        if (!STARTUP_PRODUCT_GRAPH_ID) return
+        const initial = templateCollection.product_graphs.find((item) => item.id === STARTUP_PRODUCT_GRAPH_ID)
+        if (!initial) throw new Error(`The startup template "${STARTUP_PRODUCT_GRAPH_ID}" is not available.`)
         const title = uniqueSessionTitle(`Copy of ${productGraphLabel(initial.name)}`, sessionDocuments)
         const document: SessionDocument = {
           kind: "session",

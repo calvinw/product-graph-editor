@@ -656,6 +656,13 @@ html[data-theme="light"] .pg-node-head { border-color: #dbe0e7; background: #f8f
 .graph-meta { position: absolute; z-index: 2; right: 20px; bottom: 18px; color: #5e646e; font-size: 10px; }
 .inspector { position: absolute; z-index: 4; top: calc(76px + var(--scenario-panel-height, 0px)); right: 18px; bottom: 18px; width: var(--rail-width, 286px); min-width: 0; border: 1px solid #2b2f36; border-radius: 12px; opacity: 0; background: rgba(16,18,22,.96); box-shadow: 0 18px 48px rgba(0,0,0,.38); backdrop-filter: blur(12px); pointer-events: none; visibility: hidden; transform: translateX(calc(100% + 36px)); transition: opacity .2s ease, transform .25s cubic-bezier(.22, 1, .36, 1), visibility .25s, top .2s ease; }
 .inspector.is-open { opacity: 1; pointer-events: auto; visibility: visible; transform: translateX(0); }
+/* Shown on the graph canvas when no model is open (the app no longer opens a
+   default template on first launch). */
+.graph-empty-state { position: absolute; z-index: 3; top: 50%; left: 50%; display: grid; justify-items: center; gap: 12px; width: min(460px, calc(100% - 32px)); padding: 28px 28px 24px; border: 1px solid var(--panel-border, #2b2f36); border-radius: 14px; background: var(--panel-header-background, rgba(16,18,22,.96)); text-align: center; transform: translate(-50%, -50%); box-shadow: 0 18px 48px rgba(0,0,0,.3); }
+.graph-empty-state h2 { margin: 0; font-size: 18px; letter-spacing: -.02em; }
+.graph-empty-state p { margin: 0; color: var(--control-muted, #8a929f); font-size: 13px; line-height: 1.5; }
+.graph-empty-state h3 { margin: 10px 0 0; color: var(--control-muted, #8a929f); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.graph-empty-actions, .graph-empty-templates { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .inspector { display: flex; flex-direction: column; }
 .inspector-scroll { position: relative; flex: 1 1 auto; min-height: 0; padding: 22px; overflow-y: auto; border-radius: inherit; }
 /* Once moved, the editor floats at the user's position and is only as tall as

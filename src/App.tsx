@@ -58,6 +58,7 @@ import { useGraphModel } from "@/hooks/useGraphModel"
 import { useDraggablePosition } from "@/hooks/useDraggablePosition"
 import { useModelWorkspace } from "@/hooks/useModelWorkspace"
 import { safeYamlFilename } from "./lib/modelWorkspace"
+import { productGraphLabel } from "./lib/resultFormatting"
 import { WelcomePage } from "@/components/welcome/WelcomePage"
 import { DisplaySettingsProvider, useDisplaySettings } from "./lib/displaySettings"
 import {
@@ -292,7 +293,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
   }
 
   const currentModelTitle = activeDocument?.title
-    ?? (templateState === "unavailable" ? "Templates unavailable" : "Loading templates…")
+    ?? (templateState === "unavailable" ? "Templates unavailable" : templateState === "ready" ? "No model open" : "Loading templates…")
   useEffect(() => onTitleChange(currentModelTitle), [currentModelTitle, onTitleChange])
 
 
@@ -527,6 +528,20 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           hydrateBackgroundNode={hydrateBackgroundNode}
           selectMode={selectMode}
         />
+        {!activeDocument && templateState === "ready" ? <section className="graph-empty-state" aria-labelledby="graph-empty-title">
+          <h2 id="graph-empty-title">No model open</h2>
+          <p>Start a new product graph, upload a YAML file, or begin from a template.</p>
+          <div className="graph-empty-actions">
+            <Button onClick={() => requestAction({ kind: "new" })}>New model</Button>
+            <Button variant="outline" onClick={() => requestAction({ kind: "upload" })}>Upload YAML</Button>
+          </div>
+          {templates.length ? <>
+            <h3>Templates</h3>
+            <div className="graph-empty-templates">
+              {templates.map((template) => <Button key={template.id} variant="ghost" size="sm" title={template.filename} onClick={() => requestAction({ kind: "template", id: template.id })}>{productGraphLabel(template.name)}</Button>)}
+            </div>
+          </> : null}
+        </section> : null}
         <div ref={graphToolbarRef} className="graph-toolbar" data-draggable-panel aria-label="Graph tools" style={graphToolbarPosition ? { position: "fixed", left: graphToolbarPosition.left, top: graphToolbarPosition.top } : undefined}>
           <button type="button" className="toolbar-grip" aria-label="Move graph toolbar" onPointerDown={startGraphToolbarDrag}><GripHorizontal size={14} /></button>
           <div className="toolbar-group">

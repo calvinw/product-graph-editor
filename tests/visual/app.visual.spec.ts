@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test"
 import { lcaResultFixture } from "../fixtures/lca-result"
 import { broomLcaResultFixture } from "../fixtures/broom-lca-result"
+import { NO_DEFAULT_MODEL_URL } from "../../playwright.base.config"
 import { productGraphTemplatesFixture } from "../fixtures/product-graph-templates"
 import type { LcaResult } from "../../src/lib/lcaApi"
 
@@ -1032,6 +1033,25 @@ test("Results shows progress during lazy contribution calculations", async ({ pa
   await openDesktopAnalysis(page, "Impact analysis", ".impact-view")
   await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toBeVisible()
   await expect(page.getByRole("status", { name: "LCA calculation in progress" })).toHaveCount(0)
+})
+
+test("the app starts with no model open and offers New, Upload and templates", async ({ page }) => {
+  await mockLcaApi(page)
+  await page.goto(NO_DEFAULT_MODEL_URL)
+  await page.getByRole("button", { name: "Explore PRISM" }).click()
+
+  const empty = page.getByRole("region", { name: "No model open" })
+  await expect(empty).toBeVisible()
+  await expect(page.locator(".react-flow__node")).toHaveCount(0)
+  await expect(page.locator(".navbar-model-title")).toHaveText("No model open")
+  await expect(empty.getByRole("button", { name: "New model" })).toBeVisible()
+  await expect(empty.getByRole("button", { name: "Upload YAML" })).toBeVisible()
+
+  // Picking a template opens a copy of it, as File > Templates does.
+  await empty.getByRole("button", { name: "Jacket", exact: true }).click()
+  await expect(page.locator(".react-flow__node")).toHaveCount(5)
+  await expect(empty).toHaveCount(0)
+  await expect(page.locator(".navbar-model-title")).toHaveText("Copy of Jacket")
 })
 
 test("Sankey cards show full activity names at their own, smaller size", async ({ page }) => {
