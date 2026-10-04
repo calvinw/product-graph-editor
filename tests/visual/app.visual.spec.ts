@@ -913,6 +913,46 @@ test("Structure Graph is the default and Scaled Graph is enabled after the LCA f
   await expect(structureGraph).toHaveAttribute("aria-pressed", "true")
 })
 
+/** A node's position in flow coordinates, read from React Flow's transform. */
+async function flowPosition(page: Page, label: string) {
+  const transform = await page.locator(".react-flow__node", { hasText: label }).first().evaluate((node) => (node as HTMLElement).style.transform)
+  const match = /translate\(([-\d.]+)px, ?([-\d.]+)px\)/.exec(transform)
+  expect(match, `transform for ${label}: ${transform}`).not.toBeNull()
+  return { x: Number(match![1]), y: Number(match![2]) }
+}
+
+test("dragged activities keep their positions when switching between Structure and Scaled Graph", async ({ page }) => {
+  await mockLcaApi(page)
+  await openWorkspace(page)
+  await calculate(page)
+  await page.getByRole("radio", { name: "Graph", exact: true }).click()
+  const structureGraph = page.getByRole("button", { name: "Structure Graph" })
+  const scaledGraph = page.getByRole("button", { name: "Scaled Graph" })
+  await expect(structureGraph).toHaveAttribute("aria-pressed", "true")
+  await expect(scaledGraph).toBeEnabled()
+
+  const label = "P1 — Spinning"
+  const node = page.locator(".react-flow__node", { hasText: label }).first()
+  const before = await flowPosition(page, label)
+  const box = (await node.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2 + 160, { steps: 10 })
+  await page.mouse.up()
+  const dragged = await flowPosition(page, label)
+  expect(Math.abs(dragged.x - before.x) + Math.abs(dragged.y - before.y)).toBeGreaterThan(50)
+
+  await scaledGraph.click()
+  await expect(scaledGraph).toHaveAttribute("aria-pressed", "true")
+  await settle(page)
+  expect(await flowPosition(page, label)).toEqual(dragged)
+
+  await structureGraph.click()
+  await expect(structureGraph).toHaveAttribute("aria-pressed", "true")
+  await settle(page)
+  expect(await flowPosition(page, label)).toEqual(dragged)
+})
+
 test("scenario impact categories can be enabled and disabled independently", async ({ page }) => {
   // Scenario edges are draggable only when the result has background links,
   // which the Jacket fixture does not, so this test uses the broom template.

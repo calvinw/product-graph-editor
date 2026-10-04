@@ -727,6 +727,10 @@ export function useGraphModel({
         return {
           ...node,
           position: previous?.position ?? node.position,
+          // Keep the measured size too. Without it React Flow treats every node
+          // as new, useNodesInitialized flips false -> true, and the measured-
+          // layout effect above re-runs dagre over the user's dragged positions.
+          measured: previous?.measured ?? node.measured,
           hidden: previous?.hidden ?? false,
           selected: previous?.selected ?? false,
           data: {

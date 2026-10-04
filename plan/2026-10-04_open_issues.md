@@ -70,7 +70,16 @@ Plan:
 - Missing pieces: leaving a room, renaming a room, deleting shared files, refreshing
   member counts, and resetting `confirmDelete` when switching rooms.
 
-## 3. #81 — Graph moves when switching Structure → Scaled
+## 3. #81 — Graph moves when switching Structure → Scaled — DONE 4 Oct
+
+**Confirmed cause and fix:** `showGraphMode` rebuilt nodes without `measured`, so
+`useNodesInitialized` flipped false → true and the measured-layout effect re-ran dagre
+over the dragged positions. The fix carries `measured` over from the previous node. The
+regression test "dragged activities keep their positions when switching between Structure
+and Scaled Graph" failed before the fix (the card reset to its layout spot) and passes
+after it.
+
+Original analysis:
 
 `showGraphMode` in `src/hooks/useGraphModel.ts:~703` already tries to keep positions
 (`position: previous?.position ?? node.position`). The most likely cause is the
@@ -233,7 +242,7 @@ The four failing tests below also failed on untouched `main`. **All are now fixe
   1 run in 3): it measured before the async `resize` event had re-clamped the toolbar. It
   now retries with `toPass`. It passed 30/30 with `--repeat-each=10`.
 
-Current counts: unit 117 passed; visual 58 passed; responsive 69 passed + 3 skipped by
+Current counts: unit 117 passed; visual 59 passed (58 plus the #81 test); responsive 69 passed + 3 skipped by
 design. CLAUDE.md is updated to match.
 
 ## Suggested sequence
