@@ -304,8 +304,10 @@ export function decorateAmounts(
         id: `${source}-${ids.get(consumer.name)}-${consumerIndex}-${inputIndex}`,
         source, target: ids.get(consumer.name)!, label: draggable ? undefined : label,
         style: { stroke: "#343941", strokeWidth: 2.5 },
-        labelStyle: { fill: "#9aa2ae", fontSize: 19, fontWeight: 700 },
-        labelBgStyle: { fill: "#111318", fillOpacity: 0.92 }, labelBgPadding: [7, 5], labelBgBorderRadius: 4,
+        // Flow labels sit a step above the 24px activity-card text so they read
+        // at the same zoom (the scenario edge label in index.css matches).
+        labelStyle: { fill: "#9aa2ae", fontSize: 26, fontWeight: 700 },
+        labelBgStyle: { fill: "#111318", fillOpacity: 0.92 }, labelBgPadding: [10, 7], labelBgBorderRadius: 5,
         markerEnd: { type: MarkerType.ArrowClosed, color: "#343941", width: 18, height: 18 },
       })
     }
