@@ -131,9 +131,9 @@ Defaults I'll use unless told otherwise:
    floating/drag/close code and the uncover effect.
 4. **Structure/Scaled switch into the rail**, including the collapsed-strip icons.
    Remove `.graph-mode-toolbar`.
-5. **Scenario tab.** Details | Scenario tabs during a scenario, auto-switch and
-   auto-expand on start, count badge, card click switches to Details, tabs gone after
-   Reset or Save; the "close editor on scenario" effect removed.
+5. ~~**Scenario tab.**~~ Not needed for now (see Progress). Details | Scenario tabs during
+   a scenario, auto-switch and auto-expand on start, count badge, card click switches to
+   Details, tabs gone after Reset or Save.
 6. **Clean-up and docs.** Remove dead CSS, update CLAUDE.md counts, and update this plan
    and `2026-10-04_open_issues.md` (#66 is fully superseded by this layout).
 
@@ -178,6 +178,15 @@ Defaults I'll use unless told otherwise:
     re-centres it. Its saved position uses a fresh key.
 - **Stage 4 dropped (4 Oct):** the Structure/Scaled switch stays at the bottom-left of the
   graph. With the editor closable to a tab, it would otherwise be unreachable.
+
+- **Stage 5 not needed for now (4 Oct):** during a scenario edit, the Scenario panel
+  stacks above the Property Editor in the left column, and both stay usable (checked
+  with the broom template and a card selected). The Details | Scenario tabs are kept as
+  an option if the stack gets cramped, e.g. with many impact categories turned on.
+- **Next (stage 6 clean-up):**
+  - Stop clearing the editor's selection when a scenario starts (a leftover from the
+    floating editor).
+  - Keep scenario values and their units on one line in the narrow column.
 
 ## Tests to rewrite or add
 
