@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test"
 import { mockLcaApi } from "./helpers"
 
-const GRAPH_TOOLBAR_KEY = "product-graph-editor:graph-toolbar-position"
+const GRAPH_TOOLBAR_KEY = "product-graph-editor:graph-toolbar-position-horizontal"
 
 /**
  * A stored toolbar position is absolute pixels. Coordinates saved on a large
@@ -67,4 +67,46 @@ test("the toolbar drag handle stays reachable after the viewport shrinks", async
     expect(gripBox.x + gripBox.width).toBeLessThanOrEqual(shrunk.width)
     expect(gripBox.y + gripBox.height).toBeLessThanOrEqual(shrunk.height)
   }).toPass({ timeout: 5_000 })
+})
+
+test("the graph tool bar cannot be dragged out of the graph canvas", async ({ page }) => {
+  await page.goto("/")
+  await page.getByRole("button", { name: "Explore PRISM" }).click()
+  const toolbar = page.locator(".graph-toolbar").first()
+  const canvas = page.locator(".graph-viewport")
+  await expect(toolbar).toBeVisible()
+  const grip = toolbar.getByRole("button", { name: /Move .*toolbar/i })
+
+  const expectInsideCanvas = async () => {
+    await expect(async () => {
+      const bar = (await toolbar.boundingBox())!
+      const frame = (await canvas.boundingBox())!
+      expect(bar.x).toBeGreaterThanOrEqual(frame.x)
+      expect(bar.y).toBeGreaterThanOrEqual(frame.y)
+      expect(bar.x + bar.width).toBeLessThanOrEqual(frame.x + frame.width)
+      expect(bar.y + bar.height).toBeLessThanOrEqual(frame.y + frame.height)
+    }).toPass({ timeout: 3_000 })
+  }
+  const dragGripTo = async (x: number, y: number) => {
+    const box = (await grip.boundingBox())!
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(x, y, { steps: 10 })
+    await page.mouse.up()
+  }
+
+  const viewport = page.viewportSize()!
+  await dragGripTo(5, 5) // over the navbar and the window corner
+  await expectInsideCanvas()
+  await dragGripTo(viewport.width - 5, viewport.height - 5)
+  await expectInsideCanvas()
+  await dragGripTo(-200, viewport.height / 2)
+  await expectInsideCanvas()
+
+  // Opening the chat narrows the canvas; the tool bar is pulled back inside.
+  if (viewport.width > 620) {
+    await dragGripTo(5, viewport.height / 2)
+    await page.getByRole("button", { name: "Open AI assistant" }).click()
+    await expectInsideCanvas()
+  }
 })

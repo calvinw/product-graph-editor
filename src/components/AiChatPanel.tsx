@@ -177,6 +177,11 @@ function systemPrompt(runtime: AppToolRuntime) {
   return `You are the assistant embedded in PRISM Product Graph Editor. Use only the registered tools. You can inspect bounded workspace, graph, YAML-structure, and LCA-result summaries; change graph presentation and selection; navigate views; and propose registered model, calculation, download, export, and deletion actions. Actions marked for confirmation must be approved by the user in the application before they run. You can read the complete YAML with get_yaml_source and propose a rewrite with propose_yaml_edit. Always call get_yaml_source immediately before proposing, and pass its version token back as basedOnVersion: a proposal written against a document that has since changed is rejected, and you must re-read and rewrite it. Send the complete document, never a patch or a fragment, and preserve existing comments and formatting. A proposal is written to the editor as an unsaved draft for the user to review and save; it is never applied automatically, so never claim an edit has been applied. Never claim access to unregistered application state, and never claim an action succeeded until its tool result confirms it. Be concise and explain unavailable actions clearly.\n\nCurrent registered application context:\n${JSON.stringify({ activeView: runtime.activeView, views: listViews(runtime.hasCurrentResults), workspace: { calculationStatus: runtime.workspace.calculationStatus, hasCurrentResults: runtime.hasCurrentResults }, graph: { nodeCount: runtime.graph.nodes.length, connectionCount: runtime.graph.connectionCount, mode: runtime.graph.mode, orientation: runtime.graph.orientation, selectedNodeId: runtime.graph.selectedNodeId } }, null, 2)}`
 }
 
+const CHAT_MIN_WIDTH = 240
+/** Leave the workspace beside the chat at least this wide. */
+const WORKSPACE_MIN_WIDTH = 320
+const chatMaximumWidth = () => Math.max(CHAT_MIN_WIDTH, window.innerWidth - WORKSPACE_MIN_WIDTH)
+
 export function AiChatPanel({
   open,
   onOpenChange,
@@ -235,8 +240,8 @@ export function AiChatPanel({
     const startWidth = panelWidth
     let nextWidth = startWidth
     const resize = (pointerEvent: PointerEvent) => {
-      const maximum = window.innerWidth - 80
-      nextWidth = Math.min(maximum, Math.max(240, startWidth + startX - pointerEvent.clientX))
+      // The chat is on the left and resizes from its right edge.
+      nextWidth = Math.min(chatMaximumWidth(), Math.max(CHAT_MIN_WIDTH, startWidth + pointerEvent.clientX - startX))
       setPanelWidth(nextWidth)
     }
     const finish = () => {
@@ -253,10 +258,9 @@ export function AiChatPanel({
   const resizeByKeyboard = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
     event.preventDefault()
-    const maximum = window.innerWidth - 80
-    const direction = event.key === "ArrowLeft" ? 1 : -1
+    const direction = event.key === "ArrowRight" ? 1 : -1
     setPanelWidth((current) => {
-      const next = Math.min(maximum, Math.max(240, current + direction * 20))
+      const next = Math.min(chatMaximumWidth(), Math.max(CHAT_MIN_WIDTH, current + direction * 20))
       try { localStorage.setItem(WIDTH_STORAGE, String(Math.round(next))) } catch { /* Optional preference. */ }
       return next
     })
@@ -395,7 +399,7 @@ export function AiChatPanel({
 
   const panel = open && portalTarget ? createPortal(
     <aside className="ai-chat-sidebar" aria-label="PRISM assistant">
-        <button className="ai-chat-resize-handle" type="button" aria-label="Resize AI assistant" aria-valuemin={240} aria-valuemax={Math.max(240, window.innerWidth - 80)} aria-valuenow={Math.round(panelWidth)} onKeyDown={resizeByKeyboard} onPointerDown={startResize}><GripVertical aria-hidden="true" /></button>
+        <button className="ai-chat-resize-handle" type="button" aria-label="Resize AI assistant" aria-valuemin={CHAT_MIN_WIDTH} aria-valuemax={chatMaximumWidth()} aria-valuenow={Math.round(panelWidth)} onKeyDown={resizeByKeyboard} onPointerDown={startResize}><GripVertical aria-hidden="true" /></button>
         <div className="ai-chat-header">
           <button type="button" className="ai-chat-model-readout" onClick={() => setSettingsOpen(true)} title="Change model in chat settings">{model}</button>
           <div className="ai-chat-header-actions">

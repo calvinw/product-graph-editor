@@ -11,7 +11,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import prismLogoRound from "./assets/prism-logo-round.png"
 import {
-  BarChart3, Check, ChevronLeft, GripHorizontal, Scan, LayoutGrid, ChevronDown,
+  BarChart3, Check, ChevronLeft, GripVertical, MessageSquare, Scan, LayoutGrid, ChevronDown,
   Minus, Moon, MousePointer2, Plus, Settings2, Sun, X,
 } from "lucide-react"
 import { parse } from "yaml"
@@ -72,6 +72,9 @@ type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribu
 
 
 
+/** The framed graph canvas; the graph tool bar cannot be dragged outside it. */
+const graphCanvasElement = () => document.querySelector<HTMLElement>(".graph-viewport")
+
 function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, chatOpen, onChatOpenChange, teamRoomOpen, onTeamRoomOpenChange }: { onTitleChange: (title: string) => void; navbarTarget: HTMLDivElement | null; chatPortalTarget: HTMLDivElement | null; active: boolean; chatOpen: boolean; onChatOpenChange: (open: boolean) => void; teamRoomOpen: boolean; onTeamRoomOpenChange: (open: boolean) => void }) {
   const { decimalPlaces, showAllDecimalPlaces, theme } = useDisplaySettings()
   const selected = useProductGraphStore((state) => state.selectedNode)
@@ -92,7 +95,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
   const [graphSettingsOpen, setGraphSettingsOpen] = useState(false)
   const [clearSessionOpen, setClearSessionOpen] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
-  const { position: graphToolbarPosition, startDrag: startGraphToolbarDrag, panelRef: graphToolbarRef } = useDraggablePosition("product-graph-editor:graph-toolbar-position")
+  const { position: graphToolbarPosition, startDrag: startGraphToolbarDrag, panelRef: graphToolbarRef } = useDraggablePosition("product-graph-editor:graph-toolbar-position-horizontal", { container: graphCanvasElement })
   const graphMaxProcesses = useProductGraphStore((state) => state.graphMaxProcesses)
   const graphOrientation = useProductGraphStore((state) => state.graphOrientation)
   const graphConnectionStyle = useProductGraphStore((state) => state.graphConnectionStyle)
@@ -542,8 +545,8 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
             </div>
           </> : null}
         </section> : null}
-        <div ref={graphToolbarRef} className="graph-toolbar" data-draggable-panel aria-label="Graph tools" style={graphToolbarPosition ? { position: "fixed", left: graphToolbarPosition.left, top: graphToolbarPosition.top } : undefined}>
-          <button type="button" className="toolbar-grip" aria-label="Move graph toolbar" onPointerDown={startGraphToolbarDrag}><GripHorizontal size={14} /></button>
+        <div ref={graphToolbarRef} className="graph-toolbar is-horizontal" data-draggable-panel aria-label="Graph tools" style={graphToolbarPosition ? { position: "fixed", left: graphToolbarPosition.left, top: graphToolbarPosition.top, transform: "none" } : undefined}>
+          <button type="button" className="toolbar-grip" aria-label="Move graph toolbar" onPointerDown={startGraphToolbarDrag}><GripVertical size={14} /></button>
           <div className="toolbar-group">
             <Popover modal open={graphSettingsOpen} onOpenChange={setGraphSettingsOpen}>
               <Tooltip>
@@ -552,11 +555,11 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
                     <Button aria-label="Graph settings" variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground"><Settings2 size={18} /></Button>
                   </TooltipTrigger>
                 </PopoverTrigger>
-                <TooltipContent side="right" sideOffset={8} className="tooltip">Graph settings</TooltipContent>
+                <TooltipContent side="bottom" sideOffset={8} className="tooltip">Graph settings</TooltipContent>
               </Tooltip>
               <PopoverContent
                 className="graph-settings-picker"
-                side="right"
+                side="bottom"
                 align="start"
                 sideOffset={11}
                 alignOffset={-7}
@@ -575,15 +578,15 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
             </Popover>
           </div>
           <div className="toolbar-group">
-            <ToolButton label="Select nodes (hold Alt and drag to zoom to an area)" pressed={selectMode} onClick={() => setSelectMode((current) => !current)}><MousePointer2 size={18} /></ToolButton>
+            <ToolButton tooltipSide="bottom" label="Select nodes (hold Alt and drag to zoom to an area)" pressed={selectMode} onClick={() => setSelectMode((current) => !current)}><MousePointer2 size={18} /></ToolButton>
           </div>
           <div className="toolbar-group">
-            <ToolButton label="Auto layout" onClick={relayout}><LayoutGrid size={18} /></ToolButton>
-            <ToolButton label="Fit graph" onClick={fit}><Scan size={18} /></ToolButton>
+            <ToolButton tooltipSide="bottom" label="Auto layout" onClick={relayout}><LayoutGrid size={18} /></ToolButton>
+            <ToolButton tooltipSide="bottom" label="Fit graph" onClick={fit}><Scan size={18} /></ToolButton>
           </div>
           <div className="toolbar-group">
-            <ToolButton label="Zoom in" onClick={() => zoomIn({ duration: 200 })}><Plus size={18} /></ToolButton>
-            <ToolButton label="Zoom out" onClick={() => zoomOut({ duration: 200 })}><Minus size={18} /></ToolButton>
+            <ToolButton tooltipSide="bottom" label="Zoom in" onClick={() => zoomIn({ duration: 200 })}><Plus size={18} /></ToolButton>
+            <ToolButton tooltipSide="bottom" label="Zoom out" onClick={() => zoomOut({ duration: 200 })}><Minus size={18} /></ToolButton>
           </div>
         </div>
         <div className="graph-mode-toolbar" aria-label="Graph display mode">
@@ -694,6 +697,7 @@ function AppContent({ user, signOut }: { user: User; signOut: () => Promise<void
         {welcomeOpen ? <WelcomePage onExplore={() => setWelcomeOpen(false)} /> : null}
         <div className="app-main-pane">
           <header className="topbar" hidden={welcomeOpen}>
+          <button type="button" className={`chat-toggle${chatOpen ? " is-active" : ""}`} aria-label={chatOpen ? "Hide AI assistant" : "Open AI assistant"} aria-expanded={chatOpen} title={chatOpen ? "Hide assistant" : "Open assistant"} onClick={() => setChatOpen(!chatOpen)}><MessageSquare size={17} aria-hidden="true" /></button>
           <div className="brand"><button className="brand-home" type="button" onClick={() => setWelcomeOpen(true)} aria-label="Open PRISM welcome page"><span className="brand-mark"><img src={prismLogoRound} alt="" aria-hidden="true" /></span></button><span className="brand-product-name"><span>PRISM</span><span className="brand-product-descriptor"> Life Cycle Assessment</span></span><span className="brand-separator">·</span><h1 className="brand-study-title">{workspaceTitle}</h1></div>
           <div ref={setNavbarTarget} className="navbar-portal-target" />
           <div className="top-actions">
@@ -731,11 +735,8 @@ function AppContent({ user, signOut }: { user: User; signOut: () => Promise<void
             </div>
           </div>
           </header>
-          {!welcomeOpen && !chatOpen ? (
-            <button type="button" className="ai-chat-edge-tab" aria-label="Open AI assistant" aria-expanded={chatOpen} onClick={() => setChatOpen(true)}>
-              <ChevronLeft size={14} aria-hidden="true" />
-            </button>
-          ) : null}
+          {/* The chat sits on the left, under the navbar, beside the workspace. */}
+          <div ref={setChatPortalTarget} className="ai-chat-pane" aria-hidden={!chatOpen} />
 
           <section className="workspace" hidden={welcomeOpen}>
             <ReactFlowProvider>
@@ -743,7 +744,6 @@ function AppContent({ user, signOut }: { user: User; signOut: () => Promise<void
             </ReactFlowProvider>
           </section>
         </div>
-        <div ref={setChatPortalTarget} className="ai-chat-pane" aria-hidden={!chatOpen} />
       </main>
     </TooltipProvider>
   )

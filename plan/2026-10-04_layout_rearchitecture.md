@@ -137,6 +137,18 @@ Defaults I'll use unless told otherwise:
 6. **Clean-up and docs.** Remove dead CSS, update CLAUDE.md counts, and update this plan
    and `2026-10-04_open_issues.md` (#66 is fully superseded by this layout).
 
+## Progress
+
+- **Stage 1 (done, 6b53988):** the navbar has its own row; desktop offsets dropped by 86px.
+- **Stage 2 (done):** the chat is on the left under the navbar and resizes from its right
+  edge. Changes requested during review:
+  - The chat is toggled by a button at the left end of the navbar (the edge tab is gone).
+  - The graph is a framed panel below the navbar, so it never touches the bar.
+  - The graph tools are a **horizontal bar** that floats over the top centre of the
+    frame by default. It is draggable but **confined to the graph canvas**: it is
+    clamped while dragging and pulled back in when the canvas shrinks. Saved positions
+    use a new key, so it starts centred.
+
 ## Tests to rewrite or add
 
 About 57 references across `app.visual.spec.ts` (34), `ai-chat.responsive.spec.ts` (12),

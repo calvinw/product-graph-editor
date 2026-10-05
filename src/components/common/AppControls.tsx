@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
-export function ToolButton({ label, children, onClick, pressed }: { label: string; children: React.ReactNode; onClick?: () => void; pressed?: boolean }) {
+export function ToolButton({ label, children, onClick, pressed, tooltipSide = "right" }: { label: string; children: React.ReactNode; onClick?: () => void; pressed?: boolean; tooltipSide?: "right" | "bottom" }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -14,7 +14,7 @@ export function ToolButton({ label, children, onClick, pressed }: { label: strin
           {children}
         </Button>
       </TooltipTrigger>
-      <TooltipContent side="right" sideOffset={8} className="tooltip">{label}</TooltipContent>
+      <TooltipContent side={tooltipSide} sideOffset={8} className="tooltip">{label}</TooltipContent>
     </Tooltip>
   )
 }

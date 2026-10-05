@@ -297,7 +297,7 @@ test("assistant follows new messages to the bottom", async ({ page }) => {
 
 test("assistant split pane resizes the workspace", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 0) <= 620, "Phone chat uses the full contained width.")
-  const workspace = page.locator(".app-main-pane")
+  const workspace = page.locator(".workspace")
   const fullWorkspace = await workspace.boundingBox()
   await configureChat(page)
   const chat = page.getByRole("complementary", { name: "PRISM assistant" })
@@ -308,9 +308,15 @@ test("assistant split pane resizes the workspace", async ({ page }) => {
   expect(before).not.toBeNull()
   expect(handleBox).not.toBeNull()
   if (!before || !handleBox) return
+  // The chat is on the left, under the navbar, and never overlaps the workspace.
+  const navbar = (await page.locator(".topbar").boundingBox())!
+  expect(before.x).toBeLessThan(2)
+  expect(before.y).toBeGreaterThanOrEqual(navbar.y + navbar.height - 1)
+  expect(before.x + before.width).toBeLessThanOrEqual((workspaceBefore?.x ?? 0) + 1)
+  // It resizes from its right edge: dragging left narrows it.
   await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2)
   await page.mouse.down()
-  await page.mouse.move(handleBox.x + 80, handleBox.y + handleBox.height / 2, { steps: 5 })
+  await page.mouse.move(handleBox.x - 80, handleBox.y + handleBox.height / 2, { steps: 5 })
   await page.mouse.up()
   const after = await chat.boundingBox()
   const workspaceAfter = await workspace.boundingBox()
@@ -323,6 +329,8 @@ test("assistant split pane resizes the workspace", async ({ page }) => {
   expect((graphNode?.x ?? 0) + (graphNode?.width ?? 0)).toBeLessThanOrEqual((workspaceAfter?.x ?? 0) + (workspaceAfter?.width ?? 0))
 
   await handle.focus()
-  await handle.press("ArrowLeft")
+  await handle.press("ArrowRight")
   await expect(handle).toHaveAttribute("aria-valuenow", String(Math.round((after?.width ?? 0) + 20)))
+  await handle.press("ArrowLeft")
+  await expect(handle).toHaveAttribute("aria-valuenow", String(Math.round(after?.width ?? 0)))
 })

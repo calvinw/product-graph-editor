@@ -225,11 +225,16 @@ button, input { font: inherit; }
 [data-slot="select-content"] [data-position="popper"] { height: auto; min-height: var(--radix-select-trigger-height); padding: 4px; }
 [data-slot="select-item"] { min-height: 26px; font-size: 11px; }
 .app-shell { height: 100%; display: flex; min-width: 0; overflow: hidden; background: var(--background); }
-.app-main-pane { position: relative; min-width: 0; flex: 1 1 auto; display: grid; grid-template-rows: 58px minmax(0, 1fr); }
+.app-main-pane { position: relative; min-width: 0; flex: 1 1 auto; display: grid; grid-template-rows: 58px minmax(0, 1fr); grid-template-columns: auto minmax(0, 1fr); }
+/* Navbar across the top; the chat (left) and workspace share the row below. */
+.app-main-pane > .topbar { grid-column: 1 / -1; grid-row: 1; }
+.app-main-pane > .ai-chat-pane { grid-column: 1; grid-row: 2; }
+.app-main-pane > .workspace { grid-column: 2; grid-row: 2; }
+.chat-toggle { display: grid; flex: none; place-items: center; width: 36px; height: 36px; padding: 0; border: 1px solid var(--control-border); border-radius: 50%; color: var(--trigger-foreground); background: transparent; cursor: pointer; }
+.chat-toggle:hover, .chat-toggle:focus-visible { color: var(--foreground); background: var(--control-background-hover); outline: none; }
+.chat-toggle.is-active { color: var(--accent-foreground, #fff); border-color: transparent; background: var(--graph-action-active-background, #2563eb); }
 .ai-chat-pane { position: relative; width: 0; min-width: 0; flex: none; overflow: visible; transition: width .22s cubic-bezier(.16,1,.3,1); }
-.ai-chat-edge-tab { position: fixed; z-index: 39; right: 0; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 20px; height: 64px; padding: 0; border: 1px solid var(--floating-border); border-right: 0; border-radius: 8px 0 0 8px; color: var(--muted-foreground); background: var(--floating-background); box-shadow: var(--floating-shadow); cursor: pointer; }
-.ai-chat-edge-tab:hover, .ai-chat-edge-tab:focus-visible { color: var(--foreground); background: var(--control-background-hover); outline: none; }
-.app-shell.has-chat .ai-chat-pane { width: min(var(--ai-chat-width, 410px), calc(100vw - 80px)); min-width: 240px; }
+.app-shell.has-chat .ai-chat-pane { width: min(var(--ai-chat-width, 410px), max(240px, calc(100vw - 320px))); min-width: 240px; }
 .topbar { position: relative; display: flex; align-items: center; gap: 18px; padding: 0 18px; border-bottom: 1px solid var(--topbar-border); background: var(--background); z-index: 20; }
 .brand { min-width: 0; display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 650; letter-spacing: -.01em; }
 .brand-home { display: grid; place-items: center; flex: none; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }.brand-home:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
@@ -327,8 +332,8 @@ input.current-model-title-input { display: block; width: 100%; min-width: 0; hei
 .yaml-pending-diff .history-diff-stat { margin-left: auto; }
 html[data-theme="light"] .history-diff-stat .is-added, html[data-theme="light"] .history-diff-line.is-added { color: #15803d; }
 html[data-theme="light"] .history-diff-stat .is-removed, html[data-theme="light"] .history-diff-line.is-removed { color: #b91c1c; }
-.ai-chat-sidebar { position: absolute; z-index: 40; inset: 0; min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; overflow: hidden; border-left: 1px solid var(--floating-border); background: var(--floating-background-strong); box-shadow: -16px 0 38px rgba(0,0,0,.16); }
-.ai-chat-resize-handle { position: absolute; z-index: 2; inset: 0 auto 0 -6px; display: grid; place-items: center; width: 12px; height: 100%; padding: 0; border: 0; border-radius: 0; color: transparent; background: transparent; cursor: ew-resize; touch-action: none; }.ai-chat-resize-handle::before { width: 2px; height: 42px; border-radius: 999px; background: var(--muted-foreground); opacity: .45; content: ""; }.ai-chat-resize-handle:hover::before, .ai-chat-resize-handle:focus-visible::before { background: var(--ring); opacity: 1; }.ai-chat-resize-handle:hover, .ai-chat-resize-handle:focus-visible { outline: none; }.ai-chat-resize-handle svg { display: none; }.is-resizing-ai-chat, .is-resizing-ai-chat * { cursor: ew-resize !important; user-select: none !important; }.is-resizing-ai-chat .ai-chat-pane { transition: none; }
+.ai-chat-sidebar { position: absolute; z-index: 40; inset: 0; min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; overflow: hidden; border-right: 1px solid var(--floating-border); background: var(--floating-background-strong); box-shadow: -16px 0 38px rgba(0,0,0,.16); }
+.ai-chat-resize-handle { position: absolute; z-index: 2; inset: 0 -6px 0 auto; display: grid; place-items: center; width: 12px; height: 100%; padding: 0; border: 0; border-radius: 0; color: transparent; background: transparent; cursor: ew-resize; touch-action: none; }.ai-chat-resize-handle::before { width: 2px; height: 42px; border-radius: 999px; background: var(--muted-foreground); opacity: .45; content: ""; }.ai-chat-resize-handle:hover::before, .ai-chat-resize-handle:focus-visible::before { background: var(--ring); opacity: 1; }.ai-chat-resize-handle:hover, .ai-chat-resize-handle:focus-visible { outline: none; }.ai-chat-resize-handle svg { display: none; }.is-resizing-ai-chat, .is-resizing-ai-chat * { cursor: ew-resize !important; user-select: none !important; }.is-resizing-ai-chat .ai-chat-pane { transition: none; }
 .ai-chat-header { min-width: 0; display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--section-border); }
 .ai-chat-model-readout { min-width: 0; overflow: hidden; padding: 0; border: 0; background: transparent; color: var(--muted-foreground); font-size: 10px; font-family: var(--font-mono, monospace); text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .ai-chat-model-readout:hover { color: var(--foreground); text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 2px; }
@@ -407,6 +412,12 @@ html[data-theme="light"] .history-diff-stat .is-removed, html[data-theme="light"
 .graph-settings-picker { z-index: 5; width: 330px; gap: 0; padding: 10px; border: 1px solid var(--floating-border); border-radius: 10px; background: var(--floating-background-strong); box-shadow: var(--floating-shadow-strong); font-size: 16px; line-height: 1.5; backdrop-filter: blur(12px); }.graph-settings-title { display: flex; align-items: center; justify-content: space-between; padding: 3px 3px 10px; border-bottom: 1px solid var(--section-border); color: var(--popover-foreground); font-size: 11px; font-weight: 650; }.graph-settings-title > div { display: flex; align-items: center; gap: 7px; }.graph-settings-title > button { display: grid; place-items: center; width: 25px; height: 25px; padding: 0; border: 0; border-radius: 6px; color: var(--control-muted); background: transparent; cursor: pointer; }.graph-settings-title > button:hover { color: var(--foreground); background: var(--control-active-background); }
 .graph-settings-grid { display: grid; grid-template-columns: minmax(0, 1fr); }.graph-settings-picker label { display: grid; min-width: 0; gap: 5px; padding: 12px 3px 4px; color: var(--control-muted); font-size: 9px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }.graph-settings-picker [data-slot="select-trigger"], .graph-settings-picker input[type="number"] { width: 100%; height: 34px; padding: 0 30px 0 10px; border: 1px solid var(--control-border); border-radius: 7px; outline: none; color: var(--control-foreground); background: var(--control-background); box-shadow: none; font-size: 11px; text-transform: none; }.graph-settings-picker .number-stepper-value { position: relative; }.graph-settings-picker .number-stepper-value input { padding-right: 28px; text-align: center; }.graph-settings-picker .number-stepper-value > span { position: absolute; right: 10px; top: 10px; color: var(--control-muted); font-size: 10px; }
 .toolbar-group { display: grid; gap: 3px; padding-bottom: 6px; border-bottom: 1px solid var(--floating-border); }
+/* The graph tools are a horizontal bar, centred just under the navbar by
+   default. Dragging the grip moves it (the dragged position is fixed and
+   resets the centring transform inline). */
+.graph-toolbar.is-horizontal { grid-auto-flow: column; align-items: center; left: 50%; transform: translateX(-50%); }
+.graph-toolbar.is-horizontal .toolbar-grip { width: 14px; height: 30px; margin: 0; }
+.graph-toolbar.is-horizontal .toolbar-group { grid-auto-flow: column; padding: 0 0 0 6px; border-bottom: 0; border-left: 1px solid var(--floating-border); }
 .toolbar-group:last-child { padding-bottom: 0; border-bottom: 0; }
 .graph-mode-toolbar { position: absolute; z-index: 3; left: 24px; bottom: 48px; display: flex; gap: 7px; padding: 5px; border: 1px solid var(--floating-border); border-radius: 10px; background: var(--floating-background); box-shadow: var(--floating-shadow); backdrop-filter: blur(10px); }
 .graph-action { gap: 7px; height: 32px; padding: 0 10px; color: var(--graph-action-foreground); font-size: 11px; }
@@ -787,8 +798,15 @@ html[data-theme="light"] .process-flow-table .empty-row td { color: #6b7280; }
   html[data-theme="light"] .global-settings-trigger { border-color: rgba(71,85,105,.16); color: #475569; background: rgba(241,245,249,.82); }
   html[data-theme="light"] .global-settings-trigger:hover, html[data-theme="light"] .global-settings-trigger.is-active { border-color: rgba(71,85,105,.24); color: #172033; background: rgba(226,232,240,.9); }
   .canvas-head { display: none; }
-  .graph-toolbar { top: 82px; }
-  .inspector { top: calc(18px + var(--scenario-panel-height, 0px)); }
+  /* Graph view: the graph is a framed panel below the navbar (the same 22px
+     gap as the other views), so it never runs under the navbar. The tool bar
+     floats over the top centre of the frame by default. */
+  .graph-toolbar { top: 34px; }
+  .graph-viewport { inset: 22px 28px 28px; overflow: hidden; border: 1px solid var(--panel-border); border-radius: 12px; }
+  .graph-viewport.has-inspector { right: calc(var(--rail-width, 286px) + 40px); }
+  .graph-mode-toolbar { left: 44px; bottom: 44px; }
+  .graph-meta { right: 42px; bottom: 38px; }
+  .inspector { top: calc(22px + var(--scenario-panel-height, 0px)); right: 28px; bottom: 28px; }
   .yaml-editor, .results-empty, .results-panel { inset: 22px 28px 28px; }
   .inventory-view, .impact-view, .process-results-view, .contribution-view, .sankey-view { inset: 22px 28px 28px; border-radius: 12px; }
   .sankey-toolbar, .sankey-chart-picker { top: 18px; }
@@ -879,7 +897,7 @@ html[data-theme="light"] .scenario-bar { background: #ffffff; box-shadow: 0 14px
 /* Declared after the base rule on purpose: the base sits later in this file
    than the shared min-width block, so an override placed there would lose the
    cascade at equal specificity. */
-@media (min-width: 901px) { .scenario-panel { top: 18px; } }
+@media (min-width: 901px) { .scenario-panel { top: 22px; right: 28px; bottom: 28px; } }
 /* Mirrors the chat panel's handle: a hit area wider than the visible grip, so
    the edge is easy to grab without a conspicuous bar sitting on the panel. */
 .rail-resize-handle { position: absolute; z-index: 2; inset: 0 auto 0 -6px; display: grid; place-items: center; width: 12px; height: 100%; padding: 0; border: 0; color: transparent; background: transparent; cursor: ew-resize; touch-action: none; }

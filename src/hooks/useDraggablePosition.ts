@@ -27,17 +27,26 @@ function persistPosition(key: string, anchor: Anchor, position: Offset) {
   try { localStorage.setItem(key, JSON.stringify({ [anchor]: position.offset, top: position.top })) } catch { /* Optional preference. */ }
 }
 
+type Bounds = { left: number; top: number; right: number; bottom: number }
+
+const viewportBounds = (): Bounds => ({ left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight })
+
 /**
- * Confines a panel of the given size to the current viewport. The upper bounds
- * floor at EDGE_MARGIN so a panel larger than the viewport still starts on
- * screen rather than being pushed off the opposite edge.
+ * Confines a panel of the given size to `bounds` (the viewport unless the
+ * panel has a container, such as the graph canvas). The upper limits floor at
+ * the lower ones so a panel larger than its bounds still starts inside them
+ * rather than being pushed off the opposite edge.
  */
-function clampToViewport({ offset, top }: Offset, width: number, height: number): Offset {
-  const maxOffset = Math.max(EDGE_MARGIN, window.innerWidth - width - EDGE_MARGIN)
-  const maxTop = Math.max(EDGE_MARGIN, window.innerHeight - height - EDGE_MARGIN)
+function clampToBounds({ offset, top }: Offset, width: number, height: number, anchor: Anchor, bounds: Bounds): Offset {
+  const left = anchor === "left" ? offset : window.innerWidth - offset - width
+  const minLeft = bounds.left + EDGE_MARGIN
+  const maxLeft = Math.max(minLeft, bounds.right - width - EDGE_MARGIN)
+  const minTop = bounds.top + EDGE_MARGIN
+  const maxTop = Math.max(minTop, bounds.bottom - height - EDGE_MARGIN)
+  const clampedLeft = Math.min(Math.max(minLeft, left), maxLeft)
   return {
-    offset: Math.min(Math.max(EDGE_MARGIN, offset), maxOffset),
-    top: Math.min(Math.max(EDGE_MARGIN, top), maxTop),
+    offset: anchor === "left" ? clampedLeft : window.innerWidth - clampedLeft - width,
+    top: Math.min(Math.max(minTop, top), maxTop),
   }
 }
 
@@ -51,29 +60,53 @@ function clampToViewport({ offset, top }: Offset, width: number, height: number)
  * off-screen on a smaller one, where its own drag handle is unreachable.
  * Attach the returned `panelRef` to the panel so its real size can be measured.
  */
-export function useDraggablePosition<T extends HTMLElement = HTMLDivElement>(storageKey: string, { anchor = "left" }: { anchor?: Anchor } = {}) {
+export function useDraggablePosition<T extends HTMLElement = HTMLDivElement>(
+  storageKey: string,
+  { anchor = "left", container }: {
+    anchor?: Anchor
+    /** Keep the panel inside this element (e.g. the graph canvas) rather than the viewport. */
+    container?: () => HTMLElement | null
+  } = {},
+) {
   const [stored, setStored] = useState<Offset | null>(() => storedPosition(storageKey, anchor))
   const panelRef = useRef<T | null>(null)
   const storedRef = useRef(stored)
   storedRef.current = stored
 
+  const containerRef = useRef(container)
+  containerRef.current = container
+  const bounds = useCallback((): Bounds => {
+    const element = containerRef.current?.()
+    if (!element) return viewportBounds()
+    const rect = element.getBoundingClientRect()
+    return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom }
+  }, [])
+
   const reconcile = useCallback(() => {
     const current = storedRef.current
     const panel = panelRef.current
     if (!current || !panel) return
-    const next = clampToViewport(current, panel.offsetWidth, panel.offsetHeight)
+    const next = clampToBounds(current, panel.offsetWidth, panel.offsetHeight, anchor, bounds())
     if (next.offset === current.offset && next.top === current.top) return
     storedRef.current = next
     setStored(next)
     persistPosition(storageKey, anchor, next)
-  }, [anchor, storageKey])
+  }, [anchor, bounds, storageKey])
 
   // Layout effect so a stranded panel is corrected before it can be painted.
   useLayoutEffect(reconcile, [reconcile])
 
+  // Re-confine when the window or the container changes size -- the canvas
+  // narrows when the chat opens, which could otherwise leave the panel outside.
   useEffect(() => {
     window.addEventListener("resize", reconcile)
-    return () => window.removeEventListener("resize", reconcile)
+    const element = containerRef.current?.()
+    const observer = element ? new ResizeObserver(() => reconcile()) : null
+    if (element) observer!.observe(element)
+    return () => {
+      window.removeEventListener("resize", reconcile)
+      observer?.disconnect()
+    }
   }, [reconcile])
 
   const startDrag = useCallback((event: ReactPointerEvent<HTMLElement>) => {
@@ -88,10 +121,12 @@ export function useDraggablePosition<T extends HTMLElement = HTMLDivElement>(sto
     let next: Offset = { offset: offsetFor(rect.left), top: rect.top }
     const move = (moveEvent: PointerEvent) => {
       // Measure live: a panel can change size once it starts floating.
-      next = clampToViewport(
+      next = clampToBounds(
         { offset: offsetFor(moveEvent.clientX - grabX), top: moveEvent.clientY - grabY },
         panel.offsetWidth,
         panel.offsetHeight,
+        anchor,
+        bounds(),
       )
       setStored(next)
     }
@@ -102,7 +137,7 @@ export function useDraggablePosition<T extends HTMLElement = HTMLDivElement>(sto
     }
     window.addEventListener("pointermove", move)
     window.addEventListener("pointerup", finish, { once: true })
-  }, [anchor, storageKey])
+  }, [anchor, bounds, storageKey])
 
   const position: DraggedPosition | null = stored ? { [anchor]: stored.offset, top: stored.top } : null
   return { position, startDrag, panelRef }
