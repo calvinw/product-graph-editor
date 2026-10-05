@@ -98,7 +98,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
   const [graphSettingsOpen, setGraphSettingsOpen] = useState(false)
   const [clearSessionOpen, setClearSessionOpen] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
-  const { position: graphToolbarPosition, startDrag: startGraphToolbarDrag, panelRef: graphToolbarRef } = useDraggablePosition("product-graph-editor:graph-toolbar-position-horizontal", { container: graphCanvasElement })
+  const { position: graphToolbarPosition, startDrag: startGraphToolbarDrag, reset: resetGraphToolbar, panelRef: graphToolbarRef } = useDraggablePosition("product-graph-editor:graph-toolbar-position-in-frame", { container: graphCanvasElement })
   const graphMaxProcesses = useProductGraphStore((state) => state.graphMaxProcesses)
   const graphOrientation = useProductGraphStore((state) => state.graphOrientation)
   const graphConnectionStyle = useProductGraphStore((state) => state.graphConnectionStyle)
@@ -217,6 +217,12 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
     // The canvas just changed width; refit once it has.
     requestAnimationFrame(() => requestAnimationFrame(fit))
   }
+  // Selecting an activity opens a closed editor to show it.
+  useEffect(() => {
+    if (!dockedEditor || !editorCollapsed || !selectedId) return
+    setEditorCollapsed(false)
+    try { localStorage.setItem(EDITOR_COLLAPSED_STORAGE, "false") } catch { /* Optional preference. */ }
+  }, [dockedEditor, editorCollapsed, selectedId])
   useEffect(() => {
     // A docked editor sits beside the canvas and cannot cover a card.
     if (view !== "graph" || !active || !selectedId || dockedEditor) return
@@ -548,69 +554,72 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           setSelected={setSelected} clearNodeSelection={clearNodeSelection}
           hydrateBackgroundNode={hydrateBackgroundNode}
           selectMode={selectMode}
-        />
-        {!activeDocument && templateState === "ready" ? <section className="graph-empty-state" aria-labelledby="graph-empty-title">
-          <h2 id="graph-empty-title">No model open</h2>
-          <p>Start a new product graph, upload a YAML file, or begin from a template.</p>
-          <div className="graph-empty-actions">
-            <Button onClick={() => requestAction({ kind: "new" })}>New model</Button>
-            <Button variant="outline" onClick={() => requestAction({ kind: "upload" })}>Upload YAML</Button>
-          </div>
-          {templates.length ? <>
-            <h3>Templates</h3>
-            <div className="graph-empty-templates">
-              {templates.map((template) => <Button key={template.id} variant="ghost" size="sm" title={template.filename} onClick={() => requestAction({ kind: "template", id: template.id })}>{productGraphLabel(template.name)}</Button>)}
+        >
+          <div ref={graphToolbarRef} className="graph-toolbar is-horizontal" data-draggable-panel aria-label="Graph tools" style={graphToolbarPosition ? { position: "fixed", left: graphToolbarPosition.left, top: graphToolbarPosition.top, transform: "none" } : undefined}>
+            <button type="button" className="toolbar-grip" aria-label="Move graph toolbar" title="Drag to move. Double-click to centre." onPointerDown={startGraphToolbarDrag} onDoubleClick={resetGraphToolbar}><GripVertical size={14} /></button>
+            <div className="toolbar-group">
+              <Popover modal open={graphSettingsOpen} onOpenChange={setGraphSettingsOpen}>
+                <Tooltip>
+                  <PopoverTrigger asChild>
+                    <TooltipTrigger asChild>
+                      <Button aria-label="Graph settings" variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground"><Settings2 size={18} /></Button>
+                    </TooltipTrigger>
+                  </PopoverTrigger>
+                  <TooltipContent side="bottom" sideOffset={8} className="tooltip">Graph settings</TooltipContent>
+                </Tooltip>
+                <PopoverContent
+                  className="graph-settings-picker"
+                  side="bottom"
+                  align="start"
+                  sideOffset={11}
+                  alignOffset={-7}
+                  onInteractOutside={(event) => {
+                    const target = event.target
+                    if (target instanceof Element && target.closest('[data-slot="select-content"]')) event.preventDefault()
+                  }}
+                >
+                  <div className="graph-settings-title"><div><Settings2 size={15} /><span>Graph settings</span></div><Button variant="ghost" size="icon" type="button" onClick={() => setGraphSettingsOpen(false)} aria-label="Close graph settings"><X size={15} /></Button></div>
+                  <div className="graph-settings-grid">
+                    <label><span>Max. number of processes</span><NumberStepper value={graphMaxProcesses} min={1} max={availableGraphProcessCount} step={1} integer inputLabel="Graph maximum processes" decrementLabel="Decrease graph maximum processes" incrementLabel="Increase graph maximum processes" onValueChange={(value) => { setGraphMaxProcesses(value); applyGraphSettings({ maximum: value }) }} /></label>
+                    <label><span>Orientation</span><AppSelect value={graphOrientation} onValueChange={(value) => { const orientation = value as "vertical" | "horizontal"; setGraphOrientation(orientation); applyGraphSettings({ orientation }) }} label="Graph orientation" options={[{ value: "vertical", label: "Vertical" }, { value: "horizontal", label: "Horizontal" }]} /></label>
+                    <label><span>Connections</span><AppSelect value={graphConnectionStyle} onValueChange={(value) => { const connectionStyle = value as "curved" | "straight" | "step"; setGraphConnectionStyle(connectionStyle); applyGraphSettings({ connectionStyle }) }} label="Graph connections" options={[{ value: "curved", label: "Curved" }, { value: "straight", label: "Straight" }, { value: "step", label: "Step" }]} /></label>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
-          </> : null}
-        </section> : null}
-        <div ref={graphToolbarRef} className="graph-toolbar is-horizontal" data-draggable-panel aria-label="Graph tools" style={graphToolbarPosition ? { position: "fixed", left: graphToolbarPosition.left, top: graphToolbarPosition.top, transform: "none" } : undefined}>
-          <button type="button" className="toolbar-grip" aria-label="Move graph toolbar" onPointerDown={startGraphToolbarDrag}><GripVertical size={14} /></button>
-          <div className="toolbar-group">
-            <Popover modal open={graphSettingsOpen} onOpenChange={setGraphSettingsOpen}>
-              <Tooltip>
-                <PopoverTrigger asChild>
-                  <TooltipTrigger asChild>
-                    <Button aria-label="Graph settings" variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground"><Settings2 size={18} /></Button>
-                  </TooltipTrigger>
-                </PopoverTrigger>
-                <TooltipContent side="bottom" sideOffset={8} className="tooltip">Graph settings</TooltipContent>
-              </Tooltip>
-              <PopoverContent
-                className="graph-settings-picker"
-                side="bottom"
-                align="start"
-                sideOffset={11}
-                alignOffset={-7}
-                onInteractOutside={(event) => {
-                  const target = event.target
-                  if (target instanceof Element && target.closest('[data-slot="select-content"]')) event.preventDefault()
-                }}
-              >
-                <div className="graph-settings-title"><div><Settings2 size={15} /><span>Graph settings</span></div><Button variant="ghost" size="icon" type="button" onClick={() => setGraphSettingsOpen(false)} aria-label="Close graph settings"><X size={15} /></Button></div>
-                <div className="graph-settings-grid">
-                  <label><span>Max. number of processes</span><NumberStepper value={graphMaxProcesses} min={1} max={availableGraphProcessCount} step={1} integer inputLabel="Graph maximum processes" decrementLabel="Decrease graph maximum processes" incrementLabel="Increase graph maximum processes" onValueChange={(value) => { setGraphMaxProcesses(value); applyGraphSettings({ maximum: value }) }} /></label>
-                  <label><span>Orientation</span><AppSelect value={graphOrientation} onValueChange={(value) => { const orientation = value as "vertical" | "horizontal"; setGraphOrientation(orientation); applyGraphSettings({ orientation }) }} label="Graph orientation" options={[{ value: "vertical", label: "Vertical" }, { value: "horizontal", label: "Horizontal" }]} /></label>
-                  <label><span>Connections</span><AppSelect value={graphConnectionStyle} onValueChange={(value) => { const connectionStyle = value as "curved" | "straight" | "step"; setGraphConnectionStyle(connectionStyle); applyGraphSettings({ connectionStyle }) }} label="Graph connections" options={[{ value: "curved", label: "Curved" }, { value: "straight", label: "Straight" }, { value: "step", label: "Step" }]} /></label>
-                </div>
-              </PopoverContent>
-            </Popover>
+            <div className="toolbar-group">
+              <ToolButton tooltipSide="bottom" label="Select nodes (hold Alt and drag to zoom to an area)" pressed={selectMode} onClick={() => setSelectMode((current) => !current)}><MousePointer2 size={18} /></ToolButton>
+            </div>
+            <div className="toolbar-group">
+              <ToolButton tooltipSide="bottom" label="Auto layout" onClick={relayout}><LayoutGrid size={18} /></ToolButton>
+              <ToolButton tooltipSide="bottom" label="Fit graph" onClick={fit}><Scan size={18} /></ToolButton>
+            </div>
+            <div className="toolbar-group">
+              <ToolButton tooltipSide="bottom" label="Zoom in" onClick={() => zoomIn({ duration: 200 })}><Plus size={18} /></ToolButton>
+              <ToolButton tooltipSide="bottom" label="Zoom out" onClick={() => zoomOut({ duration: 200 })}><Minus size={18} /></ToolButton>
+            </div>
           </div>
-          <div className="toolbar-group">
-            <ToolButton tooltipSide="bottom" label="Select nodes (hold Alt and drag to zoom to an area)" pressed={selectMode} onClick={() => setSelectMode((current) => !current)}><MousePointer2 size={18} /></ToolButton>
+          <div className="graph-mode-toolbar" aria-label="Graph display mode">
+            <Button title={!hasCurrentResults ? "Scaled amounts will appear when the LCA calculation finishes" : undefined} variant="ghost" className={`graph-action ${graphMode === "scaled" ? "is-active" : ""}`} aria-pressed={graphMode === "scaled"} disabled={!hasCurrentResults} onClick={() => showGraphMode("scaled")}><Scan size={16} />Scaled Graph</Button>
+            <Button variant="ghost" className={`graph-action ${graphMode === "structure" ? "is-active" : ""}`} aria-pressed={graphMode === "structure"} onClick={() => showGraphMode("structure")}><LayoutGrid size={16} />Structure Graph</Button>
           </div>
-          <div className="toolbar-group">
-            <ToolButton tooltipSide="bottom" label="Auto layout" onClick={relayout}><LayoutGrid size={18} /></ToolButton>
-            <ToolButton tooltipSide="bottom" label="Fit graph" onClick={fit}><Scan size={18} /></ToolButton>
-          </div>
-          <div className="toolbar-group">
-            <ToolButton tooltipSide="bottom" label="Zoom in" onClick={() => zoomIn({ duration: 200 })}><Plus size={18} /></ToolButton>
-            <ToolButton tooltipSide="bottom" label="Zoom out" onClick={() => zoomOut({ duration: 200 })}><Minus size={18} /></ToolButton>
-          </div>
-        </div>
-        <div className="graph-mode-toolbar" aria-label="Graph display mode">
-          <Button title={!hasCurrentResults ? "Scaled amounts will appear when the LCA calculation finishes" : undefined} variant="ghost" className={`graph-action ${graphMode === "scaled" ? "is-active" : ""}`} aria-pressed={graphMode === "scaled"} disabled={!hasCurrentResults} onClick={() => showGraphMode("scaled")}><Scan size={16} />Scaled Graph</Button>
-          <Button variant="ghost" className={`graph-action ${graphMode === "structure" ? "is-active" : ""}`} aria-pressed={graphMode === "structure"} onClick={() => showGraphMode("structure")}><LayoutGrid size={16} />Structure Graph</Button>
-        </div></> : view === "yaml" ? <YamlEditor
+          {!activeDocument && templateState === "ready" ? <section className="graph-empty-state" aria-labelledby="graph-empty-title">
+            <h2 id="graph-empty-title">No model open</h2>
+            <p>Start a new product graph, upload a YAML file, or begin from a template.</p>
+            <div className="graph-empty-actions">
+              <Button onClick={() => requestAction({ kind: "new" })}>New model</Button>
+              <Button variant="outline" onClick={() => requestAction({ kind: "upload" })}>Upload YAML</Button>
+            </div>
+            {templates.length ? <>
+              <h3>Templates</h3>
+              <div className="graph-empty-templates">
+                {templates.map((template) => <Button key={template.id} variant="ghost" size="sm" title={template.filename} onClick={() => requestAction({ kind: "template", id: template.id })}>{productGraphLabel(template.name)}</Button>)}
+              </div>
+            </> : null}
+          </section> : null}
+          <div className="graph-meta">{nodes.length} nodes&nbsp;&nbsp;·&nbsp;&nbsp;{connectionCount} connections{selectedNodeCount > 1 ? <>&nbsp;&nbsp;·&nbsp;&nbsp;<strong>{selectedNodeCount} selected</strong></> : null}</div>
+        </GraphCanvas>
+        </> : view === "yaml" ? <YamlEditor
           yamlDraft={yamlDraft}
           yamlError={yamlError}
           isDirty={isDirty}
@@ -647,7 +656,6 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           visibleCategories={visibleImpactCategories}
           onToggleCategory={toggleImpactCategory}
         /> : null}
-        {view === "graph" ? <div className="graph-meta">{nodes.length} nodes&nbsp;&nbsp;·&nbsp;&nbsp;{connectionCount} connections{selectedNodeCount > 1 ? <>&nbsp;&nbsp;·&nbsp;&nbsp;<strong>{selectedNodeCount} selected</strong></> : null}</div> : null}
       </div>
 
       {view === "graph" && (dockedEditor || inspectorSelection) ? <Inspector
@@ -763,7 +771,7 @@ function AppContent({ user, signOut }: { user: User; signOut: () => Promise<void
           </header>
           {/* The chat sits on the left, under the navbar, beside the workspace. */}
           <div ref={setChatPortalTarget} className="ai-chat-pane">
-            {!chatOpen ? <button type="button" className="panel-tab is-left" aria-label="Open AI assistant" title="Open AI assistant" onClick={() => setChatOpen(true)}>
+            {!chatOpen ? <button type="button" className="panel-tab is-right" aria-label="Open AI assistant" title="Open AI assistant" onClick={() => setChatOpen(true)}>
               <MessageSquare size={14} aria-hidden="true" /><span aria-hidden="true">Chat</span>
             </button> : null}
           </div>

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test"
 import { mockLcaApi } from "./helpers"
 
-const GRAPH_TOOLBAR_KEY = "product-graph-editor:graph-toolbar-position-horizontal"
+const GRAPH_TOOLBAR_KEY = "product-graph-editor:graph-toolbar-position-in-frame"
 
 /**
  * A stored toolbar position is absolute pixels. Coordinates saved on a large

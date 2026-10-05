@@ -225,11 +225,11 @@ button, input { font: inherit; }
 [data-slot="select-content"] [data-position="popper"] { height: auto; min-height: var(--radix-select-trigger-height); padding: 4px; }
 [data-slot="select-item"] { min-height: 26px; font-size: 11px; }
 .app-shell { height: 100%; display: flex; min-width: 0; overflow: hidden; background: var(--background); }
-.app-main-pane { position: relative; min-width: 0; flex: 1 1 auto; display: grid; grid-template-rows: 58px minmax(0, 1fr); grid-template-columns: auto minmax(0, 1fr); }
-/* Navbar across the top; the chat (left) and workspace share the row below. */
+.app-main-pane { position: relative; min-width: 0; flex: 1 1 auto; display: grid; grid-template-rows: 58px minmax(0, 1fr); grid-template-columns: minmax(0, 1fr) auto; }
+/* Navbar across the top; the workspace and the chat (right) share the row below. */
 .app-main-pane > .topbar { grid-column: 1 / -1; grid-row: 1; }
-.app-main-pane > .ai-chat-pane { grid-column: 1; grid-row: 2; }
-.app-main-pane > .workspace { grid-column: 2; grid-row: 2; }
+.app-main-pane > .ai-chat-pane { grid-column: 2; grid-row: 2; }
+.app-main-pane > .workspace { grid-column: 1; grid-row: 2; }
 .ai-chat-pane { position: relative; width: 0; min-width: 0; flex: none; overflow: visible; transition: width .22s cubic-bezier(.16,1,.3,1); }
 .app-shell.has-chat .ai-chat-pane { width: min(var(--ai-chat-width, 410px), max(240px, calc(100vw - 320px))); min-width: 240px; }
 .app-shell:not(.has-chat) .ai-chat-pane { z-index: 7; }
@@ -330,8 +330,8 @@ input.current-model-title-input { display: block; width: 100%; min-width: 0; hei
 .yaml-pending-diff .history-diff-stat { margin-left: auto; }
 html[data-theme="light"] .history-diff-stat .is-added, html[data-theme="light"] .history-diff-line.is-added { color: #15803d; }
 html[data-theme="light"] .history-diff-stat .is-removed, html[data-theme="light"] .history-diff-line.is-removed { color: #b91c1c; }
-.ai-chat-sidebar { position: absolute; z-index: 40; inset: 0; min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; overflow: hidden; border-right: 1px solid var(--floating-border); background: var(--floating-background-strong); box-shadow: -16px 0 38px rgba(0,0,0,.16); }
-.ai-chat-resize-handle { position: absolute; z-index: 2; inset: 0 -6px 0 auto; display: grid; place-items: center; width: 12px; height: 100%; padding: 0; border: 0; border-radius: 0; color: transparent; background: transparent; cursor: ew-resize; touch-action: none; }.ai-chat-resize-handle::before { width: 2px; height: 42px; border-radius: 999px; background: var(--muted-foreground); opacity: .45; content: ""; }.ai-chat-resize-handle:hover::before, .ai-chat-resize-handle:focus-visible::before { background: var(--ring); opacity: 1; }.ai-chat-resize-handle:hover, .ai-chat-resize-handle:focus-visible { outline: none; }.ai-chat-resize-handle svg { display: none; }.is-resizing-ai-chat, .is-resizing-ai-chat * { cursor: ew-resize !important; user-select: none !important; }.is-resizing-ai-chat .ai-chat-pane { transition: none; }
+.ai-chat-sidebar { position: absolute; z-index: 40; inset: 0; min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; overflow: hidden; border-left: 1px solid var(--floating-border); background: var(--floating-background-strong); box-shadow: -16px 0 38px rgba(0,0,0,.16); }
+.ai-chat-resize-handle { position: absolute; z-index: 2; inset: 0 auto 0 -6px; display: grid; place-items: center; width: 12px; height: 100%; padding: 0; border: 0; border-radius: 0; color: transparent; background: transparent; cursor: ew-resize; touch-action: none; }.ai-chat-resize-handle::before { width: 2px; height: 42px; border-radius: 999px; background: var(--muted-foreground); opacity: .45; content: ""; }.ai-chat-resize-handle:hover::before, .ai-chat-resize-handle:focus-visible::before { background: var(--ring); opacity: 1; }.ai-chat-resize-handle:hover, .ai-chat-resize-handle:focus-visible { outline: none; }.ai-chat-resize-handle svg { display: none; }.is-resizing-ai-chat, .is-resizing-ai-chat * { cursor: ew-resize !important; user-select: none !important; }.is-resizing-ai-chat .ai-chat-pane { transition: none; }
 .ai-chat-header { min-width: 0; display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--section-border); }
 .ai-chat-model-readout { min-width: 0; overflow: hidden; padding: 0; border: 0; background: transparent; color: var(--muted-foreground); font-size: 10px; font-family: var(--font-mono, monospace); text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .ai-chat-model-readout:hover { color: var(--foreground); text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 2px; }
@@ -434,7 +434,7 @@ html[data-theme="light"] .history-diff-stat .is-removed, html[data-theme="light"
 @media (prefers-reduced-motion: reduce) { .calculation-message, .welcome-connections path { animation: none; }.inspector, .welcome-explore, .welcome-explore svg { transition: none; } }
 h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
 .graph-viewport { position: absolute; inset: 0; z-index: 1; }
-.graph-viewport.has-inspector { right: calc(var(--rail-width, 286px) + 36px); }
+.graph-viewport.has-inspector { left: calc(var(--rail-width, 286px) + 36px); }
 .reactflow-canvas { position: absolute; inset: 0; z-index: 1; }
 .reactflow-canvas .react-flow__edge-path, .sankey-canvas .react-flow__edge-path { stroke: var(--graph-edge) !important; stroke-linecap: round; }
 .reactflow-canvas marker path, .sankey-canvas marker path,
@@ -663,7 +663,7 @@ html[data-theme="light"] .pg-node-head { border-color: #dbe0e7; background: #f8f
 }
 .pg-node-toggle:hover { color: #fff; border-color: var(--node-color); background: color-mix(in srgb, var(--node-color) 20%, transparent); }
 .graph-meta { position: absolute; z-index: 2; right: 20px; bottom: 18px; color: #5e646e; font-size: 10px; }
-.inspector { position: absolute; z-index: 4; top: calc(76px + var(--scenario-panel-height, 0px)); right: 18px; bottom: 18px; width: var(--rail-width, 286px); min-width: 0; border: 1px solid #2b2f36; border-radius: 12px; opacity: 0; background: rgba(16,18,22,.96); box-shadow: 0 18px 48px rgba(0,0,0,.38); backdrop-filter: blur(12px); pointer-events: none; visibility: hidden; transform: translateX(calc(100% + 36px)); transition: opacity .2s ease, transform .25s cubic-bezier(.22, 1, .36, 1), visibility .25s, top .2s ease; }
+.inspector { position: absolute; z-index: 4; top: calc(76px + var(--scenario-panel-height, 0px)); right: 18px; bottom: 18px; width: var(--rail-width, 286px); min-width: 0; border: 1px solid #2b2f36; border-radius: 12px; opacity: 0; background: rgba(16,18,22,.96); box-shadow: 0 18px 48px rgba(0,0,0,.38); backdrop-filter: blur(12px); pointer-events: none; visibility: hidden; transform: translateX(calc(-100% - 36px)); transition: opacity .2s ease, transform .25s cubic-bezier(.22, 1, .36, 1), visibility .25s, top .2s ease; }
 .inspector.is-open { opacity: 1; pointer-events: auto; visibility: visible; transform: translateX(0); }
 /* Shown on the graph canvas when no model is open (the app no longer opens a
    default template on first launch). */
@@ -679,18 +679,16 @@ html[data-theme="light"] .pg-node-head { border-color: #dbe0e7; background: #f8f
 /* Docked (desktop): always shown, no slide-in, collapsible to a strip that
    keeps an expand button and a dot when an activity is selected. */
 .inspector.is-docked { transition: none; }
-/* A closed side panel -- the chat on the left, the property editor on the
+/* A closed side panel -- the property editor on the left, the chat on the
    right -- is a folder tab on the window edge at the top of the workspace: an
    icon and a sideways label, flat against the edge and rounded inside. It
-   sits in the margin beside the content, so it never covers anything. The
-   editor's tab shows a dot when an activity is selected. */
+   sits in the margin beside the content, so it never covers anything. */
 .panel-tab { position: absolute; z-index: 7; top: 76px; display: flex; flex-direction: column; align-items: center; gap: 7px; width: 26px; padding: 10px 0; border: 1px solid var(--floating-border); background: var(--floating-background); color: var(--muted-foreground); box-shadow: var(--floating-shadow); font-size: 11px; font-weight: 650; letter-spacing: .02em; cursor: pointer; }
-.panel-tab > span:not(.inspector-selection-dot) { writing-mode: vertical-rl; }
+.panel-tab > span { writing-mode: vertical-rl; }
 .panel-tab.is-left { left: 0; border-left: 0; border-radius: 0 9px 9px 0; }
-.panel-tab.is-left > span:not(.inspector-selection-dot) { transform: rotate(180deg); }
+.panel-tab.is-left > span { transform: rotate(180deg); }
 .panel-tab.is-right { right: 0; border-right: 0; border-radius: 9px 0 0 9px; }
 .panel-tab:hover, .panel-tab:focus-visible { color: var(--foreground); background: var(--control-background-hover); outline: none; }
-.inspector-selection-dot { width: 8px; height: 8px; border-radius: 50%; background: #38bdf8; box-shadow: 0 0 0 3px rgba(56,189,248,.18); }
 .inspector-summary > p { margin: 0 0 22px; color: #7f8590; font-size: 12px; }
 html[data-theme="light"] .inspector-summary > p { color: #4b5563; }
 .inspector-head { display: flex; align-items: center; justify-content: space-between; height: 30px; margin-bottom: 27px; color: #737985; font-size: 9px; font-weight: 750; letter-spacing: .14em; }
@@ -767,7 +765,7 @@ html[data-theme="light"] .process-flow-table .empty-row td { color: #6b7280; }
   .brand-mark { width: 28px; height: 28px; }
   .brand-product-name { font-size: 14px; }
   .navbar-portal-target { display: none; }
-  .inspector { right: 16px; top: 76px; bottom: 16px; width: 270px; }
+  .inspector { left: 16px; top: 76px; bottom: 16px; width: 270px; }
   .inspector .rail-resize-handle { display: none; }
   .brand-study-title { max-width: 42vw; }
   .global-settings-trigger span { display: none; }
@@ -808,19 +806,24 @@ html[data-theme="light"] .process-flow-table .empty-row td { color: #6b7280; }
   .canvas-head { display: none; }
   /* Graph view: the graph is a framed panel below the navbar (the same 22px
      gap as the other views), so it never runs under the navbar. The tool bar
-     floats over the top centre of the frame by default. */
-  .graph-toolbar { top: 34px; }
+     lives inside the frame and floats over its top centre by default, so it
+     re-centres whenever the frame changes size. */
+  .graph-toolbar { top: 12px; }
   .graph-viewport { inset: 22px 28px 28px; overflow: hidden; border: 1px solid var(--panel-border); border-radius: 12px; }
-  .graph-viewport.has-inspector { right: calc(var(--rail-width, 286px) + 40px); }
+  .graph-viewport.has-inspector { left: calc(var(--rail-width, 286px) + 40px); }
+  /* The open chat is a card mirroring the docked property editor: 22px below
+     the navbar, 28px from the window edge, 12px from the content (it reaches
+     16px into the workspace's 28px gutter), and the same header inset so the
+     two close buttons sit in mirrored spots. */
+  .app-shell.has-chat .ai-chat-pane { width: calc(min(var(--ai-chat-width, 410px), max(240px, calc(100vw - 320px))) + 12px); }
+  .ai-chat-sidebar { inset: 22px 28px 28px auto; width: calc(100% - 12px); border: 1px solid var(--floating-border); border-radius: 12px; }
+  .ai-chat-header { padding: 19px 22px 14px; }
   /* With the editor closed the canvas takes its space; the tab sits in the margin. */
-  .canvas-wrap.is-rail-collapsed .graph-viewport.has-inspector { right: 28px; }
+  .canvas-wrap.is-rail-collapsed .graph-viewport.has-inspector { left: 28px; }
   .panel-tab { top: 22px; }
-  /* Keep the node count inside the frame's bottom-right corner. */
-  .canvas-wrap:has(.graph-viewport.has-inspector) .graph-meta { right: calc(var(--rail-width, 286px) + 54px); }
-  .canvas-wrap.is-rail-collapsed:has(.graph-viewport.has-inspector) .graph-meta { right: 42px; }
-  .graph-mode-toolbar { left: 44px; bottom: 44px; }
-  .graph-meta { right: 42px; bottom: 38px; }
-  .inspector { top: calc(22px + var(--scenario-panel-height, 0px)); right: 28px; bottom: 28px; }
+  .graph-mode-toolbar { left: 16px; bottom: 16px; }
+  .graph-meta { right: 14px; bottom: 12px; }
+  .inspector { top: calc(22px + var(--scenario-panel-height, 0px)); left: 28px; bottom: 28px; }
   .yaml-editor, .results-empty, .results-panel { inset: 22px 28px 28px; }
   .inventory-view, .impact-view, .process-results-view, .contribution-view, .sankey-view { inset: 22px 28px 28px; border-radius: 12px; }
   .sankey-toolbar, .sankey-chart-picker { top: 18px; }
@@ -906,15 +909,15 @@ html[data-theme="light"] .scenario-bar { background: #ffffff; box-shadow: 0 14px
 /* Scenario impact panel — present only while edits are pending */
 /* Fills the rail exactly as the property editor does. When both are open it
    yields the lower half so the property editor can stack beneath it. */
-.scenario-panel { position: absolute; z-index: 6; top: 76px; right: 18px; bottom: 18px; width: var(--rail-width, 286px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #38bdf8; border-radius: 12px; background: rgba(16,18,22,.96); box-shadow: 0 18px 48px rgba(0,0,0,.38); backdrop-filter: blur(12px); }
+.scenario-panel { position: absolute; z-index: 6; top: 76px; left: 18px; bottom: 18px; width: var(--rail-width, 286px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #38bdf8; border-radius: 12px; background: rgba(16,18,22,.96); box-shadow: 0 18px 48px rgba(0,0,0,.38); backdrop-filter: blur(12px); }
 .scenario-panel.is-stacked { bottom: auto; max-height: 46vh; }
 /* Declared after the base rule on purpose: the base sits later in this file
    than the shared min-width block, so an override placed there would lose the
    cascade at equal specificity. */
-@media (min-width: 901px) { .scenario-panel { top: 22px; right: 28px; bottom: 28px; } }
+@media (min-width: 901px) { .scenario-panel { top: 22px; left: 28px; bottom: 28px; } }
 /* Mirrors the chat panel's handle: a hit area wider than the visible grip, so
    the edge is easy to grab without a conspicuous bar sitting on the panel. */
-.rail-resize-handle { position: absolute; z-index: 2; inset: 0 auto 0 -6px; display: grid; place-items: center; width: 12px; height: 100%; padding: 0; border: 0; color: transparent; background: transparent; cursor: ew-resize; touch-action: none; }
+.rail-resize-handle { position: absolute; z-index: 2; inset: 0 -6px 0 auto; display: grid; place-items: center; width: 12px; height: 100%; padding: 0; border: 0; color: transparent; background: transparent; cursor: ew-resize; touch-action: none; }
 .rail-resize-handle::before { width: 2px; height: 42px; border-radius: 999px; background: var(--muted-foreground); opacity: .45; content: ""; }
 .rail-resize-handle:hover::before, .rail-resize-handle:focus-visible::before { background: #38bdf8; opacity: 1; }
 .rail-resize-handle:hover, .rail-resize-handle:focus-visible { outline: none; }

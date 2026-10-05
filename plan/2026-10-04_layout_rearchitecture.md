@@ -164,6 +164,21 @@ Defaults I'll use unless told otherwise:
   - Clicking a card while the editor is closed keeps it closed. A live scenario forces it
     open so Reset and Save stay visible.
 
+- **Review changes after stage 3 (done):**
+  - **Sides swapped:** the Property Editor docks on the **left** and the chat on the
+    **right**. Their folder tabs ("Properties" left, "Chat" right) and resize handles
+    flip with them, and the scenario panel moves left with the editor.
+  - Clicking an activity while the editor is closed **opens it**. The selection dot is gone.
+  - The open chat is a card that mirrors the docked editor (22px below the navbar, 28px
+    from the window edge, 12px from the graph). The two close buttons sit in mirrored
+    spots on each panel's outer edge.
+  - The graph tool bar, Structure/Scaled switch, node count and "No model open" panel
+    live inside the graph frame. The tool bar stays centred on the frame as it changes
+    size. Once dragged it stays put (confined to the canvas), and double-clicking its grip
+    re-centres it. Its saved position uses a fresh key.
+- **Stage 4 dropped (4 Oct):** the Structure/Scaled switch stays at the bottom-left of the
+  graph. With the editor closable to a tab, it would otherwise be unreachable.
+
 ## Tests to rewrite or add
 
 About 57 references across `app.visual.spec.ts` (34), `ai-chat.responsive.spec.ts` (12),

@@ -139,6 +139,13 @@ export function useDraggablePosition<T extends HTMLElement = HTMLDivElement>(
     window.addEventListener("pointerup", finish, { once: true })
   }, [anchor, bounds, storageKey])
 
+  /** Forget the dragged position so the panel returns to its CSS default. */
+  const reset = useCallback(() => {
+    storedRef.current = null
+    setStored(null)
+    try { localStorage.removeItem(storageKey) } catch { /* Optional preference. */ }
+  }, [storageKey])
+
   const position: DraggedPosition | null = stored ? { [anchor]: stored.offset, top: stored.top } : null
-  return { position, startDrag, panelRef }
+  return { position, startDrag, reset, panelRef }
 }

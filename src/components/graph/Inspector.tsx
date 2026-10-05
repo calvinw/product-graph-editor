@@ -1,5 +1,5 @@
 import { useRef } from "react"
-import { Box, PanelRightClose, SlidersHorizontal, X } from "lucide-react"
+import { Box, PanelLeftClose, SlidersHorizontal, X } from "lucide-react"
 import type { Node } from "@xyflow/react"
 import { Button } from "@/components/ui/button"
 import type { ProcessNodeData } from "@/components/ProcessNode"
@@ -44,9 +44,8 @@ export function Inspector({
 
   if (docked && collapsed) {
     return (
-      <button type="button" className="panel-tab is-right" onClick={() => onCollapsedChange(false)} aria-label="Expand property editor" title="Expand property editor">
+      <button type="button" className="panel-tab is-left" onClick={() => onCollapsedChange(false)} aria-label="Expand property editor" title="Expand property editor">
         <SlidersHorizontal size={14} aria-hidden="true" /><span aria-hidden="true">Properties</span>
-        {selected ? <span className="inspector-selection-dot" role="img" aria-label={`${selected.label} selected`} title={`${selected.label} selected`} /> : null}
       </button>
     )
   }
@@ -55,9 +54,11 @@ export function Inspector({
     <aside ref={panelRef} className={`inspector${open ? " is-open" : ""}${docked ? " is-docked" : ""}`} aria-label="Property editor" aria-hidden={!open} inert={!open}>
     {docked ? <RailResizeHandle panelRef={panelRef} label="Resize property editor" /> : null}
   <div className="inspector-scroll">
-    <div className="inspector-head"><span>{detailsSelection ? "NODE DETAILS" : "MODEL"}</span>{docked
-      ? <Button variant="ghost" size="icon" onClick={() => onCollapsedChange(true)} aria-label="Collapse property editor" title="Collapse property editor"><PanelRightClose size={16} /></Button>
-      : <Button variant="ghost" size="icon" onClick={clearNodeSelection} aria-label="Close property editor" title="Close property editor"><X size={16} /></Button>}</div>
+    {/* The close button sits on the panel's outer (left) edge, mirroring the
+        chat's on its outer (right) edge. */}
+    <div className="inspector-head">{docked
+      ? <Button variant="ghost" size="icon" onClick={() => onCollapsedChange(true)} aria-label="Collapse property editor" title="Collapse property editor"><PanelLeftClose size={16} /></Button>
+      : <Button variant="ghost" size="icon" onClick={clearNodeSelection} aria-label="Close property editor" title="Close property editor"><X size={16} /></Button>}<span>{detailsSelection ? "NODE DETAILS" : "MODEL"}</span></div>
     {detailsSelection ? <>
     <div className="node-icon" style={{ background: selectedNode?.data.color ?? detailsSelection.color }}><Box size={22} /></div>
     <h2>{selectedNode?.data.label ?? detailsSelection.label}</h2><p>{selectedNode?.data.detail ?? detailsSelection.detail}</p>

@@ -1,7 +1,7 @@
 import { useEffect, useState, type RefObject } from "react"
 
 /**
- * Drag handle on the left edge of the right-hand rail.
+ * Drag handle on the right edge of the left-hand rail.
  *
  * The scenario panel and the property editor share one width, because two
  * docked panels of different widths would read as a mistake. The width is
@@ -50,7 +50,8 @@ export function RailResizeHandle({ panelRef, label }: { panelRef: RefObject<HTML
     const startX = event.clientX
     const startWidth = panelRef.current?.offsetWidth ?? RAIL_DEFAULT
     let next = startWidth
-    const resize = (moveEvent: PointerEvent) => { next = update(startWidth + startX - moveEvent.clientX) }
+    // The rail is on the left and resizes from its right edge.
+    const resize = (moveEvent: PointerEvent) => { next = update(startWidth + moveEvent.clientX - startX) }
     const finish = () => {
       window.removeEventListener("pointermove", resize)
       window.removeEventListener("pointerup", finish)
@@ -65,8 +66,8 @@ export function RailResizeHandle({ panelRef, label }: { panelRef: RefObject<HTML
   const resizeByKeyboard = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     const current = panelRef.current?.offsetWidth ?? RAIL_DEFAULT
     const targets: Record<string, number> = {
-      ArrowLeft: current + KEYBOARD_STEP,
-      ArrowRight: current - KEYBOARD_STEP,
+      ArrowRight: current + KEYBOARD_STEP,
+      ArrowLeft: current - KEYBOARD_STEP,
       Home: RAIL_MIN,
       End: railMaximum(),
     }

@@ -21,7 +21,7 @@ const edgeTypes = { scenario: ScenarioEdge }
 export function GraphCanvas({
   nodes, edges, onNodesChange, onEdgesChange,
   inspectorOpen, theme, selectMode,
-  compactLayout, setSelected, clearNodeSelection, hydrateBackgroundNode,
+  compactLayout, setSelected, clearNodeSelection, hydrateBackgroundNode, children,
 }: {
   nodes: Node<ProcessNodeData>[]
   edges: Edge[]
@@ -34,6 +34,8 @@ export function GraphCanvas({
   setSelected: (node: SelectedGraphNode) => void
   clearNodeSelection: () => void
   hydrateBackgroundNode: (id: string) => void | Promise<void>
+  /** Overlays that belong to the graph frame (the tool bar), centred on it. */
+  children?: React.ReactNode
 }) {
   const { fitBounds, getNodes } = useReactFlow()
   const nodesInitialized = useNodesInitialized()
@@ -119,6 +121,6 @@ export function GraphCanvas({
       proOptions={{ hideAttribution: true }}
     >
       <Background variant={BackgroundVariant.Dots} gap={22} size={1} color={theme === "dark" ? "#242831" : "#cbd5e1"} />
-    </ReactFlow></div>
+    </ReactFlow>{children}</div>
   )
 }

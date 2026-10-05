@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm"
 import remarkMath from "remark-math"
 import rehypeKatex from "rehype-katex"
 import "katex/dist/katex.min.css"
-import { Download, GripVertical, KeyRound, MessageSquarePlus, PanelLeftClose, Settings2 } from "lucide-react"
+import { Download, GripVertical, KeyRound, MessageSquarePlus, PanelRightClose, Settings2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -240,8 +240,8 @@ export function AiChatPanel({
     const startWidth = panelWidth
     let nextWidth = startWidth
     const resize = (pointerEvent: PointerEvent) => {
-      // The chat is on the left and resizes from its right edge.
-      nextWidth = Math.min(chatMaximumWidth(), Math.max(CHAT_MIN_WIDTH, startWidth + pointerEvent.clientX - startX))
+      // The chat is on the right and resizes from its left edge.
+      nextWidth = Math.min(chatMaximumWidth(), Math.max(CHAT_MIN_WIDTH, startWidth + startX - pointerEvent.clientX))
       setPanelWidth(nextWidth)
     }
     const finish = () => {
@@ -258,7 +258,7 @@ export function AiChatPanel({
   const resizeByKeyboard = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
     event.preventDefault()
-    const direction = event.key === "ArrowRight" ? 1 : -1
+    const direction = event.key === "ArrowLeft" ? 1 : -1
     setPanelWidth((current) => {
       const next = Math.min(chatMaximumWidth(), Math.max(CHAT_MIN_WIDTH, current + direction * 20))
       try { localStorage.setItem(WIDTH_STORAGE, String(Math.round(next))) } catch { /* Optional preference. */ }
@@ -405,7 +405,7 @@ export function AiChatPanel({
           <div className="ai-chat-header-actions">
             <Button variant="ghost" size="icon" type="button" aria-label="New conversation" onClick={() => { setMessages([]); setError(""); transcriptRef.current = []; sourceReadIdsRef.current = [] }} disabled={status !== "idle"}><MessageSquarePlus size={16} /></Button>
             <Button variant="ghost" size="icon" type="button" aria-label="Chat settings" onClick={() => setSettingsOpen(true)}><Settings2 size={16} /></Button>
-            <Button variant="ghost" size="icon" type="button" aria-label="Close AI assistant" title="Close AI assistant" onClick={() => onOpenChange(false)}><PanelLeftClose size={16} /></Button>
+            <Button variant="ghost" size="icon" type="button" aria-label="Close AI assistant" title="Close AI assistant" onClick={() => onOpenChange(false)}><PanelRightClose size={16} /></Button>
           </div>
         </div>
 
