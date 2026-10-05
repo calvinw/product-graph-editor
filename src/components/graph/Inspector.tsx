@@ -1,45 +1,30 @@
-import { useEffect, useState } from "react"
-import { Box, GripHorizontal, X } from "lucide-react"
+import { useRef } from "react"
+import { Box, PanelRightClose, SlidersHorizontal, X } from "lucide-react"
 import type { Node } from "@xyflow/react"
 import { Button } from "@/components/ui/button"
 import type { ProcessNodeData } from "@/components/ProcessNode"
 import { useDisplaySettings } from "@/lib/displaySettings"
 import type { SelectedGraphNode } from "@/state/productGraphStore"
-import { useDraggablePosition } from "@/hooks/useDraggablePosition"
 import { RailResizeHandle } from "./RailResizeHandle"
 
+export type ModelSummary = { title: string; activities: number; connections: number; status: string }
+
 /**
- * The property editor for the selected graph node.
+ * The property editor.
  *
- * `inspectorSelection` is the last selection rather than the live one, so the
- * panel keeps its contents while animating closed.
- *
- * It opens when an activity is clicked and floats over the graph. It can be
- * resized from its left edge and moved by its header; until it is moved it sits
- * in its default spot on the right. It is anchored by its right edge so that
- * resizing from the left edge never moves the right edge. The contents scroll
- * inside .inspector-scroll so the resize handle stays put.
+ * Docked (desktop) it shows the selected activity, or a summary of the model
+ * when nothing is selected, and can be collapsed to a narrow strip and resized
+ * from its left edge. As an overlay (narrow layouts) it opens on a click and
+ * keeps the last selection (`inspectorSelection`) while animating closed. The
+ * contents scroll inside .inspector-scroll so the resize handle stays put.
  */
-const FLOATING_QUERY = "(min-width: 901px)"
-
-/** Moving the editor is a desktop feature; narrower layouts keep it docked. */
-function useFloatingAllowed() {
-  const [allowed, setAllowed] = useState(() => window.matchMedia(FLOATING_QUERY).matches)
-  useEffect(() => {
-    const query = window.matchMedia(FLOATING_QUERY)
-    const update = () => setAllowed(query.matches)
-    query.addEventListener("change", update)
-    return () => query.removeEventListener("change", update)
-  }, [])
-  return allowed
-}
-
 export function Inspector({
   selected, inspectorSelection, selectedNode, inputNodes, outputNodes,
   graphMode, showReferenceAmounts, setReferenceAmountsVisible, clearNodeSelection,
+  docked, collapsed, onCollapsedChange, summary,
 }: {
   selected: SelectedGraphNode | null
-  inspectorSelection: SelectedGraphNode
+  inspectorSelection: SelectedGraphNode | null
   selectedNode: Node<ProcessNodeData> | undefined
   inputNodes: Node<ProcessNodeData>[]
   outputNodes: Node<ProcessNodeData>[]
@@ -47,31 +32,35 @@ export function Inspector({
   showReferenceAmounts: boolean
   setReferenceAmountsVisible: (visible: boolean) => void
   clearNodeSelection: () => void
+  docked: boolean
+  collapsed: boolean
+  onCollapsedChange: (collapsed: boolean) => void
+  summary: ModelSummary
 }) {
   const { formatNumber } = useDisplaySettings()
-  const floatingAllowed = useFloatingAllowed()
-  const { position, startDrag, panelRef } = useDraggablePosition<HTMLElement>("product-graph-editor:property-editor-position", { anchor: "right" })
-  const floating = floatingAllowed && position
-  const startHeaderDrag = (event: React.PointerEvent<HTMLElement>) => {
-    if (!floatingAllowed) return
-    // The close button keeps its own click; anywhere else on the header drags.
-    if ((event.target as HTMLElement).closest("button:not(.inspector-grip)")) return
-    startDrag(event)
+  const panelRef = useRef<HTMLElement | null>(null)
+  const open = docked || selected !== null
+  const detailsSelection = docked ? selected : inspectorSelection
+
+  if (docked && collapsed) {
+    return (
+      <button type="button" className="panel-tab is-right" onClick={() => onCollapsedChange(false)} aria-label="Expand property editor" title="Expand property editor">
+        <SlidersHorizontal size={14} aria-hidden="true" /><span aria-hidden="true">Properties</span>
+        {selected ? <span className="inspector-selection-dot" role="img" aria-label={`${selected.label} selected`} title={`${selected.label} selected`} /> : null}
+      </button>
+    )
   }
+
   return (
-    <aside
-      ref={panelRef}
-      className={`inspector${selected ? " is-open" : ""}${floating ? " is-floating" : ""}`}
-      aria-hidden={!selected}
-      inert={!selected}
-      data-draggable-panel
-      style={floating ? { position: "fixed", right: position.right, top: position.top, bottom: "auto", maxHeight: `calc(100vh - ${position.top}px - 18px)` } : undefined}
-    >
-    <RailResizeHandle panelRef={panelRef} label="Resize property editor" />
+    <aside ref={panelRef} className={`inspector${open ? " is-open" : ""}${docked ? " is-docked" : ""}`} aria-label="Property editor" aria-hidden={!open} inert={!open}>
+    {docked ? <RailResizeHandle panelRef={panelRef} label="Resize property editor" /> : null}
   <div className="inspector-scroll">
-    <div className="inspector-head" onPointerDown={startHeaderDrag}><button type="button" className="inspector-grip" aria-label="Move property editor" title="Drag to move"><GripHorizontal size={14} /></button><span>NODE DETAILS</span><Button variant="ghost" size="icon" onClick={clearNodeSelection} aria-label="Close property editor" title="Close property editor"><X size={16} /></Button></div>
-    <div className="node-icon" style={{ background: selectedNode?.data.color ?? inspectorSelection.color }}><Box size={22} /></div>
-    <h2>{selectedNode?.data.label ?? inspectorSelection.label}</h2><p>{selectedNode?.data.detail ?? inspectorSelection.detail}</p>
+    <div className="inspector-head"><span>{detailsSelection ? "NODE DETAILS" : "MODEL"}</span>{docked
+      ? <Button variant="ghost" size="icon" onClick={() => onCollapsedChange(true)} aria-label="Collapse property editor" title="Collapse property editor"><PanelRightClose size={16} /></Button>
+      : <Button variant="ghost" size="icon" onClick={clearNodeSelection} aria-label="Close property editor" title="Close property editor"><X size={16} /></Button>}</div>
+    {detailsSelection ? <>
+    <div className="node-icon" style={{ background: selectedNode?.data.color ?? detailsSelection.color }}><Box size={22} /></div>
+    <h2>{selectedNode?.data.label ?? detailsSelection.label}</h2><p>{selectedNode?.data.detail ?? detailsSelection.detail}</p>
 
     {graphMode === "structure" ? <Button variant="outline" size="sm" className="reference-amounts-toggle" aria-pressed={showReferenceAmounts} onClick={() => setReferenceAmountsVisible(!showReferenceAmounts)}>{showReferenceAmounts ? "Hide reference amounts" : "Reference amounts"}</Button> : null}
     {graphMode === "structure" && showReferenceAmounts && selectedNode ? <>
@@ -128,6 +117,16 @@ export function Inspector({
         {selectedNode.data.emissions.map((item) => <div className="property-row" key={item.label}><span>{item.label}</span>{selectedNode.data.showAmounts !== false ? <strong>{formatNumber(item.amount ?? 0)} {item.unit}</strong> : null}</div>)}
       </div> : null}
     </>}
+    </> : <div className="inspector-summary">
+      <h2>{summary.title}</h2>
+      <p>Select an activity to see its details.</p>
+      <div className="property-section">
+        <h3>Summary</h3>
+        <div className="property-row"><span>Activities</span><strong>{summary.activities}</strong></div>
+        <div className="property-row"><span>Connections</span><strong>{summary.connections}</strong></div>
+        <div className="property-row"><span>Results</span><strong>{summary.status}</strong></div>
+      </div>
+    </div>}
   </div>
     </aside>
   )

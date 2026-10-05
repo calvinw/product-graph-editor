@@ -17,7 +17,9 @@ test("graph controls, settings, and node inspector remain reachable", async ({ p
 
   await page.locator(".react-flow__node").last().click()
   await expectInsideViewport(page.locator(".inspector"), page)
-  await expect(page.getByRole("button", { name: "Close property editor" })).toBeVisible()
+  // Docked at desktop width (collapsible); an overlay with a Close button below.
+  const docked = (page.viewportSize()?.width ?? 0) > 900
+  await expect(page.getByRole("button", { name: docked ? "Collapse property editor" : "Close property editor" })).toBeVisible()
 })
 
 test("editor actions and source remain reachable", async ({ page }) => {

@@ -53,6 +53,7 @@ import { UnsavedChangesDialog } from "@/components/workspace/UnsavedChangesDialo
 import { useCalculation } from "@/hooks/useCalculation"
 import { GraphCanvas } from "@/components/graph/GraphCanvas"
 import { Inspector } from "@/components/graph/Inspector"
+import { useDockedEditor } from "@/hooks/useDockedEditor"
 import { ScenarioPanel } from "@/components/graph/ScenarioPanel"
 import { useGraphModel } from "@/hooks/useGraphModel"
 import { useDraggablePosition } from "@/hooks/useDraggablePosition"
@@ -71,6 +72,8 @@ type AnalysisView = Extract<View, "inventory" | "impact" | "process" | "contribu
 
 
 
+
+const EDITOR_COLLAPSED_STORAGE = "product-graph-editor:property-editor-collapsed"
 
 /** The framed graph canvas; the graph tool bar cannot be dragged outside it. */
 const graphCanvasElement = () => document.querySelector<HTMLElement>(".graph-viewport")
@@ -200,8 +203,23 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
   // editor's slide-in transition, including on the very first open, when the
   // editor has only just been mounted.
   const selectedId = selected?.id
+  // Desktop: the property editor is docked on the right and always shown; it can
+  // be collapsed to a strip, except while a scenario edit is live (its scores
+  // and Reset/Save must stay visible). Narrow layouts keep the click overlay.
+  const dockedEditor = useDockedEditor()
+  const [editorCollapsed, setEditorCollapsed] = useState(() => {
+    try { return localStorage.getItem(EDITOR_COLLAPSED_STORAGE) === "true" } catch { return false }
+  })
+  const railCollapsed = dockedEditor && editorCollapsed && !(graphMode === "scaled" && scenarioEditCount > 0)
+  const changeEditorCollapsed = (next: boolean) => {
+    setEditorCollapsed(next)
+    try { localStorage.setItem(EDITOR_COLLAPSED_STORAGE, String(next)) } catch { /* Optional preference. */ }
+    // The canvas just changed width; refit once it has.
+    requestAnimationFrame(() => requestAnimationFrame(fit))
+  }
   useEffect(() => {
-    if (view !== "graph" || !active || !selectedId) return
+    // A docked editor sits beside the canvas and cannot cover a card.
+    if (view !== "graph" || !active || !selectedId || dockedEditor) return
     const timer = window.setTimeout(() => {
       const nodeEl = document.querySelector(`.react-flow__node[data-id="${CSS.escape(selectedId)}"]`)
       const editorEl = document.querySelector(".inspector.is-open")
@@ -218,7 +236,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
       void setViewport({ x: x + dx, y, zoom }, { duration: 250 })
     }, 300)
     return () => window.clearTimeout(timer)
-  }, [active, getViewport, selectedId, setViewport, view])
+  }, [active, dockedEditor, getViewport, selectedId, setViewport, view])
   // Two undo scopes exist and must not fight. The browser gives text inputs
   // per-keystroke undo for free; model undo steps between recorded versions.
   // Focus decides which one Cmd+Z drives, which also leaves the chat
@@ -475,7 +493,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           : backgroundProcessing ? <span className="calculation-message navbar-status" role="status" aria-label="Background graph processing">Processing…</span> : null}
         </div>
       </div>, navbarTarget) : null}
-      <div className="canvas-wrap">
+      <div className={`canvas-wrap${railCollapsed ? " is-rail-collapsed" : ""}`}>
         <div className="canvas-head">
           <div className="canvas-actions">
             <div className="view-tabs">
@@ -525,7 +543,7 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
           nodes={nodes} edges={edges}
           onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
           // The scenario panel docks and shrinks the canvas; the property editor floats over it.
-          inspectorOpen={graphMode === "scaled" && scenarioEditCount > 0} theme={theme}
+          inspectorOpen={dockedEditor || (graphMode === "scaled" && scenarioEditCount > 0)} theme={theme}
           compactLayout={compactToteLayout}
           setSelected={setSelected} clearNodeSelection={clearNodeSelection}
           hydrateBackgroundNode={hydrateBackgroundNode}
@@ -632,9 +650,18 @@ function GraphEditor({ onTitleChange, navbarTarget, chatPortalTarget, active, ch
         {view === "graph" ? <div className="graph-meta">{nodes.length} nodes&nbsp;&nbsp;·&nbsp;&nbsp;{connectionCount} connections{selectedNodeCount > 1 ? <>&nbsp;&nbsp;·&nbsp;&nbsp;<strong>{selectedNodeCount} selected</strong></> : null}</div> : null}
       </div>
 
-      {view === "graph" && inspectorSelection ? <Inspector
+      {view === "graph" && (dockedEditor || inspectorSelection) ? <Inspector
         selected={selected}
         inspectorSelection={inspectorSelection}
+        docked={dockedEditor}
+        collapsed={railCollapsed}
+        onCollapsedChange={changeEditorCollapsed}
+        summary={{
+          title: currentModelTitle,
+          activities: nodes.length,
+          connections: connectionCount,
+          status: calculationInProgress ? "Calculating…" : hasCurrentResults ? "Up to date" : "Not calculated",
+        }}
         selectedNode={selectedNode}
         inputNodes={inputNodes}
         outputNodes={outputNodes}
@@ -697,7 +724,6 @@ function AppContent({ user, signOut }: { user: User; signOut: () => Promise<void
         {welcomeOpen ? <WelcomePage onExplore={() => setWelcomeOpen(false)} /> : null}
         <div className="app-main-pane">
           <header className="topbar" hidden={welcomeOpen}>
-          <button type="button" className={`chat-toggle${chatOpen ? " is-active" : ""}`} aria-label={chatOpen ? "Hide AI assistant" : "Open AI assistant"} aria-expanded={chatOpen} title={chatOpen ? "Hide assistant" : "Open assistant"} onClick={() => setChatOpen(!chatOpen)}><MessageSquare size={17} aria-hidden="true" /></button>
           <div className="brand"><button className="brand-home" type="button" onClick={() => setWelcomeOpen(true)} aria-label="Open PRISM welcome page"><span className="brand-mark"><img src={prismLogoRound} alt="" aria-hidden="true" /></span></button><span className="brand-product-name"><span>PRISM</span><span className="brand-product-descriptor"> Life Cycle Assessment</span></span><span className="brand-separator">·</span><h1 className="brand-study-title">{workspaceTitle}</h1></div>
           <div ref={setNavbarTarget} className="navbar-portal-target" />
           <div className="top-actions">
@@ -736,7 +762,11 @@ function AppContent({ user, signOut }: { user: User; signOut: () => Promise<void
           </div>
           </header>
           {/* The chat sits on the left, under the navbar, beside the workspace. */}
-          <div ref={setChatPortalTarget} className="ai-chat-pane" aria-hidden={!chatOpen} />
+          <div ref={setChatPortalTarget} className="ai-chat-pane">
+            {!chatOpen ? <button type="button" className="panel-tab is-left" aria-label="Open AI assistant" title="Open AI assistant" onClick={() => setChatOpen(true)}>
+              <MessageSquare size={14} aria-hidden="true" /><span aria-hidden="true">Chat</span>
+            </button> : null}
+          </div>
 
           <section className="workspace" hidden={welcomeOpen}>
             <ReactFlowProvider>

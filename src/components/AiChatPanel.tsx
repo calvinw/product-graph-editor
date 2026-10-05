@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm"
 import remarkMath from "remark-math"
 import rehypeKatex from "rehype-katex"
 import "katex/dist/katex.min.css"
-import { Download, GripVertical, KeyRound, MessageSquarePlus, Settings2, X } from "lucide-react"
+import { Download, GripVertical, KeyRound, MessageSquarePlus, PanelLeftClose, Settings2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -405,7 +405,7 @@ export function AiChatPanel({
           <div className="ai-chat-header-actions">
             <Button variant="ghost" size="icon" type="button" aria-label="New conversation" onClick={() => { setMessages([]); setError(""); transcriptRef.current = []; sourceReadIdsRef.current = [] }} disabled={status !== "idle"}><MessageSquarePlus size={16} /></Button>
             <Button variant="ghost" size="icon" type="button" aria-label="Chat settings" onClick={() => setSettingsOpen(true)}><Settings2 size={16} /></Button>
-            <Button variant="ghost" size="icon" type="button" aria-label="Close AI assistant" onClick={() => onOpenChange(false)}><X size={16} /></Button>
+            <Button variant="ghost" size="icon" type="button" aria-label="Close AI assistant" title="Close AI assistant" onClick={() => onOpenChange(false)}><PanelLeftClose size={16} /></Button>
           </div>
         </div>
 

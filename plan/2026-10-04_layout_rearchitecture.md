@@ -149,6 +149,21 @@ Defaults I'll use unless told otherwise:
     clamped while dragging and pulled back in when the canvas shrinks. Saved positions
     use a new key, so it starts centred.
 
+- **Stage 3 (done):** the Property Editor is docked on the right at desktop widths and
+  always shown: the selected activity, or a model summary (activities, connections,
+  results status) when nothing is selected. It resizes from its left edge.
+  The floating, drag and close code from earlier is removed, along with the
+  "uncover the card" pan (now only used by the narrow overlay). Changes from review:
+  - The navbar chat button is gone. **Closed, the chat and the editor are matching
+    folder tabs** on the window edges, at the top of the workspace: an icon plus a
+    sideways label ("Chat" on the left, "Properties" on the right). Each tab sits in the
+    28px margin outside the content, so it never covers the graph, and the canvas takes
+    the full width. The editor's tab shows a dot when an activity is selected.
+  - Open, each panel is closed from a button at the top-right of its own header, with
+    matching panel-close icons.
+  - Clicking a card while the editor is closed keeps it closed. A live scenario forces it
+    open so Reset and Save stay visible.
+
 ## Tests to rewrite or add
 
 About 57 references across `app.visual.spec.ts` (34), `ai-chat.responsive.spec.ts` (12),

@@ -427,7 +427,7 @@ test("toolbar tooltips open from keyboard focus and pointer input", async ({ pag
   await expect(page.getByRole("tooltip", { name: "Graph settings" })).toBeVisible()
 })
 
-test("activity cards do not expand; a click opens the Property Editor instead", async ({ page }) => {
+test("activity cards do not expand; the docked Property Editor shows the clicked activity", async ({ page }) => {
   await mockLcaApi(page)
   await openWorkspace(page)
   const nodes = page.locator(".react-flow__node")
@@ -435,14 +435,17 @@ test("activity cards do not expand; a click opens the Property Editor instead", 
   await expect(page.getByRole("button", { name: "Expand all activities" })).toHaveCount(0)
   await expect(page.getByRole("button", { name: "Collapse all activities" })).toHaveCount(0)
 
-  // The Property Editor is not shown until an activity is clicked.
-  const editor = page.locator("aside.inspector")
-  await expect(page.locator("aside.inspector.is-open")).toHaveCount(0)
+  // Docked at desktop width: always shown, with a model summary until an
+  // activity is selected.
+  const editor = page.getByRole("complementary", { name: "Property editor" })
+  await expect(editor).toBeVisible()
+  await expect(editor.getByText("Select an activity to see its details.")).toBeVisible()
+  await expect(editor.locator(".property-row", { hasText: "Activities" })).toContainText("5")
+  await expect(editor.locator(".property-row", { hasText: "Connections" })).toContainText("4")
 
   const card = nodes.filter({ hasText: "P1 — Spinning" })
   const viewport = page.locator(".react-flow__viewport")
   await card.click()
-  await expect(editor).toHaveClass(/is-open/)
   await expect(editor.getByRole("heading", { name: "P1 — Spinning" })).toBeVisible()
   await settle(page)
 
@@ -455,26 +458,24 @@ test("activity cards do not expand; a click opens the Property Editor instead", 
   expect(await viewport.evaluate((element) => (element as HTMLElement).style.transform)).toBe(transform)
 
   await page.locator(".react-flow__pane").click({ position: { x: 20, y: 20 } })
-  await expect(page.locator("aside.inspector.is-open")).toHaveCount(0)
+  await expect(editor.getByText("Select an activity to see its details.")).toBeVisible()
 })
 
 test("the Property Editor can be resized, and keeps its width after a reload", async ({ page }) => {
   await mockLcaApi(page)
   await openWorkspace(page)
-  const card = page.locator(".react-flow__node").filter({ hasText: "P1 — Spinning" })
-  const editor = page.locator("aside.inspector.is-open")
+  const editor = page.getByRole("complementary", { name: "Property editor" })
   const handle = page.getByRole("separator", { name: "Resize property editor" })
   const canvas = page.locator(".graph-viewport")
   const width = async () => Math.round((await editor.boundingBox())!.width)
   const canvasRight = async () => Math.round((await canvas.boundingBox())!.x + (await canvas.boundingBox())!.width)
 
-  const canvasRightBefore = await canvasRight()
-  await card.click()
   await expect(editor).toBeVisible()
   await settle(page)
   expect(await width()).toBe(286)
-  // The editor floats over the graph; the canvas keeps its full width.
-  expect(await canvasRight()).toBe(canvasRightBefore)
+  const canvasRightBefore = await canvasRight()
+  // The editor is docked beside the canvas, never over it.
+  expect(canvasRightBefore).toBeLessThanOrEqual(Math.round((await editor.boundingBox())!.x))
 
   const box = (await handle.boundingBox())!
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
@@ -483,11 +484,11 @@ test("the Property Editor can be resized, and keeps its width after a reload", a
   await page.mouse.up()
   expect(await width()).toBe(436)
   await expect(handle).toHaveAttribute("aria-valuenow", "436")
-  expect(await canvasRight()).toBe(canvasRightBefore)
+  // The canvas gives up the same width.
+  expect(await canvasRight()).toBe(canvasRightBefore - 150)
 
   await page.reload()
   await page.getByRole("button", { name: "Explore PRISM" }).click()
-  await card.click()
   await expect(editor).toBeVisible()
   await settle(page)
   expect(await width()).toBe(436)
@@ -503,79 +504,65 @@ test("the Property Editor can be resized, and keeps its width after a reload", a
   expect(await width()).toBe(286)
 })
 
-test("opening the Property Editor over the clicked card slides the graph without zooming", async ({ page }) => {
+test("selecting an activity never moves or zooms the graph", async ({ page }) => {
   await mockLcaApi(page)
   await openWorkspace(page)
   await expect(page.locator(".react-flow__node")).toHaveCount(5)
   await settle(page)
   const viewport = page.locator(".react-flow__viewport")
-  const transform = async () => {
-    const match = /translate\(([-\d.]+)px, ([-\d.]+)px\) scale\(([\d.]+)\)/.exec((await viewport.getAttribute("style")) ?? "")
-    return { x: Number(match![1]), y: Number(match![2]), zoom: Number(match![3]) }
-  }
-  const before = await transform()
+  const before = await viewport.getAttribute("style")
 
-  // The final product sits on the right, where the editor opens. Clicking it
-  // used to zoom right in on the card (scale -> 1) and fling the graph left.
-  const card = page.locator(".react-flow__node").filter({ hasText: "P4 — Jacket assembly" })
-  await card.click()
-  const editor = page.locator("aside.inspector.is-open")
-  await expect(editor).toBeVisible()
-  await expect.poll(async () => {
-    const node = (await card.boundingBox())!
-    return (await editor.boundingBox())!.x - (node.x + node.width)
-  }).toBeGreaterThanOrEqual(15)
-  await page.waitForTimeout(400)
-  const after = await transform()
-  expect(after.zoom).toBe(before.zoom)
-  expect(after.y).toBe(before.y)
-  // Slid only as far as needed, not refitted.
-  expect(before.x - after.x).toBeGreaterThan(0)
-  expect(before.x - after.x).toBeLessThan(400)
+  // The final product sits on the right, next to the editor. With a floating
+  // editor this used to zoom right in on the card (#66 review); docked, the
+  // editor cannot cover it, so nothing moves.
+  await page.locator(".react-flow__node").filter({ hasText: "P4 — Jacket assembly" }).click()
+  await expect(page.getByRole("complementary", { name: "Property editor" }).getByRole("heading", { name: "P4 — Jacket assembly" })).toBeVisible()
+  await page.waitForTimeout(500)
+  expect(await viewport.getAttribute("style")).toBe(before)
 })
 
-test("the Property Editor can be moved by its header and stays where it is put", async ({ page }) => {
+test("the closed Property Editor and chat are matching folder tabs that never cover the graph", async ({ page }) => {
   await mockLcaApi(page)
   await openWorkspace(page)
-  const card = page.locator(".react-flow__node").filter({ hasText: "P1 — Spinning" })
-  const editor = page.locator("aside.inspector.is-open")
-  await card.click()
+  const editor = page.getByRole("complementary", { name: "Property editor" })
+  const canvas = page.locator(".graph-viewport")
   await expect(editor).toBeVisible()
   await settle(page)
-  const start = (await editor.boundingBox())!
+  const canvasWidth = async () => Math.round((await canvas.boundingBox())!.width)
+  const expandedWidth = await canvasWidth()
 
-  const grip = page.getByRole("button", { name: "Move property editor" })
-  const gripBox = (await grip.boundingBox())!
-  await page.mouse.move(gripBox.x + gripBox.width / 2, gripBox.y + gripBox.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(gripBox.x + gripBox.width / 2 - 500, gripBox.y + gripBox.height / 2 + 120, { steps: 12 })
-  await page.mouse.up()
-  const moved = (await editor.boundingBox())!
-  expect(Math.round(moved.x)).toBe(Math.round(start.x - 500))
-  expect(Math.round(moved.y)).toBe(Math.round(start.y + 120))
-  // Once moved it is only as tall as its contents, and stays inside the window.
-  expect(moved.height).toBeLessThan(start.height)
-  expect(moved.y + moved.height).toBeLessThanOrEqual(page.viewportSize()!.height)
+  await page.getByRole("button", { name: "Collapse property editor" }).click()
+  const editorTab = page.getByRole("button", { name: "Expand property editor" })
+  await expect(editorTab).toBeVisible()
+  await expect(editor).toHaveCount(0)
+  // The canvas takes the editor's space back.
+  await expect.poll(canvasWidth).toBeGreaterThan(expandedWidth + 250)
 
-  // Resizing from the left edge keeps the right edge where it is.
-  const handle = page.getByRole("separator", { name: "Resize property editor" })
-  await handle.focus()
-  await handle.press("ArrowLeft")
-  const widened = (await editor.boundingBox())!
-  expect(Math.round(widened.width)).toBe(Math.round(moved.width) + 20)
-  expect(Math.round(widened.x + widened.width)).toBe(Math.round(moved.x + moved.width))
+  // Selecting while closed keeps it closed and marks the tab.
+  await page.locator(".react-flow__node").filter({ hasText: "P1 — Spinning" }).click()
+  await expect(editorTab.getByRole("img", { name: "P1 — Spinning selected" })).toBeVisible()
 
+  // The closed state survives a reload.
   await page.reload()
   await page.getByRole("button", { name: "Explore PRISM" }).click()
-  await card.click()
-  await expect(editor).toBeVisible()
-  await settle(page)
-  const restored = (await editor.boundingBox())!
-  expect(Math.round(restored.x + restored.width)).toBe(Math.round(widened.x + widened.width))
-  expect(Math.round(restored.y)).toBe(Math.round(widened.y))
+  await expect(editorTab).toBeVisible()
 
-  await page.getByRole("button", { name: "Close property editor" }).click()
-  await expect(page.locator("aside.inspector.is-open")).toHaveCount(0)
+  // The closed chat is the same kind of tab on the opposite window edge, and
+  // both sit in the margin outside the graph frame.
+  const chatTab = page.getByRole("button", { name: "Open AI assistant" })
+  const chatBox = (await chatTab.boundingBox())!
+  const editorBox = (await editorTab.boundingBox())!
+  const frame = (await canvas.boundingBox())!
+  const viewportWidth = page.viewportSize()!.width
+  expect(Math.round(chatBox.width)).toBe(Math.round(editorBox.width))
+  expect(Math.round(chatBox.y)).toBe(Math.round(editorBox.y))
+  expect(Math.round(chatBox.x)).toBe(0)
+  expect(Math.round(editorBox.x + editorBox.width)).toBe(viewportWidth)
+  expect(chatBox.x + chatBox.width).toBeLessThanOrEqual(frame.x)
+  expect(editorBox.x).toBeGreaterThanOrEqual(frame.x + frame.width)
+
+  await editorTab.click()
+  await expect(editor.getByText("Select an activity to see its details.")).toBeVisible()
 })
 
 test("primary switcher and Results menu support keyboard navigation", async ({ page }) => {
@@ -1105,7 +1092,7 @@ test("Structure Graph is the default and Scaled Graph is enabled after the LCA f
   await expect(structureGraph).toHaveAttribute("aria-pressed", "true")
 })
 
-test("starting a scenario edit closes the Property Editor", async ({ page }) => {
+test("starting a scenario edit clears the Property Editor's selection", async ({ page }) => {
   await mockLcaApi(page, broomLcaResultFixture)
   await openWorkspace(page)
   await page.getByRole("button", { name: "File", exact: true }).click()
@@ -1115,19 +1102,21 @@ test("starting a scenario edit closes the Property Editor", async ({ page }) => 
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
   await page.getByRole("button", { name: "Scaled Graph" }).click()
 
-  const editor = page.locator("aside.inspector.is-open")
-  await page.locator(".react-flow__node").first().click()
-  await expect(editor).toBeVisible()
+  const editor = page.getByRole("complementary", { name: "Property editor" })
+  const card = page.locator(".react-flow__node").first()
+  const label = (await card.innerText()).trim()
+  await card.click()
+  await expect(editor.getByRole("heading", { name: label })).toBeVisible()
 
   const scenarioAmount = page.getByRole("slider").first()
   await scenarioAmount.focus()
   await scenarioAmount.press("ArrowRight")
   await expect(page.getByRole("status", { name: "Scenario impact" })).toBeVisible()
-  await expect(editor).toHaveCount(0)
+  await expect(editor.getByText("Select an activity to see its details.")).toBeVisible()
 
-  // Clicking an activity during the scenario still opens it.
-  await page.locator(".react-flow__node").first().click()
-  await expect(editor).toBeVisible()
+  // Clicking an activity during the scenario shows it again.
+  await card.click()
+  await expect(editor.getByRole("heading", { name: label })).toBeVisible()
   await expect(page.getByRole("status", { name: "Scenario impact" })).toBeVisible()
 })
 
@@ -1217,7 +1206,7 @@ test("opening the inspector keeps the selected jacket node visible", async ({ pa
   }).toBeGreaterThanOrEqual(16)
 })
 
-test("closing the property editor does not move the graph viewport again", async ({ page }) => {
+test("clearing the selection does not move the graph viewport", async ({ page }) => {
   await mockLcaApi(page)
   await openWorkspace(page)
   await page.getByRole("radio", { name: "Graph", exact: true }).click()
@@ -1227,19 +1216,15 @@ test("closing the property editor does not move the graph viewport again", async
   await page.waitForTimeout(300)
   const viewport = page.locator(".react-flow__viewport")
 
-  // Opening the editor may slide the graph sideways to uncover the selected
-  // node (see #37) -- that is deliberate, not a regression. What must not
-  // happen is the viewport moving again just from closing it.
   await page.locator(".react-flow__node").last().click()
-  await expect(page.locator(".inspector")).toBeVisible()
   await page.waitForTimeout(400)
   await waitForViewportToSettle(page)
-  const openedTransform = await viewport.getAttribute("style")
+  const selectedTransform = await viewport.getAttribute("style")
 
-  await page.getByRole("button", { name: "Close property editor" }).click()
-  await expect(page.locator(".inspector")).toBeHidden()
+  await page.locator(".react-flow__pane").click({ position: { x: 20, y: 300 } })
+  await expect(page.getByText("Select an activity to see its details.")).toBeVisible()
   await page.waitForTimeout(300)
-  await expect(viewport).toHaveAttribute("style", openedTransform ?? "")
+  await expect(viewport).toHaveAttribute("style", selectedTransform ?? "")
 })
 
 for (const theme of ["dark", "light"] as const) {
@@ -1262,7 +1247,7 @@ for (const theme of ["dark", "light"] as const) {
     await page.waitForTimeout(400)
     await waitForViewportToSettle(page)
     await screenshot(page, `${theme}-selected-node-inspector.png`)
-    await page.getByRole("button", { name: "Close property editor" }).click()
+    await page.locator(".react-flow__pane").click({ position: { x: 20, y: 300 } })
 
     await page.getByRole("button", { name: "Graph settings" }).click()
     await expect(page.locator(".graph-settings-picker")).toBeVisible()

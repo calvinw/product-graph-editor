@@ -49,15 +49,16 @@ test("Cmd+click does not open the single-node property editor", async ({ page })
   await nodes(page).nth(0).click({ modifiers: ["ControlOrMeta"] })
   await nodes(page).nth(1).click({ modifiers: ["ControlOrMeta"] })
   await expect(selected(page)).toHaveCount(2)
-  await expect(page.locator(".inspector")).toBeHidden()
+  // The docked editor stays on the model summary rather than one node.
+  await expect(page.getByText("Select an activity to see its details.")).toBeVisible()
 })
 
 test("Cmd+clicking after a plain click closes the editor rather than leaving it stale", async ({ page }) => {
   await nodes(page).nth(0).click()
-  await expect(page.locator(".inspector")).toBeVisible()
+  await expect(page.locator(".inspector h2")).not.toHaveText("Copy of Jacket")
 
   await nodes(page).nth(1).click({ modifiers: ["ControlOrMeta"] })
-  await expect(page.locator(".inspector")).toBeHidden()
+  await expect(page.getByText("Select an activity to see its details.")).toBeVisible()
   await expect(selected(page)).toHaveCount(2)
 })
 
