@@ -62,10 +62,12 @@ function clampToBounds({ offset, top }: Offset, width: number, height: number, a
  */
 export function useDraggablePosition<T extends HTMLElement = HTMLDivElement>(
   storageKey: string,
-  { anchor = "left", container }: {
+  { anchor = "left", container, topLimit }: {
     anchor?: Anchor
     /** Keep the panel inside this element (e.g. the graph canvas) rather than the viewport. */
     container?: () => HTMLElement | null
+    /** Let the panel rise above the container's top, up to this viewport y (e.g. the navbar's bottom). */
+    topLimit?: () => number | null
   } = {},
 ) {
   const [stored, setStored] = useState<Offset | null>(() => storedPosition(storageKey, anchor))
@@ -75,11 +77,13 @@ export function useDraggablePosition<T extends HTMLElement = HTMLDivElement>(
 
   const containerRef = useRef(container)
   containerRef.current = container
+  const topLimitRef = useRef(topLimit)
+  topLimitRef.current = topLimit
   const bounds = useCallback((): Bounds => {
     const element = containerRef.current?.()
-    if (!element) return viewportBounds()
-    const rect = element.getBoundingClientRect()
-    return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom }
+    const rect = element ? element.getBoundingClientRect() : viewportBounds()
+    const top = topLimitRef.current?.() ?? rect.top
+    return { left: rect.left, top: Math.min(top, rect.top), right: rect.right, bottom: rect.bottom }
   }, [])
 
   const reconcile = useCallback(() => {

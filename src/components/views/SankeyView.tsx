@@ -46,6 +46,8 @@ function SankeyProcessNode({ data }: NodeProps<Node<SankeyProcessNodeData>>) {
 }
 const sankeyNodeTypes = { sankeyProcess: SankeyProcessNode }
 const sankeyViewElement = () => document.querySelector<HTMLElement>(".sankey-view")
+// The tool bar may be dragged up into the gap between the Sankey view and the navbar.
+const navbarBottom = () => document.querySelector<HTMLElement>(".topbar")?.getBoundingClientRect().bottom ?? null
 
 export function SankeyView({ result, loadContributionGraphs }: {
   result: LcaResult
@@ -64,7 +66,7 @@ export function SankeyView({ result, loadContributionGraphs }: {
   const [connectionStyle, setConnectionStyle] = useState<"curved" | "straight" | "step">("curved")
   const [selectedProcessId, setSelectedProcessId] = useState<string | null>(null)
   const [selectMode, setSelectMode] = useState(false)
-  const { position: toolbarPosition, startDrag: startToolbarDrag, reset: resetToolbar, panelRef: sankeyToolbarRef } = useDraggablePosition("product-graph-editor:sankey-toolbar-position-horizontal", { container: sankeyViewElement })
+  const { position: toolbarPosition, startDrag: startToolbarDrag, reset: resetToolbar, panelRef: sankeyToolbarRef } = useDraggablePosition("product-graph-editor:sankey-toolbar-position-horizontal", { container: sankeyViewElement, topLimit: navbarBottom })
   const instanceRef = useRef<ReactFlowInstance<Node<SankeyProcessNodeData>, Edge> | null>(null)
   const [renderedNodes, setRenderedNodes, onSankeyNodesChange] = useNodesState<Node<SankeyProcessNodeData>>([])
   const [renderedEdges, setRenderedEdges, onSankeyEdgesChange] = useEdgesState<Edge>([])

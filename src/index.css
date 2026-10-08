@@ -414,8 +414,11 @@ html[data-theme="light"] .history-diff-stat .is-removed, html[data-theme="light"
    default. Dragging the grip moves it (the dragged position is fixed and
    resets the centring transform inline). */
 .graph-toolbar.is-horizontal { grid-auto-flow: column; align-items: center; left: 50%; transform: translateX(-50%); }
-.graph-toolbar.is-horizontal .toolbar-grip { width: 14px; height: 30px; margin: 0; }
-.graph-toolbar.is-horizontal .toolbar-group { grid-auto-flow: column; padding: 0 0 0 6px; border-bottom: 0; border-left: 1px solid var(--floating-border); }
+.graph-toolbar.is-horizontal { gap: 4px; padding: 4px; }
+.graph-toolbar.is-horizontal .toolbar-grip { width: 14px; height: 28px; margin: 0; }
+.graph-toolbar.is-horizontal .toolbar-group { grid-auto-flow: column; gap: 2px; padding: 0 0 0 4px; border-bottom: 0; border-left: 1px solid var(--floating-border); }
+.graph-toolbar.is-horizontal .toolbar-group button { width: 28px; height: 28px; }
+.graph-toolbar.is-horizontal .toolbar-group button svg { width: 16px; height: 16px; }
 .toolbar-group:last-child { padding-bottom: 0; border-bottom: 0; }
 .graph-mode-toolbar { position: absolute; z-index: 3; left: 24px; bottom: 48px; display: flex; gap: 7px; padding: 5px; border: 1px solid var(--floating-border); border-radius: 10px; background: var(--floating-background); box-shadow: var(--floating-shadow); backdrop-filter: blur(10px); }
 .graph-action { gap: 7px; height: 32px; padding: 0 10px; color: var(--graph-action-foreground); font-size: 11px; }
@@ -526,7 +529,7 @@ h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; font-weight: 620; }
 .tree-toggle-spacer { display: inline-block; width: 18px; }.clickable-process { cursor: pointer; }.clickable-process:hover td { background: #272a2e; }
 .rate-value { color: #fff; font-weight: 750; }
 .result-bar { display: inline-flex; justify-content: flex-start; width: 56px; height: 7px; margin-right: 7px; vertical-align: middle; background: #24272b; }.result-bar i { display: block; min-width: 2px; height: 100%; background: #ef304f; }.result-bar i.negative { background: #38bdf8; }
-.sankey-chart-picker { position: absolute; z-index: 5; top: 132px; left: 50%; transform: translateX(-50%); width: 360px; padding: 7px; border: 1px solid #2c3037; border-radius: 10px; background: rgba(17,19,24,.97); box-shadow: 0 12px 32px rgba(0,0,0,.34); backdrop-filter: blur(10px); }
+.sankey-chart-picker { position: absolute; z-index: 5; top: 122px; left: 50%; transform: translateX(-50%); width: 360px; padding: 7px; border: 1px solid #2c3037; border-radius: 10px; background: rgba(17,19,24,.97); box-shadow: 0 12px 32px rgba(0,0,0,.34); backdrop-filter: blur(10px); }
 .sankey-picker-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px; border-radius: 7px; background: var(--segmented-background); }
 .sankey-picker-tabs button { display: flex; align-items: center; justify-content: center; gap: 7px; height: 30px; border: 0; border-radius: 5px; color: #747b86; background: transparent; font-size: 11px; cursor: pointer; }
 .sankey-picker-tabs button[data-state="on"] { color: var(--control-active-foreground); background: var(--control-active-background); box-shadow: 0 1px 4px rgba(0,0,0,.28); }
@@ -827,7 +830,7 @@ html[data-theme="light"] .process-flow-table .empty-row td { color: #6b7280; }
   .yaml-editor, .results-empty, .results-panel { inset: 22px 28px 28px; }
   .inventory-view, .impact-view, .process-results-view, .contribution-view, .sankey-view { inset: 22px 28px 28px; border-radius: 12px; }
   .sankey-toolbar { top: 18px; }
-  .sankey-chart-picker { top: 68px; }
+  .sankey-chart-picker { top: 58px; }
 }
 /* Desktop widths where the single-row bar runs short (#79). Each step frees
    space without hiding anything: the status keeps its pulsing dot and
@@ -878,7 +881,7 @@ html[data-theme="light"] .process-flow-table .empty-row td { color: #6b7280; }
   .view-tabs button { min-height: 32px; }
   .graph-toolbar { top: 104px; }
   .graph-settings-picker { width: min(330px, calc(100vw - 82px)); max-height: calc(100vh - 124px); overflow-y: auto; }
-  .sankey-chart-picker { top: 154px; left: 50%; width: calc(100vw - 20px); max-height: calc(100vh - 124px); overflow-y: auto; }
+  .sankey-chart-picker { top: 144px; left: 50%; width: calc(100vw - 20px); max-height: calc(100vh - 124px); overflow-y: auto; }
   .sankey-toolbar { top: 104px; }
   .yaml-editor { inset: 104px 10px 10px; }
   .yaml-editor-head, .yaml-editor-foot { align-items: stretch; flex-direction: column; gap: 9px; padding: 11px 12px; }
