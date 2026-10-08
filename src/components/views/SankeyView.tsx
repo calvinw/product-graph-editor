@@ -5,7 +5,7 @@ import {
   ReactFlow, Background, BackgroundVariant, Handle, Position, SelectionMode, getNodesBounds,
   useNodesState, useEdgesState, type Edge, type Node, type NodeProps, type ReactFlowInstance,
 } from "@xyflow/react"
-import { BarChart3, Component, GripHorizontal, LayoutGrid, Minus, MousePointer2, Plus, Scan, Settings2 } from "lucide-react"
+import { BarChart3, Component, GripVertical, LayoutGrid, Minus, MousePointer2, Plus, Scan, Settings2 } from "lucide-react"
 import { AppSelect, ToolButton } from "@/components/common/AppControls"
 import { useDraggablePosition } from "@/hooks/useDraggablePosition"
 import { NumberStepper } from "@/components/NumberStepper"
@@ -45,6 +45,7 @@ function SankeyProcessNode({ data }: NodeProps<Node<SankeyProcessNodeData>>) {
   </div>
 }
 const sankeyNodeTypes = { sankeyProcess: SankeyProcessNode }
+const sankeyViewElement = () => document.querySelector<HTMLElement>(".sankey-view")
 
 export function SankeyView({ result, loadContributionGraphs }: {
   result: LcaResult
@@ -63,7 +64,7 @@ export function SankeyView({ result, loadContributionGraphs }: {
   const [connectionStyle, setConnectionStyle] = useState<"curved" | "straight" | "step">("curved")
   const [selectedProcessId, setSelectedProcessId] = useState<string | null>(null)
   const [selectMode, setSelectMode] = useState(false)
-  const { position: toolbarPosition, startDrag: startToolbarDrag, panelRef: sankeyToolbarRef } = useDraggablePosition("product-graph-editor:sankey-toolbar-position")
+  const { position: toolbarPosition, startDrag: startToolbarDrag, reset: resetToolbar, panelRef: sankeyToolbarRef } = useDraggablePosition("product-graph-editor:sankey-toolbar-position-horizontal", { container: sankeyViewElement })
   const instanceRef = useRef<ReactFlowInstance<Node<SankeyProcessNodeData>, Edge> | null>(null)
   const [renderedNodes, setRenderedNodes, onSankeyNodesChange] = useNodesState<Node<SankeyProcessNodeData>>([])
   const [renderedEdges, setRenderedEdges, onSankeyEdgesChange] = useEdgesState<Edge>([])
@@ -470,8 +471,8 @@ export function SankeyView({ result, loadContributionGraphs }: {
         proOptions={{ hideAttribution: true }}
       ><Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#242831" /></ReactFlow> : <div className="sankey-empty"><strong>No contributions for this selection</strong><p>Choose another flow or impact category.</p></div>}
     </div>
-    {totalMagnitude && !impactGraphPending ? <div ref={sankeyToolbarRef} className="graph-toolbar sankey-toolbar" data-draggable-panel aria-label="Sankey graph tools" style={toolbarPosition ? { position: "fixed", left: toolbarPosition.left, top: toolbarPosition.top } : undefined}>
-      <button type="button" className="toolbar-grip" aria-label="Move Sankey toolbar" onPointerDown={startToolbarDrag}><GripHorizontal size={14} /></button>
+    {totalMagnitude && !impactGraphPending ? <div ref={sankeyToolbarRef} className="graph-toolbar sankey-toolbar is-horizontal" data-draggable-panel aria-label="Sankey graph tools" style={toolbarPosition ? { position: "fixed", left: toolbarPosition.left, top: toolbarPosition.top, transform: "none" } : undefined}>
+      <button type="button" className="toolbar-grip" aria-label="Move Sankey toolbar" title="Drag to move. Double-click to centre." onPointerDown={startToolbarDrag} onDoubleClick={resetToolbar}><GripVertical size={14} /></button>
       <div className="toolbar-group"><ToolButton label="Chart settings" onClick={() => setChartPickerOpen((open) => !open)}><Settings2 size={18} /></ToolButton></div>
       <div className="toolbar-group"><ToolButton label="Select nodes (hold Alt and drag to zoom to an area)" pressed={selectMode} onClick={() => setSelectMode((current) => !current)}><MousePointer2 size={18} /></ToolButton></div>
       <div className="toolbar-group">
