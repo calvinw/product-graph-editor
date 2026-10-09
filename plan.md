@@ -82,20 +82,28 @@ less code to maintain.
 - **Chat opens over the page from the right**, at most 420px wide. It no longer
   splits the screen, so the header and the view underneath keep their size
   (fixes 7). Close it from its own button.
-- **The Property Editor docks on the left like desktop**, about 280px wide,
-  closable to a folder tab. The graph and its toolbar use the space to its right,
-  so nothing is covered (fixes 3).
-- **The Chat and Properties tabs sit in the page margin**, as on desktop, not on
-  top of the content (fixes 2).
+- **The Property Editor slides in over the graph from the left**, about 300px
+  wide, when an activity is selected. The graph keeps its full width underneath.
+  While the panel is open, the graph toolbar moves into the part of the graph the
+  panel leaves uncovered, so it stays clickable (fixes 3). Tapping another card
+  shows that activity. The panel closes from its own button, with Escape, or when
+  you switch view.
+- **The Chat tab sits in the page margin**, as on desktop, not on top of the
+  content (fixes 2). The Properties tab is not needed, since the panel opens when
+  an activity is selected.
 - **The Sankey summary card collapses** to a small chip showing the category and
   total. Tapping it opens the full card (fixes 4).
 
 ### Phone (620px and below): built for one hand
 
-- **Top bar:** logo, model name, File, settings and avatar, in one slim row.
-- **Bottom tab bar** with four tabs: **Edit, Graph, Results, Chat.** Results opens
-  a list of the 6 result views (the same list as the desktop Results menu).
-  Every view is one or two taps away and nothing is cut off (fixes 1, 8). Chat stays full screen.
+- **Top bar:** one slim row with a **menu button** (☰), the current view's name,
+  the model name, File and the avatar. The second header card and the tab row go
+  away, leaving the rest of the screen for the view (fixes 1).
+- **The menu button opens a panel listing every view:** Edit, Graph, then the 6
+  result views (the same list as the desktop Results menu), then Chat and
+  Settings. The current view is ticked. Every view is two taps away and nothing
+  is cut off (fixes 8). Chat stays full screen, and the right-edge Chat tab is
+  removed on phone (fixes 2).
 - **Activity details open as a bottom sheet.** It starts at half height and can be
   dragged up to full height. The graph and toolbar above it stay usable, and
   tapping another card switches the sheet to that activity (fixes 3, 9).
@@ -121,11 +129,12 @@ less code to maintain.
 Each stage is checked in a browser at 375, 768 and 1440px, then committed.
 
 1. **Header.** Tablet gets the single desktop-style bar with the Results menu.
-   Phone gets the slim top bar and the bottom tab bar. Log out moves into the
-   avatar menu. The Chat and Properties tabs move into the margin.
+   Phone gets the slim top bar and the menu button with its view list. Log out
+   moves into the avatar menu. The tablet Chat tab moves into the margin.
 2. **Chat.** Opens over the page on tablet instead of splitting it. Phone is
    unchanged.
-3. **Property Editor.** Docked and closable on tablet; bottom sheet on phone.
+3. **Property Editor.** Slides over the graph on tablet, with the toolbar moving
+   clear of it; bottom sheet on phone.
 4. **Graph on phone.** Vertical by default, slimmer toolbar with the
    Structure/Scaled toggle, graph settings as a bottom sheet.
 5. **Results and analysis views.** Content starts below the header, controls
@@ -140,7 +149,8 @@ Run with `npm run test:responsive` (phone, tablet and desktop) and
 
 New checks at phone and tablet:
 
-- Every view can be opened by tapping, and its control is fully on screen.
+- Every view can be opened by tapping (from the menu button on phone), and its
+  control is fully on screen.
 - The header never overlaps the view below it, with chat open or closed.
 - Selecting an activity leaves the graph toolbar and Graph settings clickable.
 - Every popover, menu and sheet stays inside the screen.
@@ -151,15 +161,11 @@ Existing tests that check the 8-tab row or the side-by-side chat at tablet size
 need rewriting. Any screenshot that changes is looked at before its baseline is
 updated, and desktop screenshots should not change at all.
 
-## Questions to settle before starting
+## Decisions (8 October 2026)
 
-1. **Phone navigation:** bottom tab bar (this plan) or a menu button in the top
-   bar? The tab bar is quicker to use; the menu leaves more room for the graph.
-2. **Tablet Property Editor:** docked like desktop (this plan) or an overlay that
-   slides in? Docked never covers the graph but leaves about 490px for it at
-   768px wide.
-3. **Phone graph direction:** is switching to top-to-bottom on phone acceptable,
-   or should it keep the model's own direction?
+1. **Phone navigation:** a menu button in the top bar, not a bottom tab bar.
+2. **Tablet Property Editor:** slides in over the graph, not docked.
+3. **Phone graph direction:** the graph runs top to bottom on phone.
 
 ## Not in this plan
 
